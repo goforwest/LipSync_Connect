@@ -72,13 +72,11 @@ export function applyModelFeatures(model) {
 import { CMD_MODE_TIMEOUT, CMD_RESET_TIMEOUT } from '../config/constants.js';
 import { showConfirm } from '../ui/formatting.js';
 import { showNotification } from '../ui/notification.js';
-import { setCmdButtons } from '../ui/connection-ui.js';
 
 import { log } from './log.js';
 import { sendCommand } from '../serial/commands.js';
-import { disconnect } from '../serial/connection.js';
 
-export function bindModeSwitch(guard) {
+export function bindModeSwitch(guard, disconnect, setCmdButtons) {
   $('btnSetOperatingMode').addEventListener(
     'click',
     guard(async () => {

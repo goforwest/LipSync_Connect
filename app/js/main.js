@@ -24,7 +24,7 @@ import {
   clampInput,
   step,
 } from './services/settings-service.js';
-import { updateConnectionGating, hideGuide } from './ui/connection-ui.js';
+import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
 import { openSectionById, closeCurrentSection, getOpenSection } from './ui/sections.js';
 import { guard } from './ui/guard.js';
@@ -271,7 +271,7 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnRefreshAll').addEventListener('click', guard(loadDeviceInfo));
     $('btnRunDiagnostics').addEventListener('click', guard(runDiagnostics));
     bindDeviceOps(guard);
-    bindModeSwitch(guard);
+    bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
     $('btnSetDebug').addEventListener(
       'click',
