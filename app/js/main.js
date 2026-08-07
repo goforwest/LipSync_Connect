@@ -33,12 +33,11 @@ import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { runDiagnostics } from './services/health.js';
 import { initSettings } from './ui/theme.js';
 
-// Gauge-mark updates on sip/puff input are debounced (100ms) — gauge.js owns
-// the marks; this binding exists until those listeners move with the settings
-// wiring extraction.
+// Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
+// plotting/gauge.js, and this binding calls them on input edits.
 const debouncedGaugeMarks = debounce(gaugeMarks, 100);
 
-// Re-export so tests reading these from app.js keep working during the migration.
+// Re-exports so tests can import behavior from the composition root.
 export { VALUE_LABELS } from './config/constants.js';
 export { $, $$ } from './ui/dom.js';
 export { announceStatus } from './ui/a11y.js';
@@ -55,9 +54,8 @@ window.addEventListener('unhandledrejection', (e) => {
   log('Unhandled promise: ' + (e.reason?.message ?? e.reason ?? 'unknown'), 'log-err');
 });
 // ------------------------- Serial layer -------------------------
-// The physical link, waiters, and command queue are centralized in
-// js/serial/session.js; app.js aliases the mutable fields it touches most so
-// the diff of this extraction stays small and reviewable.
+// The physical link, waiters, and command queue live in serial/session.js;
+// commands.js owns sendCommand/waitLine and device.js owns handleLine.
 
 // Read-activity watchdog + encoder live in serial/commands.js.
 
@@ -78,7 +76,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // Value readouts (setValue / placeholder loading state) live in ui/values.js.
 
-// ---- Visualization helpers ----// ---- Visualization helpers ----
+// ---- Visualization helpers ----
 // Firmware's real minimum corner magnitude is 3 (CONF_JOY_CALIB_CORNER_MIN),
 // NOT 1 — and any corner below it is *silently replaced with the ±13 default*
 // while still printing SUCCESS. WEAK_CORNER_THRESHOLD / JOY_CORNER_DEFAULT let
@@ -93,7 +91,7 @@ window.addEventListener('unhandledrejection', (e) => {
 // Operating/communication mode state lives in state/modes.js; preset sync +
 // BT status display live in services/mode-switch.js.
 
-// ---- Calibration step indicator ----// ---- Calibration step indicator ----
+// ---- Calibration step indicator ----
 
 // Connect/disconnect/readLoop live in serial/connection.js; line dispatch
 // (handleLine/applyDeviceResponse) live in serial/device.js.
@@ -108,8 +106,8 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // ------------------------- Startup configuration -------------------------
 // Endpoint renderers populate the dispatch registry; connection + settings
-// services get their cross-module hooks wired here (this ordering is why
-// app.js remains the composition root).
+// services get their cross-module hooks wired here (main.js is the composition
+// root for this ordering).
 import './serial/endpoints.js';
 import { configureConnection } from './serial/connection.js';
 import { configureSettingsListeners } from './services/settings-service.js';
@@ -459,7 +457,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ---- ESM migration export surface ----
+// ---- Re-export surface ----
 // Re-exports from the owning modules so tests import behavior, not plumbing.
 // Attach/detach for simulated hardware is the named seam in
 // serial/session.js (injectSerialPort/detachSerialPort); the test-only lock

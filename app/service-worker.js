@@ -88,8 +88,20 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  const network = fetch(e.request)
-    .then((response) => cacheResponse(e.request, response))
-    .catch(() => null);
-  e.respondWith(caches.match(e.request).then((hit) => hit || network.then((response) => response || Response.error())));
+  // Stale-while-revalidate for static assets: serve the cached copy instantly,
+  // then refresh it from the network in the background when online. This keeps
+  // the app usable offline AND propagates deploys to returning users without
+  // anyone having to remember to bump the CACHE constant for every change —
+  // the constant is still a hard-invalidate lever for breaking changes.
+  e.respondWith(
+    caches.match(e.request).then(async (hit) => {
+      const refresh = fetch(e.request)
+        .then((response) => {
+          if (response && response.ok) cacheResponse(e.request, response);
+          return response;
+        })
+        .catch(() => null);
+      return hit || refresh.then((response) => response || Response.error());
+    }),
+  );
 });

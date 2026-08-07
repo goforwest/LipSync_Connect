@@ -48,3 +48,18 @@ test('does not over-replace hex tokens that merely contain the id', () => {
   assert.ok(out.includes('1000000'));
   assert.equal(out.match(/000000/g).length, 1); // only the one inside 1000000
 });
+
+test('id with regex metacharacters replaces cleanly without throwing', () => {
+  setLiveId('AB-CD-EF-12');
+  const out = redactLogIdentifiers('Paired with AB-CD-EF-12 (id).\nphone 123-456-7890');
+  assert.ok(!out.includes('AB-CD-EF-12'));
+  assert.ok(out.includes('[device-id]'));
+  assert.ok(out.includes('123-456-7890'), 'unrelated hyphenated number must not be touched');
+});
+
+test('id with a dot is not used as a wildcard', () => {
+  setLiveId('a1b2.c3d4');
+  const out = redactLogIdentifiers('id a1b2Xc3d4 stays\nid a1b2.c3d4 here');
+  assert.ok(out.includes('a1b2Xc3d4'), 'dot must be literal, not match any char');
+  assert.ok(out.includes('[device-id]'));
+});

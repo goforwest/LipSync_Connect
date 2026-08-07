@@ -9,6 +9,11 @@ import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showNotification } from '../ui/notification.js';
 
+// Device identifiers are interpolated into a RegExp below; escape regex
+// metacharacters so a non-hex id (e.g. "AB-CD-EF-12") can't throw or widen
+// the match. RegExp.escape() is not available in this project's browsers yet.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export function redactLogIdentifiers(text) {
   // Collect every identifier this session has seen: the live UI value plus
   // every ID response recorded in the log itself. Relying on the live value
@@ -37,7 +42,7 @@ export function redactLogIdentifiers(text) {
     redacted = redacted.replaceAll('LS_' + id, 'LS_[device-id]');
     // The bare id is replaced only at hex boundaries: an id like "000000" must
     // not be scrubbed out of an unrelated longer token such as "1000000".
-    redacted = redacted.replace(new RegExp('(?<![0-9A-Fa-f])' + id + '(?![0-9A-Fa-f])', 'g'), '[device-id]');
+    redacted = redacted.replace(new RegExp('(?<![0-9A-Fa-f])' + escapeRe(id) + '(?![0-9A-Fa-f])', 'g'), '[device-id]');
   }
   return redacted;
 }
