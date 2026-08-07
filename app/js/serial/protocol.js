@@ -2,7 +2,7 @@
 // `SUCCESS|MANUAL|FAIL`,<n>:<CMD>,<n>[:<value>] — no imports, no state.
 
 export function parseResponse(line) {
-  const m = line.match(/^(SUCCESS|MANUAL|FAIL),(\d+):(SETTINGS|DEBUG,\d+|[A-Z]{2},\d+)(?::(.*))?$/);
+  const m = line.match(/^(SUCCESS|MANUAL|FAIL),(\d+):(SETTINGS|DEBUG,\d+|[A-Z]{1,4},\d+)(?::(.*))?$/);
   if (!m) return null;
   return { type: m[1], ok: m[1] !== 'FAIL', num: parseInt(m[2], 10), cmd: m[3], value: m[4] ?? null };
 }
@@ -10,7 +10,7 @@ export function parseResponse(line) {
 export const ECHO_WRITE_ENDPOINTS = new Set(['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'DM', 'OM', 'CM']);
 
 export function commandMatchDetails(cmd) {
-  const m = cmd.match(/^([A-Z]{2}),(\d+)(?::(.*))?$/);
+  const m = cmd.match(/^([A-Z]{1,4}),(\d+)(?::(.*))?$/);
   if (!m) return { expectedCommand: cmd.slice(0, 4), expectedValue: null, shouldEchoValue: false };
   return {
     expectedCommand: `${m[1]},${m[2]}`,

@@ -97,11 +97,26 @@ test('parseResponse: rejects concatenated desync line', () => {
 test('parseResponse: rejects unrecognized text', () => {
   assert.equal(parseResponse('garbage line'), null);
 });
-test('parseResponse: rejects unknown 2+ letter prefix (4 letters, not in table)', () => {
-  assert.equal(parseResponse('SUCCESS,0:XXXX,0:1'), null);
+test('parseResponse: well-formed unknown endpoint parses for downstream classification', () => {
+  // 4-letter endpoint is not in the app's command table, but it IS well-formed
+  // wire format — parseResponse accepts it so device.js can classify it as a
+  // rate-limited "unrecognized response" instead of a corrupt-drop.
+  assert.deepEqual(parseResponse('SUCCESS,0:XXXX,0:1'), {
+    type: 'SUCCESS',
+    ok: true,
+    num: 0,
+    cmd: 'XXXX,0',
+    value: '1',
+  });
 });
-test('parseResponse: rejects 3-letter endpoint (not firmware format)', () => {
-  assert.equal(parseResponse('SUCCESS,0:ABC,0:1'), null);
+test('parseResponse: 3-letter endpoint parses as an unrecognized response', () => {
+  assert.deepEqual(parseResponse('SUCCESS,0:ABC,0:1'), {
+    type: 'SUCCESS',
+    ok: true,
+    num: 0,
+    cmd: 'ABC,0',
+    value: '1',
+  });
 });
 test('parseResponse: rejects missing sequence number', () => {
   assert.equal(parseResponse('SUCCESS,:MN,0:1'), null);

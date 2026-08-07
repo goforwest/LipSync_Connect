@@ -143,6 +143,9 @@ export function initSettings() {
       t.colors = t.colors || {};
       t.colors[cssVar] = input.value;
       saveTheme(t);
+      // Live-recheck contrast as the picker drags — the latch in the guard
+      // keeps the warning from spamming a notification per input event.
+      warnLowContrastTheme();
     });
   });
   const resetBtn = $('btnResetColors');

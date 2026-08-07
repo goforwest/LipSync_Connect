@@ -9,7 +9,7 @@ import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showNotification } from '../ui/notification.js';
 
-function redactLogIdentifiers(text) {
+export function redactLogIdentifiers(text) {
   // Collect every identifier this session has seen: the live UI value plus
   // every ID response recorded in the log itself. Relying on the live value
   // alone leaks the raw ID when the field is in a failed/reset state
@@ -26,16 +26,18 @@ function redactLogIdentifiers(text) {
     if (!placeholders.has(found)) ids.add(found);
   }
   let redacted = text;
-  for (const id of ids) {
+  // Longest ids first: when one id is a prefix of another, the longer match
+  // must win so the shorter replacement can't corrupt the tail of the longer.
+  const sorted = [...ids].sort((a, b) => b.length - a.length);
+  for (const id of sorted) {
     // Watch both raw forms: the bare identifier and the BLE name derived from
     // it as "LS_<id>" (mode-switch logs the latter verbatim, e.g. the pairing
     // instructions). Scrub the longest form first so "LS_<id>" collapses to
     // "LS_[device-id]" in one pass instead of leaving "LS_…" orphaned.
-    redacted = redacted
-      .split('LS_' + id)
-      .join('LS_[device-id]')
-      .split(id)
-      .join('[device-id]');
+    redacted = redacted.replaceAll('LS_' + id, 'LS_[device-id]');
+    // The bare id is replaced only at hex boundaries: an id like "000000" must
+    // not be scrubbed out of an unrelated longer token such as "1000000".
+    redacted = redacted.replace(new RegExp('(?<![0-9A-Fa-f])' + id + '(?![0-9A-Fa-f])', 'g'), '[device-id]');
   }
   return redacted;
 }

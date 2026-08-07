@@ -8,6 +8,7 @@ function usbSerialShim() {
       this.device = device;
       this.readable = null;
       this.writable = null;
+      this.claimedInterfaces = [];
     }
     async open({ baudRate }) {
       const d = this.device;
@@ -17,6 +18,7 @@ function usbSerialShim() {
         data = null;
       for (const iface of d.configuration.interfaces) {
         const alt = iface.alternates[0];
+        if (!alt) continue;
         if (alt.interfaceClass === 2 && !ctrl) ctrl = iface;
         if (alt.interfaceClass === 10 && !data) data = iface;
       }
@@ -24,11 +26,13 @@ function usbSerialShim() {
       if (ctrl) {
         try {
           await d.claimInterface(ctrl.interfaceNumber);
+          this.claimedInterfaces.push(ctrl.interfaceNumber);
         } catch (e) {
           log('Could not claim USB control interface (non-fatal): ' + e.message, 'log-info');
         }
       }
       await d.claimInterface(data.interfaceNumber);
+      this.claimedInterfaces.push(data.interfaceNumber);
       const endpoints = data.alternates[0].endpoints;
       const epIn = endpoints.find((e) => e.direction === 'in').endpointNumber;
       const epOut = endpoints.find((e) => e.direction === 'out').endpointNumber;
@@ -59,6 +63,15 @@ function usbSerialShim() {
       this.writable = new WritableStream({ write: (chunk) => d.transferOut(epOut, chunk) });
     }
     async close() {
+      // Release claimed interfaces first: leaving them claimed can wedge a
+      // re-connect attempt in the same page session (Android Chrome). Both
+      // release and close are best-effort — the browser also cleans up on
+      // device.close(), so a failed release must not abort the close.
+      for (const n of this.claimedInterfaces) {
+        try {
+          await this.device.releaseInterface(n);
+        } catch {}
+      }
       try {
         await this.device.close();
       } catch {}

@@ -14,7 +14,7 @@
     "format": "prettier --config .prettierrc --write ../app/js/ ../app/styles.css ../app/index.html",
     "format:check": "prettier --config .prettierrc --check ../app/js/ ../app/styles.css ../app/index.html",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node ../tests/wire-format.test.mjs && node ../tests/plot-pruning.test.mjs && node ../tests/debug-diag.test.mjs && node ../tests/debug-stream.test.mjs && node ../tests/flows.test.mjs && node ../tests/protocol.test.mjs && node ../tests/gating.test.mjs && node ../tests/precache.test.mjs",
+    "test": "node ../tests/wire-format.test.mjs && node ../tests/plot-pruning.test.mjs && node ../tests/debug-diag.test.mjs && node ../tests/debug-stream.test.mjs && node ../tests/flows.test.mjs && node ../tests/protocol.test.mjs && node ../tests/gating.test.mjs && node ../tests/precache.test.mjs && node ../tests/log-redact.test.mjs",
     "test:e2e": "node ../tests/e2e/precache-real-browser.test.mjs"
   },
   "devDependencies": {
