@@ -297,35 +297,42 @@ window.addEventListener('DOMContentLoaded', () => {
 
     $('btnSetSip').addEventListener(
       'click',
-      guard(async () => {
-        $('sapError').textContent = '';
-        clampInput('sipInput', 2, 149.99, 'sipVal');
-        try {
-          const v = requireNumber('sipInput', 2, 149.99, 'Sip threshold');
-          const r = await sendCommand('ST,1:' + fmtApiFloat(v));
-          setValue('sipVal', r.value ?? v);
-          recalcGaugeRange();
-        } catch (e) {
-          $('sapError').textContent = e.message;
-          throw e;
-        }
-      }),
+      guard(
+        async () => {
+          $('sapError').textContent = '';
+          clampInput('sipInput', 2, 149.99, 'sipVal');
+          try {
+            const v = requireNumber('sipInput', 2, 149.99, 'Sip threshold');
+            const r = await sendCommand('ST,1:' + fmtApiFloat(v));
+            setValue('sipVal', r.value ?? v);
+            recalcGaugeRange();
+          } catch (e) {
+            $('sapError').textContent = e.message;
+            throw e;
+          }
+        },
+        // Error is shown inline in #sapError; skip the redundant notification.
+        { quiet: true },
+      ),
     );
     $('btnSetPuff').addEventListener(
       'click',
-      guard(async () => {
-        $('sapError').textContent = '';
-        clampInput('puffInput', 2, 149.99, 'puffVal');
-        try {
-          const v = requireNumber('puffInput', 2, 149.99, 'Puff threshold');
-          const r = await sendCommand('PT,1:' + fmtApiFloat(v));
-          setValue('puffVal', r.value ?? v);
-          recalcGaugeRange();
-        } catch (e) {
-          $('sapError').textContent = e.message;
-          throw e;
-        }
-      }),
+      guard(
+        async () => {
+          $('sapError').textContent = '';
+          clampInput('puffInput', 2, 149.99, 'puffVal');
+          try {
+            const v = requireNumber('puffInput', 2, 149.99, 'Puff threshold');
+            const r = await sendCommand('PT,1:' + fmtApiFloat(v));
+            setValue('puffVal', r.value ?? v);
+            recalcGaugeRange();
+          } catch (e) {
+            $('sapError').textContent = e.message;
+            throw e;
+          }
+        },
+        { quiet: true },
+      ),
     );
     $('sipInput').addEventListener('blur', () => clampInput('sipInput', 2, 149.99, 'sipVal'));
     $('puffInput').addEventListener('blur', () => clampInput('puffInput', 2, 149.99, 'puffVal'));
@@ -352,25 +359,32 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnReadCalibration').addEventListener('click', guard(readCalibration));
     $('btnSetInnerDeadzone').addEventListener(
       'click',
-      guard(async () => {
-        try {
-          await setDeadzone('inner');
-        } catch (e) {
-          $('formError').textContent = e.message;
-          throw e;
-        }
-      }),
+      guard(
+        async () => {
+          try {
+            await setDeadzone('inner');
+          } catch (e) {
+            $('formError').textContent = e.message;
+            throw e;
+          }
+        },
+        // Error is shown inline in #formError; skip the redundant notification.
+        { quiet: true },
+      ),
     );
     $('btnSetOuterDeadzone').addEventListener(
       'click',
-      guard(async () => {
-        try {
-          await setDeadzone('outer');
-        } catch (e) {
-          $('formError').textContent = e.message;
-          throw e;
-        }
-      }),
+      guard(
+        async () => {
+          try {
+            await setDeadzone('outer');
+          } catch (e) {
+            $('formError').textContent = e.message;
+            throw e;
+          }
+        },
+        { quiet: true },
+      ),
     );
     $('btnSetSound').addEventListener(
       'click',

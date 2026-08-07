@@ -46,3 +46,27 @@ export const noisyLineLog = (() => {
     }
   };
 })();
+
+// Rate-limited logger for well-formed responses that parse but map to no known
+// endpoint (firmware gained an endpoint the app doesn't render yet). In
+// production this stays an info-level note so a chatty firmware can't flood the
+// log; dev-mode still logs every line loudly (see serial/device.js).
+export const unrecognizedResponseLog = (() => {
+  let count = 0;
+  let lastAt = 0;
+  return (cmd) => {
+    const now = Date.now();
+    if (now - lastAt >= 10000) {
+      if (count > 0)
+        log(
+          `(${count} more unrecognized response line${count === 1 ? '' : 's'} suppressed — device reports an endpoint this app does not map yet)`,
+          'log-info',
+        );
+      log('Unrecognized device response: ' + cmd, 'log-info');
+      lastAt = now;
+      count = 0;
+    } else {
+      count++;
+    }
+  };
+})();

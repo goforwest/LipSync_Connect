@@ -354,9 +354,12 @@ export function bindHubRemote(guard) {
       throw e; // the mirror is NOT advanced when the press never reached the device
     }
   };
+  // press() already surfaces failures in #hubRemoteError and the log, so the
+  // guard wrapper swallows its own duplicate notification + log line.
+  const guarded = (fn) => guard(fn, { swallow: true });
   $('btnHubOpen').addEventListener(
     'click',
-    guard(async () => {
+    guarded(async () => {
       await press('open', '1');
       // The firmware always reopens at the main menu (activateMenu → mainMenu),
       // so Open doubles as the mirror's resync affordance.
@@ -365,7 +368,7 @@ export function bindHubRemote(guard) {
   );
   $('btnHubNext').addEventListener(
     'click',
-    guard(async () => {
+    guarded(async () => {
       await press('next', '3');
       const items = screen ? (SCREENS[screen]().items ?? []) : [];
       if (items.length) {
@@ -376,7 +379,7 @@ export function bindHubRemote(guard) {
   );
   $('btnHubSelect').addEventListener(
     'click',
-    guard(async () => {
+    guarded(async () => {
       await press('select', '2');
       const items = screen ? (SCREENS[screen]().items ?? []) : [];
       items[sel]?.select?.();
@@ -384,7 +387,7 @@ export function bindHubRemote(guard) {
   );
   $('btnHubClose').addEventListener(
     'click',
-    guard(async () => {
+    guarded(async () => {
       await press('close', '4');
       closeMirror();
     }),

@@ -18,10 +18,19 @@ const SECURITY_HEADERS = {
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
   'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'serial=(self), usb=(self)',
 };
 
-const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS };
+// HSTS never makes sense over plain HTTP, and dev certs are regenerated
+// machine-locally, so scope it tightly — short TTL, no includeSubDomains.
+const HSTS_HEADERS = useHttps ? { 'Strict-Transport-Security': 'max-age=300' } : {};
+
+// Build a response header map: base headers first, security headers last so
+// they always win, plus HSTS when serving HTTPS.
+const withSecurity = (base = {}) => ({ ...base, ...SECURITY_HEADERS, ...HSTS_HEADERS });
+
+const TEXT_HEADERS = withSecurity({ 'Content-Type': 'text/plain; charset=utf-8' });
 const BLOCKED_FILE_NAMES = new Set([
   'eslint.config.js',
   'localhost.crt',
@@ -130,12 +139,14 @@ function handleRequest(req, res) {
 
   // Live-reload SSE stream — never read from disk.
   if (liveReload && file === '/__dev_reload') {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      ...SECURITY_HEADERS,
-    });
+    res.writeHead(
+      200,
+      withSecurity({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      }),
+    );
     res.write(': connected\n\n');
     reloadClients.add(res);
     req.on('close', () => reloadClients.delete(res));
@@ -144,11 +155,13 @@ function handleRequest(req, res) {
 
   // Live-reload client — external file so CSP script-src 'self' allows it.
   if (liveReload && file === '/__dev_reload.js') {
-    res.writeHead(200, {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-cache',
-      ...SECURITY_HEADERS,
-    });
+    res.writeHead(
+      200,
+      withSecurity({
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-cache',
+      }),
+    );
     res.end(RELOAD_CLIENT_JS);
     return;
   }
@@ -166,7 +179,7 @@ function handleRequest(req, res) {
       return;
     }
     const ext = path.extname(file);
-    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream', ...SECURITY_HEADERS };
+    const headers = withSecurity({ 'Content-Type': MIME[ext] || 'application/octet-stream' });
     let body = data;
     if (liveReload && ext === '.html') {
       // Inject the reload client into served HTML without touching app/ on disk.

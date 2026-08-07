@@ -3,7 +3,7 @@
 // unparseable to the corrupt-drop logger.
 import { parseResponse } from './protocol.js';
 import { serialBus } from './session.js';
-import { log, noisyLineLog } from '../services/log.js';
+import { log, noisyLineLog, unrecognizedResponseLog } from '../services/log.js';
 import { maybeUnlockSelfTest, getSelfTestState, advanceSelfTest, closeSelfTestPanel } from '../services/selftest.js';
 import { ENDPOINT_RENDERERS } from '../services/registry.js';
 import { applyDebugData, showDiagPanel, syncLiveButtons } from '../plotting/diag.js';
@@ -95,7 +95,11 @@ export function applyDeviceResponse(line) {
       typeof location === 'object' &&
       (/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname || '') ||
         (location.protocol || location.href || '').startsWith('file:'));
-    log('Unrecognized device response: ' + r.cmd, isDev ? 'log-err' : 'log-info');
+    // Dev/local: every unknown line is loud so support logs show it. Production:
+    // rate-limited info notes (a firmware that added an endpoint shouldn't be
+    // able to flood the user's log, but the response must not vanish silently).
+    if (isDev) log('Unrecognized device response: ' + r.cmd, 'log-err');
+    else unrecognizedResponseLog(r.cmd);
   }
   if (!r.cmd.startsWith('DEBUG,')) updateStepButtons();
 }

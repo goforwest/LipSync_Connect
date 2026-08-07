@@ -13,6 +13,5 @@ localhost.crt
 # coding tools files
 opencode.json
 
-# NOTE: .gitignore.public documents files that must never reach a public
-# release mirror. This .gitignore is the active ignore file Git actually reads;
-# keep them consistent.
+# NOTE: localhost.key / localhost.crt above are machine-local secrets —
+# keep them ignored here so they can never reach any remote or public mirror.
