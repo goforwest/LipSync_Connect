@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LipSync Connect</title>
+    <meta
+      name="description"
+      content="Configure and monitor your LipSync assistive device via USB serial — part of the OpenAT Joystick Project by Makers Making Change"
+    />
+    <meta name="theme-color" content="#f5f7f8" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="icon" href="./assets/icons/favicon.ico" sizes="any" />
+    <link rel="icon" href="./assets/icons/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="./assets/icons/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <meta property="og:title" content="LipSync Connect" />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:description"
+      content="Configure and monitor your LipSync assistive device via USB serial — part of the OpenAT Joystick Project by Makers Making Change"
+    />
+    <meta property="og:image" content="./assets/icons/apple-touch-icon.png" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <header id="appHeader">
+      <img src="./assets/mmc_logo.jpeg" alt="Makers Making Change logo" class="logo" />
+      <h1>LipSync Connect</h1>
+      <span class="status" id="status" role="status">Not connected</span>
+      <div id="connectStage" class="connect-stage" hidden aria-live="polite"></div>
+      <div class="header-actions">
+        <button type="button" id="btnConnect">Connect</button>
+        <button type="button" id="btnDisconnect" class="secondary" disabled>Disconnect</button>
+      </div>
+    </header>
+
+    <div id="connectionBanner" class="conn-banner" hidden role="alert">
+      <span class="conn-banner-msg" id="connBannerMsg"></span>
+      <button type="button" id="btnConnBannerRetry" class="secondary">Retry</button>
+      <button type="button" id="btnConnBannerDismiss" class="secondary" aria-label="Dismiss error banner">
+        &times;
+      </button>
+    </div>
+
+    <div id="connectGuide" hidden role="region" aria-label="Connection guide">
+      <div class="guide-backdrop"></div>
+      <div class="guide-card">
+        <p id="guideTitle">
+          Look for the LipSync in the list &mdash; it should be something like <kbd>XIAO nRF52840 Sense</kbd>
+        </p>
+        <button type="button" id="btnGuideDismiss" class="secondary">Dismiss</button>
+      </div>
+    </div>
+
+    <nav class="circle-nav" aria-label="Section navigation">
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-device"
+        aria-controls="sec-device"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" /></svg></span
+        ><span class="circle-label">Device</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-cursor"
+        aria-controls="sec-cursor"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+            <path d="M13 13l6 6" /></svg></span
+        ><span class="circle-label">Cursor</span>
+      </button>
+      <button type="button" class="circle-trigger" data-section="sec-sip" aria-controls="sec-sip" aria-expanded="false">
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"
+            /></svg></span
+        ><span class="circle-label">Sip &amp; Puff</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-joystick"
+        aria-controls="sec-joystick"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <path d="M6 12h4m-2-2v4m7-2h.01M18 10h.01" /></svg></span
+        ><span class="circle-label">Joystick</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-feedback"
+        aria-controls="sec-feedback"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" /></svg></span
+        ><span class="circle-label">Feedback</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-bluetooth"
+        aria-controls="sec-bluetooth"
+        aria-expanded="false"
+        data-feature="bluetooth"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" /></svg></span
+        ><span class="circle-label">Bluetooth</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-diagnostics"
+        aria-controls="sec-diagnostics"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" /></svg></span
+        ><span class="circle-label">Diagnostics</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-maintenance"
+        aria-controls="sec-maintenance"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+            /></svg></span
+        ><span class="circle-label">Maint.</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger active"
+        data-section="sec-help"
+        aria-controls="sec-help"
+        aria-expanded="true"
+        aria-current="page"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" /></svg></span
+        ><span class="circle-label">Help</span>
+      </button>
+      <button type="button" class="circle-trigger" data-section="sec-log" aria-controls="sec-log" aria-expanded="false">
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" /></svg></span
+        ><span class="circle-label">Log</span>
+      </button>
+    </nav>
+
+    <div id="unsupported" class="unsupported" hidden>
+      <strong>Browser not supported.</strong> LipSync Connect needs the Web Serial or WebUSB API. Use Chrome/Edge on
+      desktop, or Chrome with USB-C/OTG on Android. iOS is not supported.
+    </div>
+
+    <noscript
+      ><div class="unsupported">
+        <strong>JavaScript required.</strong> Enable JavaScript for Web Serial/WebUSB.
+      </div></noscript
+    >
+
+    <main id="main-content" tabindex="-1">
+      <section class="section-card" id="sec-device" aria-label="Device Information">
+        <h2>Device Information</h2>
+        <div class="row"><label>Model</label><span class="value" id="model">&mdash;</span></div>
+        <div class="row"><label>Firmware version</label><span class="value" id="version">&mdash;</span></div>
+        <div class="row"><label>Device ID</label><span class="value" id="deviceId">&mdash;</span></div>
+        <div class="row">
+          <label for="operatingMode">Operating mode</label><span class="value" id="opmode">&mdash;</span
+          ><select id="operatingMode">
+            <option value="mouse">Mouse</option>
+            <option value="mouse-bt" data-feature="bluetooth">Mouse (Bluetooth)</option>
+            <option value="gamepad" data-feature="gamepad">Gamepad</option></select
+          ><button type="button" id="btnSetOperatingMode" disabled>Change mode</button>
+        </div>
+        <div class="row">
+          <label>Communication mode</label><span class="value" id="commode">&mdash;</span>
+          <span class="hint row-hint"
+            >Read-only. Bluetooth Mouse keeps USB serial for settings. Gamepad is USB only.</span
+          >
+        </div>
+        <p class="hint" id="modeGuardHint" role="status"></p>
+        <div class="row">
+          <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button>
+        </div>
+        <div class="row" id="loadProgressRow" hidden>
+          <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
+          ><span id="loadProgressLabel">Loading device settings…</span>
+        </div>
+        <p class="hint">Full refresh takes ~30 seconds. Values appear as they load.</p>
+      </section>
+
+      <section class="section-card" id="sec-cursor" aria-label="Cursor">
+        <h2>Cursor</h2>
+        <div class="row">
+          <label>Cursor speed level</label>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="speed"
+            aria-label="Decrease cursor speed"
+            disabled
+          >
+            &minus;
+          </button>
+          <span class="value" id="speedVal">&mdash;</span>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="speed"
+            aria-label="Increase cursor speed"
+            disabled
+          >
+            +
+          </button>
+          <span class="meter" id="speedMeter" aria-hidden="true"></span>
+        </div>
+        <div class="row">
+          <label>Scroll level</label>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="scroll"
+            aria-label="Decrease scroll level"
+            disabled
+          >
+            &minus;
+          </button>
+          <span class="value" id="scrollVal">&mdash;</span>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="scroll"
+            aria-label="Increase scroll level"
+            disabled
+          >
+            +
+          </button>
+          <span class="meter" id="scrollMeter" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <section class="section-card" id="sec-sip" aria-label="Sip and Puff">
+        <h2>Sip &amp; Puff</h2>
+        <div class="row">
+          <label for="sipInput">Sip threshold (2–150 hPa)</label>
+          <span class="value" id="sipVal">&mdash;</span>
+          <input
+            type="number"
+            id="sipInput"
+            min="2"
+            max="149.99"
+            step="0.25"
+            inputmode="decimal"
+            autocomplete="off"
+            aria-label="New sip threshold"
+            aria-describedby="sapError"
+          />
+          <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label for="puffInput">Puff threshold (2–150 hPa)</label>
+          <span class="value" id="puffVal">&mdash;</span>
+          <input
+            type="number"
+            id="puffInput"
+            min="2"
+            max="149.99"
+            step="0.25"
+            inputmode="decimal"
+            autocomplete="off"
+            aria-label="New puff threshold"
+            aria-describedby="sapError"
+          />
+          <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
+        </div>
+        <div class="error" id="sapError" role="alert"></div>
+        <div class="row">
+          <label>Live pressure</label>
+          <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
+          <span class="value" title="Ambient pressure">Ambient: <span id="pvAmbient">&mdash;</span></span>
+          <span class="value" title="Pressure difference (sip/puff signal)"
+            >&Delta;: <span id="pvDiff">&mdash;</span></span
+          >
+        </div>
+        <div class="row">
+          <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
+          <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
+            Live view
+          </button>
+        </div>
+        <div
+          class="gauge"
+          id="mainGauge"
+          role="img"
+          aria-label="Pressure gauge: sip fills left, puff fills right, thresholds marked in red"
+        >
+          <div class="fill" id="gaugeFill"></div>
+          <div class="zero"></div>
+          <div class="mark" id="gaugeSipMark"></div>
+          <div class="mark" id="gaugePuffMark"></div>
+        </div>
+        <div class="gauge-scale">
+          <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
+        </div>
+        <p class="hint">Red markers show trigger values. Use Live view while adjusting thresholds.</p>
+      </section>
+
+      <section class="section-card" id="sec-joystick" aria-label="Joystick">
+        <h2>Joystick</h2>
+        <div class="row">
+          <label for="innerDeadzone">Inner deadzone</label><span class="value" id="innerDeadzoneVal">&mdash;</span
+          ><input
+            type="number"
+            id="innerDeadzone"
+            min="0.01"
+            max="1"
+            step="0.01"
+            inputmode="decimal"
+            autocomplete="off"
+            aria-describedby="formError"
+          /><button type="button" class="cmd" id="btnSetInnerDeadzone" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label for="outerDeadzone">Outer deadzone</label><span class="value" id="outerDeadzoneVal">&mdash;</span
+          ><input
+            type="number"
+            id="outerDeadzone"
+            min="0.01"
+            max="1"
+            step="0.01"
+            inputmode="decimal"
+            autocomplete="off"
+            aria-describedby="formError"
+          /><button type="button" class="cmd" id="btnSetOuterDeadzone" disabled>Set</button>
+        </div>
+        <p class="hint">Range 0.01–1.0. Inner &lt; outer. Rings update when set.</p>
+        <div class="error" id="formError" role="alert"></div>
+        <div class="row">
+          <label>Live joystick</label>
+          <span class="value" title="Raw magnet reading">Raw: <span id="joyRaw">&mdash;</span></span>
+          <span class="value" title="Processed output">Out: <span id="joyOut">&mdash;</span></span>
+        </div>
+        <div class="row">
+          <button type="button" class="cmd" id="btnReadJoy" disabled>Read once</button>
+          <button type="button" class="cmd secondary" id="btnLiveJoy" disabled aria-pressed="false">Live view</button>
+        </div>
+        <div class="viz-wrap">
+          <div
+            class="plot"
+            id="mainPlot"
+            role="img"
+            aria-label="Joystick X-Y plot showing raw position, deadzone rings, neutral point, and calibration corners"
+          >
+            <div class="axis-x"></div>
+            <div class="axis-y"></div>
+            <div class="ring" id="ringOuter" hidden></div>
+            <div class="ring" id="ringInner" hidden></div>
+            <div class="dot corner" id="dotC1" hidden></div>
+            <div class="dot corner" id="dotC2" hidden></div>
+            <div class="dot corner" id="dotC3" hidden></div>
+            <div class="dot corner" id="dotC4" hidden></div>
+            <div class="dot neutral" id="dotN" hidden></div>
+            <div class="dot raw" id="dotRaw" hidden></div>
+          </div>
+          <div class="plot-legend">
+            <span><span class="chip chip--info"></span>Raw joystick position</span>
+            <span><span class="chip chip--success"></span>Neutral (center) point</span>
+            <span><span class="chip chip--muted"></span>Calibration corners</span>
+            <span><span class="chip chip--accent"></span>Corner pending / captured</span>
+            <span>Dashed rings = deadzones. Corner 1 = top-left.</span>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="cmd" id="btnInit" disabled>Reset neutral position (initialize)</button>
+          <button type="button" class="cmd" id="btnCalibrate" disabled>Start full calibration</button>
+        </div>
+        <ol class="cal-steps" id="calSteps" hidden aria-label="Calibration steps">
+          <li data-step="1">Push to corner 1 (top-left)</li>
+          <li data-step="2">Push to corner 2 (top-right)</li>
+          <li data-step="3">Push to corner 3 (bottom-right)</li>
+          <li data-step="4">Push to corner 4 (bottom-left)</li>
+          <li data-step="5">Hold still — re-center</li>
+          <li data-step="6">Verify stored calibration</li>
+        </ol>
+        <div class="progress" id="calStatus" role="status" aria-live="polite"></div>
+        <p class="hint">
+          Captures 4 corners. Follow Hub display prompts; progress shown above. If a step fails, re-center and retry.
+        </p>
+        <details>
+          <summary>Stored calibration values</summary>
+          <div class="grid">
+            <span class="value">Neutral: <span id="neutralVal">&mdash;</span></span
+            ><span class="value">Corner 1: <span id="corner1">&mdash;</span></span
+            ><span class="value">Corner 2: <span id="corner2">&mdash;</span></span
+            ><span class="value">Corner 3: <span id="corner3">&mdash;</span></span
+            ><span class="value">Corner 4: <span id="corner4">&mdash;</span></span>
+          </div>
+          <div class="row">
+            <button type="button" class="cmd secondary" id="btnReadCalibration" disabled>
+              Refresh calibration values
+            </button>
+          </div>
+        </details>
+      </section>
+
+      <section class="section-card" id="sec-feedback" aria-label="Feedback">
+        <h2>Feedback</h2>
+        <div class="row">
+          <label for="soundMode">Sound feedback</label><span class="value" id="soundModeVal">&mdash;</span
+          ><select id="soundMode">
+            <option value="0">Off</option>
+            <option value="1">Basic</option>
+            <option value="2">All</option></select
+          ><button type="button" class="cmd" id="btnSetSound" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label for="lightMode">Light feedback</label><span class="value" id="lightModeVal">&mdash;</span
+          ><select id="lightMode">
+            <option value="0">Off</option>
+            <option value="1">Basic</option>
+            <option value="2">All</option></select
+          ><button type="button" class="cmd" id="btnSetLight" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label>LED brightness</label
+          ><button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="brightness"
+            aria-label="Decrease LED brightness"
+            disabled
+          >
+            &minus;</button
+          ><span class="value" id="brightnessVal">&mdash;</span
+          ><button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="brightness"
+            aria-label="Increase LED brightness"
+            disabled
+          >
+            +</button
+          ><span class="meter" id="brightnessMeter" aria-hidden="true"></span>
+        </div>
+        <p class="hint">0–10, applies immediately. Hub LEDs blink to preview each change.</p>
+      </section>
+
+      <section class="section-card" id="sec-bluetooth" aria-label="Bluetooth Configuration" data-feature="bluetooth">
+        <h2>Bluetooth</h2>
+        <div class="row"><label>BLE device name</label><span class="value" id="btName">&mdash;</span></div>
+        <div class="row"><label>Status</label><span class="value" id="btStatus">&mdash;</span></div>
+        <div class="row"><button type="button" id="btnSwitchBt" disabled>Switch to Bluetooth</button></div>
+        <p class="hint">
+          Switching to Bluetooth restarts the LipSync. It then advertises as the BLE device name above. Open your
+          computer&#8217;s Bluetooth settings and pair with it. USB remains available for settings.
+        </p>
+        <details>
+          <summary>Pairing instructions</summary>
+          <p class="hint">
+            1. Click <strong>Switch to Bluetooth</strong>. The device saves the setting, restarts, and begins
+            advertising.
+          </p>
+          <p class="hint">2. On your computer, open Bluetooth settings and look for the device name shown above.</p>
+          <p class="hint">3. Select it to pair. The LipSync appears as a mouse (HID).</p>
+          <p class="hint">
+            4. To return to USB mode, reconnect via USB, open this panel, and select a USB mode from the operating mode
+            dropdown in the Device section.
+          </p>
+        </details>
+      </section>
+
+      <section class="section-card" id="sec-diagnostics" aria-label="Device diagnostics">
+        <h2>Device diagnostics</h2>
+        <div class="diag-group">
+          <p class="diag-title">Health check</p>
+          <div class="row">
+            <button type="button" class="cmd" id="btnRunDiagnostics" disabled>Run health check</button
+            ><span class="value" id="healthSummary">Not run</span>
+          </div>
+          <div id="healthDetails" class="notice" role="status" aria-live="polite"></div>
+          <div class="health-grid" id="healthGrid" hidden role="list" aria-label="Health check steps">
+            <div class="health-cell" id="hcPressure" role="listitem" data-label="Pressure sensors"></div>
+            <div class="health-cell" id="hcJoystick" role="listitem" data-label="Joystick response"></div>
+            <div class="health-cell" id="hcNeutral" role="listitem" data-label="Neutral position"></div>
+            <div class="health-cell" id="hcCalibration" role="listitem" data-label="Stored calibration"></div>
+          </div>
+        </div>
+        <div class="diag-group">
+          <p class="diag-title">Self-tests</p>
+          <div class="row">
+            <button type="button" class="cmd secondary" id="btnTestLeds" disabled>Test LEDs</button
+            ><button type="button" class="cmd secondary" id="btnTestBuzzer" disabled>Test buzzer</button
+            ><span
+              class="hint row-hint"
+              title="After a run starts, the card below walks through each step as the device does it."
+            >
+              Watch the step list below
+            </span>
+          </div>
+          <div id="selfTestPanel" class="selftest-panel" hidden>
+            <p class="selftest-title" id="selfTestTitle"></p>
+            <ol class="selftest-steps" id="selfTestSteps"></ol>
+            <div class="selftest-live sr-only" id="selfTestLive" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="diag-group">
+          <p class="diag-title">Live diagnostic stream</p>
+          <div class="row">
+            <label for="debugMode">Live diagnostic output</label><span class="value" id="debugModeVal">Off</span
+            ><select id="debugMode">
+              <option value="0">Off</option>
+              <option value="1">Joystick</option>
+              <option value="2">Pressure</option>
+              <option value="3">Hub buttons</option>
+              <option value="4">External switches</option>
+              <option value="5">Sip &amp; puff state</option></select
+            ><button type="button" class="cmd" id="btnSetDebug" disabled>Apply</button>
+          </div>
+          <p class="hint">Select a stream to view live sensor data in the panel below.</p>
+          <div id="diagJoy" hidden>
+            <div class="viz-wrap">
+              <div
+                class="plot"
+                id="diagPlot"
+                role="img"
+                aria-label="Live joystick diagnostic plot showing raw magnet position and processed output"
+              >
+                <div class="axis-x"></div>
+                <div class="axis-y"></div>
+                <div class="dot raw" id="diagDotRaw" hidden></div>
+                <div class="dot out" id="diagDotOut" hidden></div>
+              </div>
+              <div class="plot-legend">
+                <span
+                  ><span class="chip chip--info"></span>Raw magnet position:
+                  <span class="value" id="diagJoyRaw">&mdash;</span></span
+                >
+                <span
+                  ><span class="chip chip--accent"></span>Processed output:
+                  <span class="value" id="diagJoyOut">&mdash;</span></span
+                >
+                <span>Final processed value sent to the computer (after neutral, calibration, and deadzones).</span>
+              </div>
+            </div>
+          </div>
+          <div id="diagPressure" hidden>
+            <div
+              class="gauge"
+              id="diagGauge"
+              role="img"
+              aria-label="Diagnostic pressure gauge: sip fills left, puff fills right"
+            >
+              <div class="fill" id="diagGaugeFill"></div>
+              <div class="zero"></div>
+            </div>
+            <div class="row">
+              <span class="value" title="Mouthpiece pressure">Mouth: <span id="diagPressMouth">&mdash;</span></span
+              ><span class="value" title="Ambient pressure">Ambient: <span id="diagPressAmbient">&mdash;</span></span
+              ><span class="value" title="Pressure difference">&Delta;: <span id="diagPressDiff">&mdash;</span></span>
+            </div>
+          </div>
+          <div id="diagButtons" hidden>
+            <div class="row">
+              <span class="diag-key" id="diagBtn1">Next (S1)</span
+              ><span class="diag-key" id="diagBtn2">Select (S2)</span
+              ><span class="value">Held: <span id="diagBtnTime">&mdash;</span></span>
+            </div>
+          </div>
+          <div id="diagSwitches" hidden>
+            <div class="row">
+              <span class="diag-key" id="diagSw1">Switch 1</span><span class="diag-key" id="diagSw2">Switch 2</span
+              ><span class="diag-key" id="diagSw3">Switch 3</span
+              ><span class="value">Held: <span id="diagSwTime">&mdash;</span></span>
+            </div>
+          </div>
+          <div id="diagSap" hidden>
+            <div class="row">
+              <span class="diag-key" id="diagSip">SIP</span><span class="diag-key" id="diagPuff">PUFF</span
+              ><span class="value">Held: <span id="diagSapTime">&mdash;</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="diag-group">
+          <p class="diag-title">Remote Hub menu</p>
+          <div class="row">
+            <span class="hint row-hint"
+              >Open starts the on-device Hub menu and mirrors its screen below; Close stops it.</span
+            >
+          </div>
+          <div class="row hub-remote" id="hubRemote">
+            <button type="button" class="cmd secondary" id="btnHubOpen" disabled>Open</button>
+            <button type="button" class="cmd secondary" id="btnHubClose" disabled>Close</button>
+          </div>
+          <div id="hubScreenWrap" hidden>
+            <div class="hub-screen" role="group" aria-label="Mirrored Hub screen">
+              <p class="hub-screen-header" id="hubScreenHeader" aria-live="polite"></p>
+              <ol class="hub-screen-items" id="hubScreenItems"></ol>
+              <p class="hub-screen-note" id="hubScreenNote" hidden></p>
+            </div>
+            <div class="row">
+              <button type="button" class="cmd secondary" id="btnHubNext" disabled>Next</button>
+              <button type="button" class="cmd" id="btnHubSelect" disabled>Select</button>
+            </div>
+            <p class="hint">
+              The mirror follows the Next/Select presses you send — the device never reports its menu state, so physical
+              button presses, joystick-driven steps, or the Hub&#8217;s inactivity timeout can make it drift. Select
+              Open again to resync (the Hub always reopens at the main menu).
+            </p>
+          </div>
+          <div class="error" id="hubRemoteError" role="alert"></div>
+        </div>
+      </section>
+
+      <section class="section-card" id="sec-maintenance" aria-label="Maintenance">
+        <h2>Maintenance</h2>
+        <div class="row">
+          <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Soft reset</button>
+          <button type="button" class="cmd danger" id="btnFactoryReset" disabled>Factory reset</button>
+        </div>
+        <p class="hint">Restores all settings to defaults (confirmation required).</p>
+      </section>
+
+      <section class="section-card" id="sec-help" aria-label="Help and troubleshooting">
+        <h2>Help &amp; troubleshooting</h2>
+        <div class="notice">
+          Connect via USB, click <strong>Connect</strong>, select your LipSync from the browser dialog, and wait for all
+          values to load (~30 seconds). Change one setting at a time and wait for confirmation in the log.
+        </div>
+
+        <details>
+          <summary>Device does not appear in the browser prompt</summary>
+          <p class="hint">
+            <strong>Wrong cable.</strong> Many USB cables are charge-only. Use a data cable and connect directly to your
+            computer, not through a hub or dock.
+          </p>
+          <p class="hint">
+            <strong>Another app is using the port.</strong> Close the Arduino IDE, CuteCom, PuTTY, or any other serial
+            monitor. Only one app can open the port at a time.
+          </p>
+          <p class="hint">
+            <strong>Browser not supported.</strong> Web Serial works in Chrome, Edge, and Opera on desktop. Chrome on
+            Android works with a USB-C / OTG cable. <strong>iOS, Firefox, and Safari are not supported.</strong>
+          </p>
+          <p class="hint">
+            <strong>Device needs a reboot.</strong> After a mode change or reset, wait ~30 seconds for the LipSync to
+            finish restarting before trying to connect.
+          </p>
+          <p class="hint">
+            If using the Android WebUSB fallback, the browser will only see the device when it is plugged in and awake.
+            Try unplugging and replugging, then click Connect again.
+          </p>
+        </details>
+
+        <details>
+          <summary>Commands time out or return errors</summary>
+          <p class="hint">
+            Commands run one at a time over a serial queue. If a previous command did not finish, everything backs up.
+            <strong>Disconnect, wait 5 seconds, then reconnect</strong> to reset the queue.
+          </p>
+          <p class="hint">
+            Do not press the physical Hub buttons or use the Hub on-screen menu while a web command is pending. The
+            device can only handle one settings interaction at a time, and the physical menu does not send a response —
+            the web app will wait until it times out.
+          </p>
+          <p class="hint">
+            If a single command repeatedly fails, run <strong>Health check</strong> in the Diagnostics section to verify
+            the device is responding correctly.
+          </p>
+        </details>
+
+        <details>
+          <summary>Settings won&rsquo;t load &mdash; values show ERR or stay stuck on &hellip;</summary>
+          <p class="hint">
+            Values load one at a time in sequence (17 total, ~30 seconds). If one command times out, it shows
+            <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to retry only the
+            failed items.
+          </p>
+          <p class="hint">
+            If the overall load takes longer than 2 minutes, the app gives up and shows whatever loaded so far. This
+            usually means the connection is unreliable — disconnect and reconnect with a shorter cable or different USB
+            port.
+          </p>
+          <p class="hint">
+            The <strong>Device</strong> section shows a progress bar during loading. Watch it to see how far along the
+            process gets.
+          </p>
+        </details>
+
+        <details>
+          <summary>Calibration fails or gets stuck</summary>
+          <p class="hint">
+            <strong>Keep the mouthpiece perfectly still</strong> for the neutral-position capture (the first step and
+            the last re-centering step). Any movement during these steps produces a bad calibration.
+          </p>
+          <p class="hint">
+            <strong>Push firmly to each corner</strong> when prompted and hold until the status updates. If a corner
+            reads below minimum strength, calibration finishes but marks it as weak — re-run and push more firmly.
+          </p>
+          <p class="hint">
+            <strong>If calibration disconnects mid-procedure</strong>, the LipSync&rsquo;s built-in calibration was not
+            completed. Just re-center the mouthpiece and start again. The previous calibration values remain in place
+            until a new one finishes.
+          </p>
+        </details>
+
+        <details>
+          <summary>Mode switch (Mouse / Bluetooth / Gamepad) seems stuck</summary>
+          <p class="hint">
+            <strong>The setting was saved but the restart did not confirm.</strong> This is common. The new mode
+            <em>is</em> stored on the device. Unplug the LipSync and plug it back in, or wait ~30 seconds for its
+            watchdog timer to trigger the restart.
+          </p>
+          <p class="hint">
+            After the restart, reconnect. The Device section will show the new operating mode. If it reconnected in the
+            old mode, open the <strong>Device</strong> card and verify the dropdown matches what you selected.
+          </p>
+          <p class="hint">
+            Gamepad mode forces a specific command order (Communication mode first, then Operating mode). The app
+            handles this automatically. Gamepad mode is USB-only.
+          </p>
+        </details>
+
+        <details>
+          <summary>Bluetooth does not pair or connect</summary>
+          <p class="hint">
+            Click <strong>Switch to Bluetooth</strong> in the Bluetooth section. The device saves the setting, restarts,
+            and begins advertising as <strong>LS_&lt;device ID&gt;</strong>. Open your computer&#8217;s Bluetooth
+            settings and pair with it.
+          </p>
+          <p class="hint">
+            If the device does not appear in Bluetooth settings, wait 30 seconds for it to finish restarting after the
+            switch, then scan again. If it still does not appear, reconnect via USB, open the Bluetooth section, and
+            verify the device name and status.
+          </p>
+          <p class="hint">
+            While in Bluetooth mode, the USB serial port remains available for settings changes. To return to USB HID
+            mode, reconnect via USB and select <strong>Mouse</strong> from the operating mode dropdown in the Device
+            section.
+          </p>
+        </details>
+
+        <details>
+          <summary>Connection keeps dropping or &ldquo;No data received for 30s&rdquo;</summary>
+          <p class="hint">
+            The app has a built-in watchdog: if no serial data arrives for 30 seconds, it warns you. If the connection
+            is actually lost, the read loop attempts to recover — it cancels the reader, waits 2 seconds, and opens a
+            new reader on the same port.
+          </p>
+          <p class="hint">
+            If recovery fails, the app disconnects. This can happen with long USB cables, hubs with power management, or
+            Android devices that put the USB bus to sleep.
+            <strong>Try a shorter cable, connect directly, and disable USB power saving</strong> if possible.
+          </p>
+        </details>
+
+        <details>
+          <summary>Health check finds problems</summary>
+          <p class="hint">
+            The diagnostics test checks: pressure sensors return plausible values (300&ndash;1200 hPa, not both zero),
+            the joystick reports valid X/Y, the neutral position is stored, and all four calibration corners exist.
+          </p>
+          <p class="hint">
+            <strong>Pressure sensors read zero or out of range</strong> — the mouthpiece may be blocked, or the sensor
+            may need recalibration on the device itself. <strong>Joystick or calibration issues</strong> — run a full
+            calibration from the Joystick section.
+          </p>
+        </details>
+
+        <details>
+          <summary>Appearance settings or dark mode won&rsquo;t save</summary>
+          <p class="hint">
+            Theme settings (colors, dark mode) are saved in your browser&rsquo;s <strong>localStorage</strong>. If you
+            clear your browser data or use private/incognito mode, they reset to defaults. Click
+            <strong>Reset to defaults</strong> in the Appearance popup to start fresh.
+          </p>
+        </details>
+
+        <details>
+          <summary>Remote Hub menu controls</summary>
+          <p class="hint">
+            <strong>Open</strong> starts the Hub&#8217;s on-screen menu and shows a mirrored copy of the Hub screen in
+            the app; <strong>Close</strong> stops the menu and hides the mirror. <strong>Next</strong> and
+            <strong>Select</strong> correspond to short presses of S1 and S2 — use them to move through the menu and
+            activate items.
+          </p>
+          <p class="hint">
+            The device never reports its menu state over serial, so the mirror is driven locally by the presses you
+            send. Physical button presses, joystick-driven calibration prompts, and the Hub&#8217;s inactivity timeout
+            can make it drift from the real display — select <strong>Open</strong> again to resync (the Hub always
+            reopens at the main menu).
+          </p>
+          <p class="hint">
+            Settings changed through the Hub menu do not update the app&#8217;s displayed values — click
+            <strong>Refresh all settings</strong> afterwards.
+          </p>
+        </details>
+
+        <details>
+          <summary>General tips</summary>
+          <p class="hint">
+            <strong>Changes apply instantly.</strong> Sip/puff thresholds, deadzones, speed, scroll, sound, light, and
+            LED brightness all take effect on the device immediately after you click Set.
+          </p>
+          <p class="hint">
+            <strong>Physical menu changes</strong> do not send a response back to the web app. If you change a setting
+            on the Hub itself, the displayed value in the web app will be wrong until you click
+            <strong>Refresh all settings</strong>.
+          </p>
+          <p class="hint">
+            <strong>Soft reset</strong> restarts the device (same as unplugging and plugging it back in).
+            <strong>Factory reset</strong> restores ALL settings to defaults, including calibration — you will need to
+            recalibrate after a factory reset.
+          </p>
+          <p class="hint">
+            Use the <strong>Download log</strong> button in the Log section to save a timestamped log file before
+            contacting support. It captures every command sent and every response received.
+          </p>
+        </details>
+      </section>
+      <section class="section-card" id="sec-log" aria-label="Log">
+        <h2>Log</h2>
+        <div class="row">
+          <button type="button" id="btnDownloadLog" class="secondary">Download log</button
+          ><button type="button" id="btnShareLog" class="secondary">Share log</button
+          ><button type="button" id="btnClearLog" class="secondary">Clear log</button>
+        </div>
+        <div id="log" role="log" aria-live="off" aria-label="Command log"></div>
+      </section>
+    </main>
+
+    <footer aria-label="Site footer">
+      <p>
+        <small
+          >Open Assistive Technology by
+          <a href="https://www.makersmakingchange.com/" target="_blank" rel="noopener">Makers Making Change</a>, a
+          program of <a href="https://www.neilsquire.ca/" target="_blank" rel="noopener">Neil Squire</a>.</small
+        >
+      </p>
+    </footer>
+
+    <div id="notification" role="alert" aria-live="assertive" hidden></div>
+    <div id="srStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <button
+      type="button"
+      id="btnSettings"
+      class="floating-gear"
+      aria-controls="appearancePopup"
+      aria-expanded="false"
+      aria-label="Open appearance settings"
+      title="Appearance settings"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path
+          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.55-.22-1.05-.58-1.41-.36-.36-.58-.86-.58-1.41 0-1.1.9-2 2-2H16c3.31 0 6-2.69 6-6 0-4.42-4.48-8-10-8z"
+        />
+        <circle cx="6.5" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="17" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    </button>
+
+    <div
+      id="appearancePopup"
+      class="appearance-popup"
+      role="dialog"
+      aria-modal="false"
+      aria-label="Appearance settings"
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      <div class="popup-body">
+        <div class="popup-row">
+          <span>Dark mode</span>
+          <button
+            type="button"
+            id="btnDarkMode"
+            class="toggle"
+            aria-pressed="false"
+            aria-label="Toggle dark mode"
+          ></button>
+          <span class="toggle-label" id="darkModeLabel">Off</span>
+        </div>
+        <div class="popup-colors">
+          <div class="pc-row">
+            <label for="colorAccent">Accent</label
+            ><input type="color" id="colorAccent" value="#EE343F" title="Primary button &amp; nav color" />
+          </div>
+          <div class="pc-row">
+            <label for="colorAccent2">Hover</label
+            ><input type="color" id="colorAccent2" value="#BE2A32" title="Button hover state" />
+          </div>
+          <div class="pc-row">
+            <label for="colorBg">Bg</label><input type="color" id="colorBg" value="#f5f7f8" title="Page background" />
+          </div>
+          <div class="pc-row">
+            <label for="colorPanel">Panel</label
+            ><input type="color" id="colorPanel" value="#ffffff" title="Card background" />
+          </div>
+          <div class="pc-row">
+            <label for="colorText">Text</label><input type="color" id="colorText" value="#3a3f42" title="Body text" />
+          </div>
+          <div class="pc-row">
+            <label for="colorMuted">Muted</label
+            ><input type="color" id="colorMuted" value="#45525e" title="Secondary text &amp; hints" />
+          </div>
+          <div class="pc-row">
+            <label for="colorBorder">Border</label
+            ><input type="color" id="colorBorder" value="#d7dde2" title="Borders &amp; dividers" />
+          </div>
+          <div class="pc-row">
+            <label for="colorBtnText">Btn txt</label
+            ><input type="color" id="colorBtnText" value="#ffffff" title="Button label text" />
+          </div>
+          <div class="pc-row">
+            <label for="colorSuccess">Success</label
+            ><input type="color" id="colorSuccess" value="#1e7d46" title="Connected / OK" />
+          </div>
+          <div class="pc-row">
+            <label for="colorInfo">Info</label
+            ><input type="color" id="colorInfo" value="#0072ce" title="Links &amp; info" />
+          </div>
+        </div>
+        <button type="button" id="btnResetColors" class="secondary popup-reset">Reset to defaults</button>
+      </div>
+    </div>
+
+    <dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+      <p id="confirmTitle"></p>
+      <p id="confirmBody"></p>
+      <div id="confirmActions">
+        <button type="button" id="confirmCancel" class="secondary">Cancel</button>
+        <button type="button" id="confirmOk">OK</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>

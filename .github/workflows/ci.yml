@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dev dependencies
+        run: npm --prefix dev install
+      - name: Lint JS
+        run: npm --prefix dev run lint
+      - name: Lint CSS
+        run: npm --prefix dev run lint:css
+      - name: Lint HTML
+        run: npm --prefix dev run lint:html
+      - name: Format check
+        run: npm --prefix dev run format:check
+      - name: Typecheck
+        run: npm --prefix dev run typecheck
+      - name: Tests
+        run: npm --prefix dev test
+      - name: Install Playwright Chromium for E2E
+        run: npm --prefix dev exec playwright-core install chromium
+      - name: E2E — offline precache (real browser)
+        run: npm --prefix dev run test:e2e
+      - name: Secrets must not be tracked
+        run: |
+          if git ls-files | grep -E '\.(key|pem|p12|pfx|der)$'; then
+            echo "ERROR: a private key or certificate is tracked."; exit 1;
+          fi
+          echo "No private key/cert files tracked."

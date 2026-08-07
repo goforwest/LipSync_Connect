@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "doctype-style": "off",
+    "void-style": "off",
+    "prefer-native-element": "off",
+    "text-content": "error",
+    "input-attributes": "error",
+    "no-dup-class": "error",
+    "heading-level": "error",
+    "no-redundant-for": "error",
+    "wcag/h30": "error",
+    "wcag/h36": "error",
+    "wcag/h37": "error",
+    "wcag/h67": "error",
+    "wcag/h71": "error"
+  }
+}

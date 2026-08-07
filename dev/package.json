@@ -1,0 +1,29 @@
+{
+  "name": "lipsync-connect",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Web-based configuration tool for the LipSync assistive device",
+  "scripts": {
+    "start": "node server.js",
+    "dev:local": "node server.js --local",
+    "start:https": "HTTPS=1 node server.js",
+    "lint": "cd .. && eslint --config dev/eslint.config.js --no-warn-ignored app/js/",
+    "lint:css": "stylelint ../app/styles.css",
+    "lint:html": "html-validate --config .htmlvalidate.json ../app/index.html",
+    "format": "prettier --config .prettierrc --write ../app/js/ ../app/styles.css ../app/index.html",
+    "format:check": "prettier --config .prettierrc --check ../app/js/ ../app/styles.css ../app/index.html",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node ../tests/wire-format.test.mjs && node ../tests/plot-pruning.test.mjs && node ../tests/debug-diag.test.mjs && node ../tests/debug-stream.test.mjs && node ../tests/flows.test.mjs && node ../tests/protocol.test.mjs && node ../tests/gating.test.mjs && node ../tests/precache.test.mjs",
+    "test:e2e": "node ../tests/e2e/precache-real-browser.test.mjs"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
+    "html-validate": "^11.6.0",
+    "playwright-core": "^1.62.1",
+    "prettier": "^3.9.6",
+    "stylelint": "^17.14.1",
+    "typescript": "^7.0.2"
+  }
+}
