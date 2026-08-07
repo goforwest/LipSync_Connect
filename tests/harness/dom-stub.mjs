@@ -10,6 +10,33 @@ function setGlobal(name, value) {
   Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
 }
 
+// localStorage stand-in with an in-memory backing store; the returned object is
+// the store itself so tests can seed/assert state (theme persistence tests).
+function createStorage() {
+  const store = new Map();
+  const storage = {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    clear() {
+      store.clear();
+    },
+    _store: store,
+  };
+  return storage;
+}
+
+// Real CSS defaults are silent for the contrast guard (5.89:1 on white), so
+// pre-existing tests don't start logging contrast warnings; theme tests
+// override entries per case.
+const CONTRAST_DEFAULTS = { '--accent': '#BE2A32', '--btn-text': '#ffffff' };
+
 // ---- Protocol-test stub: forgiving elements, no listener wiring ----
 function stubElement() {
   const attrs = {};
@@ -95,7 +122,7 @@ export function makeEl(tag) {
   const classes = new Set();
   const attrs = {};
   const listeners = {};
-  return {
+  const el = {
     tagName: (tag || 'div').toUpperCase(),
     nodeType: 1,
     // form-control state — declared so reads/writes behave like real elements
@@ -220,11 +247,14 @@ export function makeEl(tag) {
         f({ currentTarget: this, target: this, key: '', preventDefault() {}, stopPropagation() {} }),
       );
     },
-    style: {},
+    style: { setProperty() {} },
     textContent: '',
     hidden: false,
     offsetHeight: 10,
     focus() {},
+    click() {},
+    select() {},
+    remove() {},
     id: '',
   };
   return el;
@@ -328,9 +358,16 @@ export function installGatingDom(existingEls = null) {
       if (type === 'DOMContentLoaded') this._ready = fn;
     },
     activeElement: null,
+    // Legacy-clipboard + download-fallback surfaces (share-log tests).
+    body: { appendChild() {} },
+    execCommand() {
+      return true;
+    },
   };
 
   const windowListeners = {};
+  const storage = createStorage();
+  const computedStyles = {};
   setGlobal('window', {
     addEventListener(type, fn) {
       (windowListeners[type] ||= []).push(fn);
@@ -338,11 +375,21 @@ export function installGatingDom(existingEls = null) {
     removeEventListener() {},
     // reduced-motion => instant class changes in the app's animation helpers
     matchMedia: () => ({ matches: true }),
+    // mailto navigation target; share-log tests read/replace this
+    location: { href: '' },
   });
   setGlobal('document', documentStub);
   // Pretend Web Serial exists so main.js proceeds down the "supported" path;
   // connection itself is simulated through testHooks, never this stub.
   setGlobal('navigator', { serial: {} });
+  // Theme module surfaces: localStorage for persistence, getComputedStyle for
+  // the contrast guard (defaults above; tests mutate computedStyles).
+  setGlobal('localStorage', storage);
+  setGlobal('getComputedStyle', () => ({
+    getPropertyValue(prop) {
+      return computedStyles[prop] ?? CONTRAST_DEFAULTS[prop] ?? '';
+    },
+  }));
 
-  return { document: documentStub, windowListeners, sections, navs, els };
+  return { document: documentStub, windowListeners, sections, navs, els, storage, computedStyles };
 }

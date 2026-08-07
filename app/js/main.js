@@ -193,6 +193,30 @@ window.addEventListener('DOMContentLoaded', () => {
         closePopup(false);
       }
     });
+    // Focus trap: while the popup is open, Tab cycles inside it instead of
+    // escaping into the page behind (the popup is non-modal — outside clicks
+    // close it, but keyboard users should not be stranded behind it).
+    popup.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab' || !popup.classList.contains('open')) return;
+      const focusables = /** @type {any[]} */ (
+        popup
+          .querySelectorAll('button, input, select, textarea, a[href]')
+          .filter((el) => !el.disabled && el.getAttribute('aria-hidden') !== 'true')
+      );
+      if (!focusables.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
   }
 
   circleTriggers.forEach((btn) => {

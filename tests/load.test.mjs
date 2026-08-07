@@ -64,11 +64,40 @@ test('settings load populates every endpoint and clears loading placeholders', a
   await loadDeviceInfo();
   await sleep(30); // drain the last queued reply
   assert.deepEqual(sent, [
-    'SETTINGS', 'MN,0:0', 'SETTINGS', 'VN,0:0', 'SETTINGS', 'ID,0:0', 'SETTINGS', 'OM,0:0',
-    'SETTINGS', 'CM,0:0', 'SETTINGS', 'SS,0:0', 'SETTINGS', 'SL,0:0', 'SETTINGS', 'ST,0:0',
-    'SETTINGS', 'PT,0:0', 'SETTINGS', 'IZ,0:0', 'SETTINGS', 'OZ,0:0', 'SETTINGS', 'IN,0:0',
-    'SETTINGS', 'CA,0:0', 'SETTINGS', 'SM,0:0', 'SETTINGS', 'LM,0:0', 'SETTINGS', 'LL,0:0',
-    'SETTINGS', 'DM,0:0',
+    'SETTINGS',
+    'MN,0:0',
+    'SETTINGS',
+    'VN,0:0',
+    'SETTINGS',
+    'ID,0:0',
+    'SETTINGS',
+    'OM,0:0',
+    'SETTINGS',
+    'CM,0:0',
+    'SETTINGS',
+    'SS,0:0',
+    'SETTINGS',
+    'SL,0:0',
+    'SETTINGS',
+    'ST,0:0',
+    'SETTINGS',
+    'PT,0:0',
+    'SETTINGS',
+    'IZ,0:0',
+    'SETTINGS',
+    'OZ,0:0',
+    'SETTINGS',
+    'IN,0:0',
+    'SETTINGS',
+    'CA,0:0',
+    'SETTINGS',
+    'SM,0:0',
+    'SETTINGS',
+    'LM,0:0',
+    'SETTINGS',
+    'LL,0:0',
+    'SETTINGS',
+    'DM,0:0',
   ]);
   assert.equal(doc.getElementById('model').textContent, 'LipSync 4 (1)');
   assert.equal(doc.getElementById('version').textContent, '4.1.0');
@@ -82,7 +111,7 @@ test('settings load populates every endpoint and clears loading placeholders', a
 });
 
 test('a failed endpoint renders ERR and a recovery hint', async () => {
-  const _sent = launch(true);
+  launch(true);
   await loadDeviceInfo();
   await sleep(30); // drain the final queued replies
   const errCell = doc.getElementById('scrollVal');

@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev:local": "node server.js --local",
     "start:https": "HTTPS=1 node server.js",
-    "lint": "cd .. && eslint --config dev/eslint.config.js --no-warn-ignored app/js/",
+    "lint": "cd .. && eslint --config dev/eslint.config.js --no-warn-ignored app/js/ dev/server.js tests/",
     "lint:css": "stylelint ../app/styles.css",
     "lint:html": "html-validate --config .htmlvalidate.json ../app/index.html",
     "format": "prettier --config .prettierrc --write ../app/js/ ../app/styles.css ../app/index.html",

@@ -66,10 +66,6 @@ function launch(behavior) {
   testHooks.attach({ simulated: true }, writer);
   return { sent, detach: testHooks.detach };
 }
-const ack = (cmd, value) => [
-  { delay: 5, line: 'SUCCESS,0:SETTINGS' },
-  { delay: 5, line: `SUCCESS,0:${cmd}${value !== undefined ? ':' + value : ''}` },
-];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function click(id) {

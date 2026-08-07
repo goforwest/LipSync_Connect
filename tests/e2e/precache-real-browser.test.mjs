@@ -75,7 +75,9 @@ test('service worker serves every reachable module offline', async () => {
   await context.setOffline(true);
   await page.reload({ waitUntil: 'networkidle' });
   assert.deepEqual(failures, [] /* any fetch failure would show here */);
-  const appBooted = await page.evaluate(() => !document.getElementById('unsupported') || !document.getElementById('unsupported').hidden === false);
+  const appBooted = await page.evaluate(
+    () => !document.getElementById('unsupported') || !document.getElementById('unsupported').hidden === false,
+  );
   assert.ok(appBooted, 'app boots offline (unsupported banner stays hidden when modules load)');
   await browser.close();
 });

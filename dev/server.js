@@ -60,8 +60,8 @@ const MIME = {
 // at an external client file (/__dev_reload.js) — never inline — so the strict
 // app CSP (script-src 'self') stays satisfied and unchanged. The reload is a
 // full navigation; CSS/JS edits should not require touching the device.
-const RELOAD_CLIENT_JS = "const es = new EventSource('/__dev_reload');\n" + "es.onmessage = () => location.reload();\n";
-const RELOAD_SNIPPET = `<script src="/__dev_reload.js" defer></script>`;
+const RELOAD_CLIENT_JS = "const es = new EventSource('/__dev_reload');\n" + 'es.onmessage = () => location.reload();\n';
+const RELOAD_SNIPPET = '<script src="/__dev_reload.js" defer></script>';
 const reloadClients = new Set();
 
 function broadcastReload() {
@@ -86,13 +86,12 @@ if (liveReload) {
   }
 }
 
-
 if (useHttps && (!fs.existsSync(keyFile) || !fs.existsSync(certFile))) {
   try {
     execSync(
-      `openssl req -x509 -nodes -days 3650 -newkey rsa:2048 ` +
-        `-keyout "${keyFile}" -out "${certFile}" ` +
-        `-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`,
+      'openssl req -x509 -nodes -days 3650 -newkey rsa:2048 ' +
+        `-keyout '${keyFile}' -out '${certFile}' ` +
+        '-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"',
       { stdio: 'ignore' },
     );
     console.log('Generated localhost.key + localhost.crt');
@@ -116,7 +115,11 @@ if (fs.existsSync(keyFile)) {
 function isBlockedFile(filePath) {
   const relative = path.relative(appDir, filePath);
   const parts = relative.split(path.sep);
-  return parts.includes('node_modules') || parts.some((part) => part.startsWith('.')) || BLOCKED_FILE_NAMES.has(path.basename(filePath));
+  return (
+    parts.includes('node_modules') ||
+    parts.some((part) => part.startsWith('.')) ||
+    BLOCKED_FILE_NAMES.has(path.basename(filePath))
+  );
 }
 
 function handleRequest(req, res) {
@@ -203,13 +206,15 @@ server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(
       `Port ${port} is already in use on ${host}.\n` +
-        `  Another instance of this server is probably still running.\n` +
+        '  Another instance of this server is probably still running.\n' +
         `  Stop it (lsof -i :${port} | grep LISTEN) or run with PORT=<free-port>.`,
     );
   } else if (err.code === 'EACCES') {
     console.error(`Port ${port} requires elevated privileges. Run as a privileged user or use PORT>=1024.`);
   } else if (err.code === 'EADDRNOTAVAIL') {
-    console.error(`Cannot bind ${host}:${port} — that address is not available on this machine. Check the HOST env var.`);
+    console.error(
+      `Cannot bind ${host}:${port} — that address is not available on this machine. Check the HOST env var.`,
+    );
   } else {
     console.error('Server error:', err.message);
   }
