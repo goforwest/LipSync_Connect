@@ -26,6 +26,12 @@ import {
   calibrationIsRunning,
 } from './settings-service.js';
 
+// After a successful calibration the completed step strip stays visible for a
+// few seconds, then hides itself. The hide timer is tokenized (a module-global
+// handle cancelled at the start of every run) so a stale timer from a previous
+// run can never hide the strip of a new run started within the 4 s window.
+let stripHideTimer = null;
+
 export function bindCalibration(guard) {
   $('btnInit').addEventListener(
     'click',
@@ -44,6 +50,8 @@ export function bindCalibration(guard) {
     guard(async () => {
       setCmdButtons(false);
       $('btnDisconnect').disabled = true;
+      clearTimeout(stripHideTimer); // cancel any hide scheduled by a previous run
+      stripHideTimer = null;
       let calSuccess = false;
       setCalibrationInProgress(true);
       showCalSteps(true);
@@ -155,7 +163,8 @@ export function bindCalibration(guard) {
           showCalSteps(false);
         } else {
           // Leave the completed strip visible for a few seconds so the user sees the finish state
-          setTimeout(() => {
+          stripHideTimer = setTimeout(() => {
+            stripHideTimer = null;
             if (!serialSession.port) return;
             showCalSteps(false);
           }, 4000);

@@ -1,6 +1,6 @@
 // One-off device actions that coordinate multiple module boundaries and/or
 // end in restart/disconnect: the LED/buzzer self-tests and soft/factory reset.
-import { CMD_RESET_TIMEOUT, CMD_TEST_TIMEOUT, VALUE_IDS } from '../config/constants.js';
+import { CMD_RESET_TIMEOUT, CMD_TEST_TIMEOUT, VALUE_IDS, DEBUG_MODES } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { showConfirm } from '../ui/formatting.js';
 import { log } from './log.js';
@@ -9,6 +9,7 @@ import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
 import { lockSelfTestButtons, unlockSelfTestButtons, openSelfTestPanel, closeSelfTestPanel } from './selftest.js';
 import { resetPlotState } from '../plotting/plot.js';
+import { modeState } from '../state/modes.js';
 
 export function bindDeviceOps(guard) {
   $('btnTestLeds').addEventListener(
@@ -95,6 +96,15 @@ export function bindDeviceOps(guard) {
         if (el) el.textContent = '—';
       });
       resetPlotState();
+      // The device is about to reboot with defaults, so the live-diagnostic
+      // selection and the OM/CM mode state must not keep showing pre-reset
+      // values until the next successful load overwrites them.
+      const dmSelect = $('debugMode');
+      if (dmSelect) dmSelect.value = '0';
+      const dmVal = $('debugModeVal');
+      if (dmVal) dmVal.textContent = DEBUG_MODES[0];
+      modeState.currentOpMode = null;
+      modeState.currentComMode = null;
       if (serialSession.port) await disconnect();
     }),
   );

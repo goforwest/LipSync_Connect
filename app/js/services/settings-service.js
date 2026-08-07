@@ -10,7 +10,7 @@ import { updateMeter } from '../plotting/gauge.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
 import { log } from './log.js';
 import { sendCommand } from '../serial/commands.js';
-import { serialSession, pendingSteps } from '../serial/session.js';
+import { serialSession, pendingSteps, loadDoneTimerRef } from '../serial/session.js';
 import { ENDPOINT_RENDERERS } from './registry.js';
 
 let loadDoneTimer = null;
@@ -114,6 +114,7 @@ export async function loadDeviceInfo() {
   if (gen === loadGeneration && serialSession.port) setStatus('Connected', true);
   if (progRow) {
     clearTimeout(loadDoneTimer);
+    loadDoneTimerRef.current = null;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     if (reduceMotion) {
       if (gen === loadGeneration) {
@@ -128,8 +129,10 @@ export async function loadDeviceInfo() {
           if (gen !== loadGeneration) return;
           progRow.hidden = true;
           progRow.style.display = 'none';
+          loadDoneTimerRef.current = null;
         }, 500);
       }, 1000);
+      loadDoneTimerRef.current = loadDoneTimer;
     }
   }
   clearTimeout(loadTimer);

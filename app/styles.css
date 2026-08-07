@@ -18,6 +18,7 @@
   --value-bg: #f0f3f5;
   --success: #1e7d46;
   --info: var(--mmc-blue);
+  --warning: #c77700;
   --focus: #0072ce;
   --btn-text: #ffffff;
   --log-bg: #22272b;
@@ -44,6 +45,7 @@
     --value-bg: #0d1117;
     --success: #4fc08d;
     --info: #6cb6ff;
+    --warning: #ffb74d;
     --focus: #8ecbff;
     --log-bg: #0d1117;
   }
@@ -83,6 +85,7 @@ html.dark-mode {
   --value-bg: #0d1117;
   --success: #4fc08d;
   --info: #6cb6ff;
+  --warning: #ffb74d;
   --focus: #8ecbff;
   --log-bg: #0d1117;
 }

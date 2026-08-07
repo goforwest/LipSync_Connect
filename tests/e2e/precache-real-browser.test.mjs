@@ -29,19 +29,44 @@ test.before(async () => {
     env: { ...process.env, PORT: String(PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  // Wait for the dev server to accept connections.
+  // Readiness must be gated on the child's own state, not on the port
+  // answering: if the port is already taken (e.g. a developer's own dev
+  // server), this child exits with EADDRINUSE and a plain fetch probe would
+  // happily talk to the *other* server and validate stale files. We wait for
+  // either the "listening" line on stdout (server.js prints it in the listen
+  // callback) or the child's exit, and only then probe the port.
+  let serverExited = false;
+  let serverError = '';
+  server.stderr.on('data', (chunk) => {
+    serverError += chunk;
+  });
+  server.on('exit', (code) => {
+    serverExited = true;
+    server.exitCode = code;
+  });
+  let listening = false;
+  server.stdout.on('data', (chunk) => {
+    if (String(chunk).includes(`:${PORT}`)) listening = true;
+  });
   const deadline = Date.now() + 5000;
   for (;;) {
-    try {
-      await fetch(ORIGIN + '/');
-      break;
-    } catch {
-      if (Date.now() > deadline) {
-        server.kill();
-        throw new Error('dev server did not become ready');
-      }
-      await new Promise((r) => setTimeout(r, 100));
+    if (serverExited)
+      throw new Error(
+        `dev server exited (code ${server.exitCode}) before becoming ready — is port ${PORT} already in use?` +
+          (serverError ? ` Server said: ${serverError.trim()}` : ''),
+      );
+    if (listening) break;
+    if (Date.now() > deadline) {
+      server.kill();
+      throw new Error('dev server did not become ready');
     }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  try {
+    await fetch(ORIGIN + '/');
+  } catch {
+    server.kill();
+    throw new Error('dev server reported ready but did not answer');
   }
   test.server = server;
 });
@@ -75,9 +100,10 @@ test('service worker serves every reachable module offline', async () => {
   await context.setOffline(true);
   await page.reload({ waitUntil: 'networkidle' });
   assert.deepEqual(failures, [] /* any fetch failure would show here */);
-  const appBooted = await page.evaluate(
-    () => !document.getElementById('unsupported') || !document.getElementById('unsupported').hidden === false,
-  );
+  const appBooted = await page.evaluate(() => {
+    const banner = document.getElementById('unsupported');
+    return !banner || banner.hidden;
+  });
   assert.ok(appBooted, 'app boots offline (unsupported banner stays hidden when modules load)');
   await browser.close();
 });

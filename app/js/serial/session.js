@@ -32,19 +32,36 @@ export const readWatchdog = Object.seal({
   gen: 0,
 });
 
+// The settings-service owns the "done" fade-out timer; disconnect clears it
+// through this reference so the timer never fires against a dead session.
+// Lives here (not in settings-service or connection) because both modules
+// import session.js, so the reference is reachable without a module cycle.
+export const loadDoneTimerRef = { current: null };
+
 // ---- Test / simulated-transport seam ----
 // The firmware simulator in tests/harness/ attaches a fake port through these
 // named functions instead of reaching into module state. Production code never
-// calls them; they exist so tests don't need an app-wide backdoor.
+// calls them; they exist so tests don't need an app-wide backdoor. They are
+// guarded to the Node test runtime so nothing shipped to a browser can reach
+// in and fabricate a session (e.g. from the console).
+// The seams only exist for the Node test runtime. `globalThis['process']`
+// (bracket form) keeps the check working under the DOM lib in typecheck.
+function isNodeRuntime() {
+  const nodeProcess = globalThis['process'];
+  return typeof nodeProcess !== 'undefined' && !!nodeProcess?.versions?.node;
+}
 export function injectSerialPort(port, writer) {
+  if (!isNodeRuntime()) throw new Error('injectSerialPort is a test-only seam');
   serialSession.port = port;
   serialSession.writer = writer;
 }
 export function detachSerialPort() {
+  if (!isNodeRuntime()) throw new Error('detachSerialPort is a test-only seam');
   serialSession.port = null;
   serialSession.writer = null;
 }
 export function injectSerialWriter(writeFn) {
+  if (!isNodeRuntime()) throw new Error('injectSerialWriter is a test-only seam');
   serialSession.writer = { write: writeFn };
   serialSession.port = serialSession.port || { sim: true };
 }

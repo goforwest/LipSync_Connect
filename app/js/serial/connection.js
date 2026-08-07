@@ -3,7 +3,7 @@
 // clear) are injected via configureConnection() in main.js so this module
 // does not import service-layer code and the graph stays acyclic.
 import { BAUD } from '../config/constants.js';
-import { serialSession, serialBus, readWatchdog } from './session.js';
+import { serialSession, serialBus, readWatchdog, loadDoneTimerRef } from './session.js';
 import { resetReadTimer } from './commands.js';
 import { serialApi } from './transport.js';
 import { handleLine } from './device.js';
@@ -122,10 +122,6 @@ export async function disconnect(options = {}) {
     services.clearHealthResults();
   }
 }
-
-// The settings-service owns the "done" fade-out timer; disconnect clears it
-// through this reference so the timer never fires against a dead session.
-export const loadDoneTimerRef = { current: null };
 
 async function readLoop() {
   const myGen = ++serialSession.readerGeneration;
