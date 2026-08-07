@@ -46,23 +46,13 @@ export { announceStatus } from './ui/a11y.js';
 // ------------------------- Global error handler -------------------------
 window.addEventListener('error', (e) => {
   console.error(e.error || e.message);
-  const el = $('log');
-  if (el) {
-    const entry = document.createElement('div');
-    entry.className = 'log-err';
-    entry.textContent = 'Uncaught: ' + (e.error?.message ?? e.message ?? 'unknown error');
-    el.appendChild(entry);
-  }
+  // Route through log() so uncaught errors land in the session history and are
+  // included in Download/Share exports, not just the visible box.
+  log('Uncaught: ' + (e.error?.message ?? e.message ?? 'unknown error'), 'log-err');
 });
 window.addEventListener('unhandledrejection', (e) => {
   console.error(e.reason);
-  const el = $('log');
-  if (el) {
-    const entry = document.createElement('div');
-    entry.className = 'log-err';
-    entry.textContent = 'Unhandled promise: ' + (e.reason?.message ?? e.reason ?? 'unknown');
-    el.appendChild(entry);
-  }
+  log('Unhandled promise: ' + (e.reason?.message ?? e.reason ?? 'unknown'), 'log-err');
 });
 // ------------------------- Serial layer -------------------------
 // The physical link, waiters, and command queue are centralized in

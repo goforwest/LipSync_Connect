@@ -93,7 +93,13 @@ export async function loadDeviceInfo() {
       log('Failed to load ' + tasks[i][0] + ': ' + e.message, 'log-err');
     }
   }
-  if (gen !== loadGeneration) return;
+  if (gen !== loadGeneration) {
+    // A newer load superseded this one — the overall-timeout timer for this
+    // stale generation must die too, or it fires later and logs a misleading
+    // "timed out" message against the live session.
+    clearTimeout(loadTimer);
+    return;
+  }
   VALUE_IDS.forEach((id) => {
     const el = $(id);
     el.classList.remove('loading');
