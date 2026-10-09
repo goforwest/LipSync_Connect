@@ -54,7 +54,7 @@ The **Firmware** section compares the connected device's version against the lat
 - the image is flashed over the bootloader's serial-DFU protocol — Web Serial on desktop, the same protocol over the WebUSB CDC shim on Android
 - after reconnecting, the new version is verified and the backed-up settings are restored automatically
 
-App-only DFU packages cannot touch the bootloader, so a failed update is always recoverable. In development, point the check at a local build with `localStorage['lipsync-fw-manifest-url'] = '/firmware-manifest.json'` (served by `dev/server.js` from `dev/firmware/dist/`) and build artifacts with `dev/firmware/build-firmware.sh`.
+App-only DFU packages cannot touch the bootloader, so a failed update is always recoverable. In development, point the check at a local build with `localStorage['lipsync-fw-manifest-url'] = '/firmware-manifest.json'` (served by `dev/server.js` from `dev/firmware/dist/`) and build artifacts with `dev/firmware/build-firmware.sh`. To exercise the full auto-detection + download + flash flow against another repo's releases (e.g. a fork), set `localStorage['lipsync-fw-release-api']` to that repo's `https://api.github.com/repos/<user>/LipSync/releases/latest` instead — the manifest override takes precedence when both are set.
 
 ### Security notes
 

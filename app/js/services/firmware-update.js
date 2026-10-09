@@ -30,6 +30,7 @@ import {
   FIRMWARE_RELEASE_API,
   FIRMWARE_MANIFEST_ASSET_NAME,
   FIRMWARE_MANIFEST_URL_OVERRIDE_KEY,
+  FIRMWARE_RELEASE_API_OVERRIDE_KEY,
   FIRMWARE_CHECK_STORAGE_KEY,
   FIRMWARE_CHECK_MIN_INTERVAL_MS,
   FIRMWARE_FETCH_TIMEOUT_MS,
@@ -96,18 +97,25 @@ function writeCheckCache(entry) {
  */
 export async function fetchLatestFirmware(options = {}) {
   let overrideUrl = null;
+  let releaseApiOverride = null;
   try {
     overrideUrl = localStorage.getItem(FIRMWARE_MANIFEST_URL_OVERRIDE_KEY) || null;
+    releaseApiOverride = localStorage.getItem(FIRMWARE_RELEASE_API_OVERRIDE_KEY) || null;
   } catch {}
   if (overrideUrl) {
     const manifest = await fetchJson(overrideUrl);
     return { manifest, tagName: null, releaseUrl: null, checkedAt: Date.now(), assetUrls: {} };
   }
-  if (!options.force) {
+  // A redirected release API is a dev pointing at another repo (usually a
+  // fork): a stale cached upstream entry would mask it, so bypass the cache
+  // read and always hit the (redirected) source.
+  if (!options.force && !releaseApiOverride) {
     const cached = readCheckCache();
     if (cached && Date.now() - cached.checkedAt < FIRMWARE_CHECK_MIN_INTERVAL_MS) return cached;
   }
-  const release = await fetchJson(FIRMWARE_RELEASE_API, { Accept: 'application/vnd.github+json' });
+  const release = await fetchJson(releaseApiOverride || FIRMWARE_RELEASE_API, {
+    Accept: 'application/vnd.github+json',
+  });
   const assets = release.assets || [];
   const asset = assets.find((/** @type {{name: string}} */ a) => a.name === FIRMWARE_MANIFEST_ASSET_NAME);
   const base = {

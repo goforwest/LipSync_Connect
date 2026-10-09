@@ -119,6 +119,11 @@ export const FIRMWARE_MANIFEST_ASSET_NAME = 'firmware-manifest.json';
 // Dev affordance: set this localStorage key to a manifest URL (e.g. the dev
 // server's /firmware-manifest.json route) to check against a local build.
 export const FIRMWARE_MANIFEST_URL_OVERRIDE_KEY = 'lipsync-fw-manifest-url';
+// Dev affordance: set this key to a release-API URL (e.g. a fork's
+// https://api.github.com/repos/<user>/LipSync/releases/latest) to exercise
+// the full auto-detection + download + flash flow against that repo's
+// releases. Same host as the real API, so CSP still confines it.
+export const FIRMWARE_RELEASE_API_OVERRIDE_KEY = 'lipsync-fw-release-api';
 export const FIRMWARE_CHECK_STORAGE_KEY = 'lipsync-fw-check';
 // Auto-checks are served from cache for this long so reconnect-heavy usage
 // cannot burn GitHub's unauthenticated rate limit (60 req/h per IP).

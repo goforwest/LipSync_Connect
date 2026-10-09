@@ -129,6 +129,46 @@ test('offline failures surface a readable status without throwing', async () => 
   assert.equal(updateBtnHidden(), true);
 });
 
+test('the release-API override redirects the check and bypasses the cache', async () => {
+  storage.clear();
+  try {
+    localStorage.setItem('lipsync-fw-release-api', 'https://api.github.com/repos/goforwest/LipSync/releases/latest');
+  } catch {}
+  fetchCalls = [];
+  fetchImpl = async (url) =>
+    url.includes('goforwest')
+      ? { ok: true, json: async () => releaseWithManifest('4.2.0') }
+      : url.includes('firmware-manifest.json')
+        ? { ok: true, json: async () => MANIFEST('4.2.0') }
+        : { ok: true, json: async () => ({ assets: [] }) };
+  setDeviceVersion('4.1.0');
+  // Seed a fresh upstream cache entry that would otherwise mask the override.
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: MANIFEST('9.9.9'),
+        tagName: 'V9.9.9',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  await checkForFirmwareUpdate({ auto: true });
+  await flush();
+  assert.ok(
+    fetchCalls.some((u) => u.includes('goforwest')),
+    'the check fetches the overridden release API',
+  );
+  assert.ok(
+    !fetchCalls.some((u) => u.endsWith('/releases/latest') && !u.includes('goforwest')),
+    'the upstream API is not consulted',
+  );
+  assert.match(status(), /Update available: 4\.2\.0/);
+  assert.equal(latest(), '4.2.0');
+});
+
 test('auto checks reuse the 6-hour cache instead of re-fetching', async () => {
   storage.clear();
   fetchCalls = [];
