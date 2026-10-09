@@ -12,6 +12,7 @@
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showConfirm } from '../ui/formatting.js';
+import { setStatus } from '../ui/connection-ui.js';
 import { log } from './log.js';
 import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
@@ -329,6 +330,9 @@ export async function restoreSettingsSnapshot(snapshot) {
       await sendCommand(`${ep},1:${value}`);
     } catch (e) {
       failures.push(`${ep}: ${e.message}`);
+      // A failed write usually means the link died (unplug) — the remaining
+      // writes would only pile up timeouts. The finisher re-arms the update.
+      if (!serialSession.port) break;
     }
   }
   return failures;
@@ -339,7 +343,7 @@ export async function restoreSettingsSnapshot(snapshot) {
 const PENDING_KEY = 'lipsync-fw-pending';
 let pendingMemory = null;
 
-function readPending() {
+export function readPending() {
   if (pendingMemory) return pendingMemory;
   try {
     const raw = sessionStorage.getItem(PENDING_KEY);
@@ -350,7 +354,7 @@ function readPending() {
   return pendingMemory;
 }
 
-function writePending(entry) {
+export function writePending(entry) {
   pendingMemory = entry;
   try {
     if (entry) sessionStorage.setItem(PENDING_KEY, JSON.stringify(entry));
@@ -364,12 +368,30 @@ let wizard = null; // { stage, target, pkg, snapshot, entry, abort }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Connect must stay clickable for the post-flash reconnect, but a Connect
-// click while the flash holds the bootloader port fails with a confusing
-// "port is already open" — so it is locked out for the flashing window only.
-function lockConnectButton(lock) {
-  const btn = $('btnConnect');
-  if (btn) btn.disabled = lock;
+// Connect and Disconnect stay clickable for the post-flash reconnect, but a
+// click while the wizard owns the session (or the bootloader port) derails
+// the flow — so both are locked for the wizard's lifetime and re-enabled
+// according to the actual session state afterwards.
+function lockSessionButtons(lock) {
+  const connect = $('btnConnect');
+  const disconnectBtn = $('btnDisconnect');
+  if (!connect || !disconnectBtn) return;
+  if (lock) {
+    connect.disabled = true;
+    disconnectBtn.disabled = true;
+  } else {
+    connect.disabled = !!serialSession.port;
+    disconnectBtn.disabled = !serialSession.port;
+  }
+}
+
+/** The header status bar reflects the wizard, not just the port. */
+function setWizardStatus(text) {
+  setStatus(text, false);
+}
+
+function resetStatusIfDisconnected() {
+  if (!serialSession.port) setStatus('Not connected', false);
 }
 
 /**
@@ -424,7 +446,7 @@ function setWizardStage(stage, { allDone = false } = {}) {
  */
 function setWizardStep(
   text,
-  { percent = null, hint = null, showContinue = false, showCancel = false, showBackup = false } = {},
+  { percent = null, etaSec = null, hint = null, showContinue = false, showCancel = false, showBackup = false } = {},
 ) {
   const step = $('fwWizardStep');
   if (step) step.textContent = text || '';
@@ -434,7 +456,10 @@ function setWizardStep(
     else bar.setAttribute('value', String(Math.max(0, Math.min(100, Math.round(percent)))));
   }
   const pct = $('fwPct');
-  if (pct) pct.textContent = percent === null ? '' : `${Math.max(0, Math.min(100, Math.round(percent)))}%`;
+  if (pct) {
+    const n = percent === null ? null : Math.max(0, Math.min(100, Math.round(percent)));
+    pct.textContent = n === null ? '' : etaSec ? `${n}% · ~${etaSec}s left` : `${n}%`;
+  }
   const hintEl = $('fwWizardHint');
   if (hintEl) hintEl.textContent = hint || '';
   const cont = $('btnFwContinue');
@@ -463,6 +488,7 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
   wizard = { stage: 'snapshot', target: targetVersion, pkg, abort: new AbortController() };
   setWizardVisible(true);
   setWizardStage('backup');
+  lockSessionButtons(true);
   try {
     setWizardStep('Backing up your settings…', { showCancel: true, showBackup: false });
     const snapshot = captureSettingsSnapshot();
@@ -488,7 +514,7 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
     setWizardStep('Restarting the LipSync into update mode…', { showCancel: true });
     const appPort = serialSession.port;
     await disconnect({ quiet: true });
-    lockConnectButton(true);
+    lockSessionButtons(true);
     wizard.stage = 'enter-bootloader';
     let touched = false;
     try {
@@ -524,9 +550,10 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
     wizard.stage = 'await-bootloader-port';
+    setWizardStatus('Firmware update — choose the update port');
     setWizardStep(
       touched
-        ? 'Select the update port: click Continue, then choose the LipSync (“XIAO nRF52840…” entry) in the browser dialog.'
+        ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
         : 'The device did not restart automatically. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
         hint: 'If the device does not appear, unplug it, plug it back in, and press reset twice (slowly) to enter update mode.',
@@ -544,20 +571,47 @@ async function continueWizard() {
   if (!wizard || wizard.stage !== 'await-bootloader-port') return;
   setWizardStep('Waiting for the update port…', { showBackup: true });
   try {
-    const port = await requestDfuPort();
+    let port;
+    try {
+      port = await requestDfuPort();
+    } catch (e) {
+      if (e?.name !== 'NotFoundError') throw e;
+      // The picker was dismissed. Stay on this step so Continue works again
+      // instead of dumping the user into a failure panel.
+      setWizardStep(
+        'No update port was selected. Make sure the LipSync is in update mode — press the small reset button on the Hub twice, slowly — then click Continue again.',
+        {
+          showContinue: true,
+          showCancel: true,
+          showBackup: true,
+          hint: 'If the device was unplugged, plug it back in first.',
+        },
+      );
+      return;
+    }
     wizard.stage = 'flashing';
     setWizardStage('flash');
-    lockConnectButton(true);
+    lockSessionButtons(true);
+    setWizardStatus('Updating firmware…');
     log('Flashing firmware ' + wizard.target + ' over the device bootloader…', 'log-info');
     let announcedMilestone = 0;
+    let transferStart = 0;
     await flashSerialDfu({
       port,
       bin: wizard.pkg.bin,
       dat: wizard.pkg.dat,
       signal: wizard.abort.signal,
       onProgress: (p) => {
+        let etaSec;
+        if (p.stage === 'transfer') {
+          if (!transferStart) transferStart = Date.now();
+          const fraction = (p.percent ?? 0) / 100;
+          const elapsed = (Date.now() - transferStart) / 1000;
+          if (fraction > 0.05) etaSec = Math.max(1, Math.round((elapsed / fraction) * (1 - fraction)));
+        }
         setWizardStep(p.stage === 'transfer' ? 'Sending firmware…' : p.message, {
           percent: p.percent ?? null,
+          etaSec,
           showCancel: true,
           showBackup: true,
           hint: p.stage === 'transfer' ? 'Usually under a minute; keep the device plugged in.' : undefined,
@@ -576,49 +630,64 @@ async function continueWizard() {
     setWizardStage('restore');
     writePending({ target: wizard.target, snapshot: wizard.snapshot, installed: true });
     log('Firmware installed. Reconnect to verify and restore settings.', 'log-info');
+    setWizardStatus('Firmware update — reconnect the LipSync');
     setWizardStep(
-      'Firmware installed! The LipSync is restarting. Wait ~30 seconds — the update-loader entry disappears from the browser — then click Connect and pick the LipSync. If it does not respond, unplug and replug it first. Your settings will be restored automatically.',
+      'Firmware installed! The LipSync is restarting. Wait ~30 seconds, then click Connect and pick the LipSync. Your settings will be restored automatically.',
       {
         percent: 100,
         showBackup: true,
-        hint: 'Update mode and normal mode can show the same port name — waiting (or a quick unplug/replug) clears the stale entry so only the restarted device remains.',
+        hint: 'Update mode and normal mode can show the same port name — waiting (or a quick unplug/replug) clears the stale entry. If the device does not respond, unplug and replug it first.',
       },
     );
     announceStatus('Firmware installed. Please reconnect the LipSync.');
   } catch (e) {
+    // A cancel already closed the wizard — do not reopen it as a failure.
+    if (!wizard) return;
     failWizard(e);
   } finally {
-    lockConnectButton(false);
+    lockSessionButtons(false);
   }
 }
 
 function failWizard(e) {
   const message = e?.message ?? String(e);
+  const duringFlash = wizard?.stage === 'flashing' || wizard?.stage === 'await-reconnect';
   log('Firmware update failed: ' + message, 'log-err');
   announceStatus('Firmware update failed.');
   wizard = { ...wizard, stage: 'failed' };
-  lockConnectButton(false);
+  lockSessionButtons(false);
+  resetStatusIfDisconnected();
   setWizardVisible(true, 'failed');
   setWizardStep('Update failed: ' + message, {
     showCancel: true,
     showBackup: true,
-    hint: 'Your LipSync is not harmed — nothing was written, or the bootloader kept itself intact. You can retry.',
+    hint: duringFlash
+      ? 'The LipSync is not harmed — its recovery loader discards a partial update. Unplug and replug it (or press reset once) to get back to normal, then retry.'
+      : 'Your LipSync is not harmed — nothing was written, or the bootloader kept itself intact. You can retry.',
   });
 }
 
 function cancelWizard(message) {
+  const stage = wizard?.stage;
   try {
     wizard?.abort.abort();
   } catch {}
   wizard = null;
   writePending(null);
-  lockConnectButton(false);
+  lockSessionButtons(false);
+  resetStatusIfDisconnected();
   setWizardVisible(false);
   setWizardStep('', { percent: null });
-  if (message) {
-    log(message, 'log-info');
-    announceStatus(message);
-  }
+  // Cancelling mid-flash leaves a partial image in the bootloader's hands:
+  // the recovery loader discards it and boots the old firmware after a
+  // power cycle — say so instead of pretending nothing was touched.
+  const finalMessage =
+    message ??
+    (stage === 'flashing' || stage === 'await-reconnect'
+      ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
+      : 'Update cancelled. Nothing was changed.');
+  log(finalMessage, 'log-info');
+  announceStatus(finalMessage);
 }
 
 /** Release-update entry point (the “Update to X” button). */
@@ -636,7 +705,10 @@ export async function startFirmwareUpdate() {
   setWizardVisible(true);
   setWizardStage('backup');
   try {
-    setWizardStep(`Downloading firmware ${target}…`, { showCancel: true });
+    setWizardStep(`Downloading firmware ${target}…`, {
+      showCancel: true,
+      hint: 'This can take a moment on slower connections.',
+    });
     const zipResponse = await fetch(entry.assetUrls.dfu);
     if (!zipResponse.ok) throw new Error(`Could not download the firmware package (HTTP ${zipResponse.status}).`);
     const zipBuffer = await zipResponse.arrayBuffer();
@@ -682,6 +754,23 @@ export async function afterDeviceLoad() {
     await finishPendingUpdate(pending);
     return;
   }
+  // The page may have died mid-flash (reload, crash, tab close): the
+  // bootloader finishes the update on its own, so a device already running
+  // the target version with an unmarked pending update is a completed
+  // update — verify and restore. Skipped while a live wizard is still
+  // waiting at the port picker (its flash has not happened yet).
+  const deviceVersion = ($('version')?.textContent || '').trim();
+  const interruptedFlashComplete =
+    pending &&
+    !pending.installed &&
+    deviceVersion &&
+    deviceVersion === pending.target &&
+    (!wizard || wizard.stage === 'flashing' || wizard.stage === 'download');
+  if (interruptedFlashComplete) {
+    log('A firmware update that was interrupted mid-flash appears to have completed on its own.', 'log-info');
+    await finishPendingUpdate({ ...pending, installed: true });
+    return;
+  }
   // A completed update whose operating-mode restore rebooted the device once
   // more: that reconnect is the final step — close the wizard cleanly.
   if (wizard?.stage === 'mode-restored') {
@@ -722,7 +811,28 @@ async function finishPendingUpdate(pending) {
   setWizardVisible(true);
   setWizardStage('restore');
   setWizardStep('New firmware verified. Restoring your settings…', { showBackup: true });
-  const failures = await restoreSettingsSnapshot(pending.snapshot);
+  lockSessionButtons(true);
+  let failures = [];
+  try {
+    failures = await restoreSettingsSnapshot(pending.snapshot);
+  } finally {
+    lockSessionButtons(false);
+  }
+  if (failures.length && !serialSession.port) {
+    // The link died mid-restore (cable pulled, device wedged): re-arm the
+    // update so the next connect picks the restore back up instead of
+    // leaving the user to re-enter everything by hand.
+    writePending({ ...pending, installed: true });
+    log('Connection lost while restoring settings — they will be restored on the next connect.', 'log-err');
+    setWizardVisible(true);
+    setWizardStep('Connection lost while restoring your settings. Reconnect — they will be restored automatically.', {
+      showCancel: true,
+      showBackup: true,
+      hint: 'Unplug and replug the LipSync if it does not appear, then click Connect.',
+    });
+    announceStatus('Connection lost. Reconnect the LipSync to restore your settings.');
+    return;
+  }
   if (failures.length) {
     log('Some settings could not be restored: ' + failures.join('; '), 'log-err');
   } else {
@@ -841,7 +951,7 @@ export function bindFirmwareUpdate(guard) {
       guard(() => continueWizard()),
     );
   const cancel = $('btnFwCancel');
-  if (cancel) cancel.addEventListener('click', () => cancelWizard('Update cancelled. Nothing was changed.'));
+  if (cancel) cancel.addEventListener('click', () => cancelWizard());
   const backup = $('btnDownloadBackup');
   if (backup)
     backup.addEventListener('click', () => {

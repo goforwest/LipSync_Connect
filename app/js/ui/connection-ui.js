@@ -70,18 +70,29 @@ export function setCmdButtons(enabled) {
 // readers, and every interactive control inside is already disabled while
 // disconnected. Help and Log stay fully interactive — a first-time user lands
 // on Help and can read it and watch the log before ever connecting.
+// The Firmware card is additionally exempt while a wizard run is active
+// (marked with data-wizard on the section): the update deliberately
+// disconnects the device, and the wizard must stay visible, bright, and
+// openable throughout — the wizard panel is the only place the user can
+// continue or follow progress.
 export function updateConnectionGating() {
   const gated = !serialSession.port;
+  const firmwareActive = () => !!document.getElementById('sec-firmware')?.getAttribute('data-wizard');
   document.querySelectorAll('.section-card.needs-conn').forEach((el) => {
-    el.classList.toggle('card-off', gated);
+    el.classList.toggle('card-off', gated && !(el.id === 'sec-firmware' && firmwareActive()));
   });
   document.querySelectorAll('.circle-trigger[data-section]').forEach((/** @type {any} */ b) => {
-    const keepsAccess = ['sec-help', 'sec-log'].includes(b.dataset.section);
+    const keepsAccess =
+      ['sec-help', 'sec-log'].includes(b.dataset.section) || (b.dataset.section === 'sec-firmware' && firmwareActive());
     if (!keepsAccess) {
       b.classList.toggle('dimmed', gated);
       b.setAttribute('aria-disabled', String(gated));
       if (gated) b.title = 'Connect a LipSync device first';
       else b.removeAttribute('title');
+    } else {
+      b.classList.remove('dimmed');
+      b.removeAttribute('aria-disabled');
+      b.removeAttribute('title');
     }
   });
 }

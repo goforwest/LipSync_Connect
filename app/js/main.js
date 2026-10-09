@@ -4,6 +4,7 @@ import { FEEDBACK_MODES, DEBUG_MODES, LIVE_STREAM_BUTTONS, HEADER_SCROLL_THRESHO
 import { debounce, fmtApiFloat } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
+import { announceStatus } from './ui/a11y.js';
 import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.js';
 import { serialApi } from './serial/transport.js';
 import { sendCommand } from './serial/commands.js';
@@ -242,6 +243,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if (getOpenSection()) {
       e.preventDefault();
+      // A section with an active firmware wizard stays open — closing it would
+      // hide the only surface showing update progress, and mid-update the
+      // card is exempt from gating so it could not be reopened.
+      const openEl = document.getElementById(getOpenSection());
+      if (openEl && openEl.getAttribute('data-wizard')) {
+        announceStatus('The firmware update is still in progress — the Firmware section stays open.');
+        return;
+      }
       closeCurrentSection();
     }
   });

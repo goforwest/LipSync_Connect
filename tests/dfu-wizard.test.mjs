@@ -220,6 +220,20 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
     'wake pulse + 1200-baud touch ran on the app port, and the verify probe found the device gone',
   );
   assert.equal(byId('btnFwContinue').hidden, false, 'waiting for the user to pick the bootloader port');
+
+  // ---- Hardening: connection state vs. wizard stage ----
+  // The wizard intentionally disconnected, but the Firmware card must stay
+  // bright, its nav entry must stay openable, and the header must explain
+  // the stage instead of showing a bare "Not connected".
+  assert.equal(
+    byId('sec-firmware').classList.contains('card-off'),
+    false,
+    'the firmware card is exempt from disconnect gating while the wizard runs',
+  );
+  const fwNav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  assert.equal(fwNav.getAttribute('aria-disabled'), null, 'the firmware nav trigger stays open');
+  assert.equal(document.getElementById('status').textContent, 'Firmware update — choose the update port');
+
   click('btnFwContinue');
   // Flash of 700 bytes = 2 data frames + fixed frames + the 500 ms erase wait.
   await sleep(900);
@@ -248,6 +262,9 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   assert.equal(byId('fwStepRestore').classList.contains('active'), true, 'restore is the active tracker step');
   assert.equal(byId('fwPct').textContent, '100%', 'the numeric percent renders outside the live region');
   assert.equal(byId('fwWizardStep').textContent.includes('%'), false, 'the live step text carries no percentage');
+  assert.equal(document.getElementById('status').textContent, 'Firmware update — reconnect the LipSync');
+  assert.equal(byId('btnConnect').disabled, false, 'Connect re-enables for the post-flash reconnect');
+  assert.equal(byId('btnDisconnect').disabled, true, 'Disconnect stays disabled while no session exists');
 
   // ---- Simulate the user reconnecting the now-updated device ----
   const sentAfter = [];
@@ -348,3 +365,196 @@ function sessionStoreSet(key, value) {
     else sessionStorage.setItem(key, JSON.stringify(value));
   } catch {}
 }
+
+// ---- Hardening: cancel while the flash is in flight --------------------
+
+test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: null } } },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () =>
+      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  });
+  // A slow bootloader so the flash is still running when Cancel lands.
+  const sim = createBootloaderSim({ ackDelayMs: 150 });
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = {
+    async open(opts) {
+      void opts;
+    },
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(150); // inside the erase wait / early frames
+  click('btnFwCancel');
+  await sleep(400);
+
+  assert.equal(byId('fwWizard').hidden, true, 'the wizard closes and stays closed');
+  const history = (await import('../app/js/services/log.js')).getLogHistory().join('\n');
+  assert.match(history, /Update stopped partway/, 'the honest mid-flash cancel message is logged');
+  assert.doesNotMatch(history, /Firmware update failed:/, 'a cancel is not reopened as a failure');
+  assert.match(history, /recovery loader/, 'the recovery guidance is present');
+  assert.equal(document.getElementById('status').textContent, 'Not connected');
+  assert.equal(byId('btnConnect').disabled, false, 'Connect returns after the cancel');
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardening: connection lost mid-restore re-arms and retries --------
+
+test('wizard: a disconnect during settings restore retries on the next connect', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  const manifest = { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: null } } };
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({ manifest, tagName: 'V4.2.0', releaseUrl: null, checkedAt: Date.now(), assetUrls: { dfu: 'https://github.com/x' } }),
+    );
+  } catch {}
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () =>
+      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  });
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = {
+    async open(opts) {
+      void opts;
+    },
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(900);
+
+  // Reconnect: the device answers the first few restore writes, then the
+  // link dies mid-restore (like a cable pull).
+  let writesSeen = 0;
+  const writerDying = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (!m) return;
+      if (writesSeen >= 4) {
+        setTimeout(() => void app.disconnect({ quiet: true }), 0);
+        return; // no reply — the link is gone
+      }
+      writesSeen++;
+      setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerDying);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(150);
+
+  assert.match(byId('fwWizardStep').textContent, /Connection lost while restoring/);
+  assert.equal(fw.readPending()?.installed, true, 'the update is re-armed so the next connect retries');
+
+  // Second reconnect with a healthy link: the restore picks back up and ends.
+  const sentFinal = [];
+  const writer3 = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentFinal.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writer3);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.deepEqual(
+    sentFinal.filter((t) => /,1:/.test(t)),
+    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    'the full restore runs on the retry',
+  );
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+// ---- Hardening: page reload mid-flash (device finished on its own) -----
+
+test('wizard: a reload during the flash still verifies and restores', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  fw.writePending({
+    target: '4.2.0',
+    installed: false, // the page died before continueWizard could mark it
+    snapshot: { VN: '4.1.0', SS: '5', SL: '5' },
+  });
+  const sentReload = [];
+  const writerReload = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentReload.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerReload);
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' }); // the bootloader finished the update
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.deepEqual(
+    sentReload.filter((t) => /,1:/.test(t)),
+    ['SS,1:5', 'SL,1:5'],
+    "the snapshot's writable settings are restored",
+  );
+  assert.equal(fw.readPending(), null, 'the pending update is cleared');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
