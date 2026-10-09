@@ -109,6 +109,35 @@ export const COM_MODES = { 0: 'None', 1: 'USB', 2: 'Bluetooth' };
 export const MODELS = { 1: 'LipSync 4' };
 export const MODEL_FEATURES = { 1: { bluetooth: true, gamepad: true } };
 
+// ---- Firmware update check ----
+// The latest-version source of truth is the manifest asset attached to the
+// newest non-prerelease GitHub release of the firmware repo (built by the
+// lipsync repo's release workflow). Manifest shape:
+//   { firmwareVersion, files: { dfu: { fileName, size, sha256 }, uf2: {...} } }
+export const FIRMWARE_RELEASE_API = 'https://api.github.com/repos/makersmakingchange/LipSync/releases/latest';
+export const FIRMWARE_MANIFEST_ASSET_NAME = 'firmware-manifest.json';
+// Dev affordance: set this localStorage key to a manifest URL (e.g. the dev
+// server's /firmware-manifest.json route) to check against a local build.
+export const FIRMWARE_MANIFEST_URL_OVERRIDE_KEY = 'lipsync-fw-manifest-url';
+export const FIRMWARE_CHECK_STORAGE_KEY = 'lipsync-fw-check';
+// Auto-checks are served from cache for this long so reconnect-heavy usage
+// cannot burn GitHub's unauthenticated rate limit (60 req/h per IP).
+export const FIRMWARE_CHECK_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const FIRMWARE_FETCH_TIMEOUT_MS = 15000;
+
+// ---- LipSync USB identity (Seeed XIAO nRF52840) ----
+// Application firmware (CDC settings + HID) vs. the stock bootloader's
+// serial-DFU interface. Both variants exist in the wild: units built with
+// the plain XIAO nRF52840 enumerate with 0x8044/0x0044, and units with the
+// Sense variant of the module with 0x8045/0x0045 — both observed on real
+// hardware, where app and bootloader even share the same product string
+// ("XIAO nRF52840 Sense"), so filters must rely on the PIDs alone.
+export const USB_VENDOR_ID = 0x2886; // Seeed Technology Co., Ltd.
+export const USB_PID_APPLICATION = 0x8044;
+export const USB_PID_APPLICATION_SENSE = 0x8045;
+export const USB_PID_BOOTLOADER = 0x0044;
+export const USB_PID_BOOTLOADER_SENSE = 0x0045;
+
 export const STEP_TARGETS = {
   speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
   scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
