@@ -31,6 +31,7 @@ import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { runDiagnostics } from './services/health.js';
+import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
 
 // Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
@@ -117,8 +118,16 @@ import { clearHealthResults } from './services/health.js';
 const clearSessionUi = () => {
   clearHealthResults();
   resetHubRemote();
+  resetFirmwareUpdateUi();
 };
-configureConnection({ loadDeviceInfo, clearHealthResults: clearSessionUi });
+// After a successful settings load: finish an in-flight firmware update
+// (verify + restore settings) when one is pending, otherwise run the
+// automatic update check. Fire-and-forget — nothing here may delay "ready".
+const loadDeviceInfoThenCheckFirmware = async () => {
+  await loadDeviceInfo();
+  void afterDeviceLoad();
+};
+configureConnection({ loadDeviceInfo: loadDeviceInfoThenCheckFirmware, clearHealthResults: clearSessionUi });
 configureSettingsListeners({ clearHealth: clearSessionUi });
 
 // ------------------------- Wiring -------------------------
@@ -310,6 +319,8 @@ window.addEventListener('DOMContentLoaded', () => {
     // Next/Select) lives in services/hub-remote.js. Class "cmd" on the four
     // buttons makes setCmdButtons handle connect/disconnect disabling.
     bindHubRemote(guard);
+    // Firmware update check + flash wizard live in services/firmware-update.js.
+    bindFirmwareUpdate(guard);
     // Operating mode and Bluetooth flows live in services/mode-switch.js
     document
       .querySelectorAll('button[data-step]')

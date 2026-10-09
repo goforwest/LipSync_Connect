@@ -270,6 +270,7 @@ const SECTION_IDS = [
   'sec-bluetooth',
   'sec-diagnostics',
   'sec-maintenance',
+  'sec-firmware',
   'sec-help',
   'sec-log',
 ];
@@ -316,6 +317,11 @@ export function installGatingDom(existingEls = null) {
   cmdBtnBuzz.disabled = true;
   els.set('btnTestLeds', cmdBtnLeds);
   els.set('btnTestBuzzer', cmdBtnBuzz);
+  const cmdBtnCheckFw = makeEl('button');
+  cmdBtnCheckFw.id = 'btnCheckUpdate';
+  cmdBtnCheckFw.classList.add('cmd');
+  cmdBtnCheckFw.disabled = true;
+  els.set('btnCheckUpdate', cmdBtnCheckFw);
 
   const documentStub = {
     _ready: null,

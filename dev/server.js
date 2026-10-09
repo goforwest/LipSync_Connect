@@ -16,7 +16,7 @@ const certFile = path.join(appDir, 'localhost.crt');
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://api.github.com https://github.com https://objects.githubusercontent.com https://release-assets.githubusercontent.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'serial=(self), usb=(self)',
@@ -166,6 +166,29 @@ function handleRequest(req, res) {
       }),
     );
     res.end(RELOAD_CLIENT_JS);
+    return;
+  }
+
+  // Dev-only firmware manifest: serves dev/firmware/dist/manifest.json (built
+  // by dev/firmware/build-firmware.sh) at a stable same-origin URL. Point the
+  // app at it with localStorage 'lipsync-fw-manifest-url' = '/firmware-manifest.json'
+  // to exercise the update-check flow against a local build without touching GitHub.
+  if (file === '/firmware-manifest.json') {
+    const manifestPath = path.join(dir, 'firmware', 'dist', 'manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      res.writeHead(404, TEXT_HEADERS);
+      res.end('No firmware manifest found — run dev/firmware/build-firmware.sh first');
+      return;
+    }
+    fs.readFile(manifestPath, (err, data) => {
+      if (err) {
+        res.writeHead(500, TEXT_HEADERS);
+        res.end('Could not read firmware manifest');
+        return;
+      }
+      res.writeHead(200, withSecurity({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }));
+      res.end(data);
+    });
     return;
   }
 

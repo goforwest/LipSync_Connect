@@ -12,7 +12,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://api.github.com https://github.com https://objects.githubusercontent.com https://release-assets.githubusercontent.com; base-uri 'self'; form-action 'self'; object-src 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <link rel="stylesheet" href="./styles.css" />
@@ -162,6 +162,20 @@
               d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
             /></svg></span
         ><span class="circle-label">Maint.</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-firmware"
+        aria-controls="sec-firmware"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" /></svg></span
+        ><span class="circle-label">Firmware</span>
       </button>
       <button
         type="button"
@@ -670,6 +684,53 @@
         <p class="hint">Restores all settings to defaults (confirmation required).</p>
       </section>
 
+      <section class="section-card" id="sec-firmware" aria-label="Firmware update">
+        <h2>Firmware</h2>
+        <div class="fw-check-rows">
+          <div class="row">
+            <label>Installed version</label><span class="value" id="fwCurrentVersion">&mdash;</span>
+          </div>
+          <div class="row"><label>Latest available</label><span class="value" id="fwLatestVersion">&mdash;</span></div>
+          <p id="fwUpdateStatus" role="status" class="fw-status"></p>
+          <p>
+            <a id="fwNotesLink" hidden rel="noopener noreferrer" target="_blank">What&#8217;s new in this release</a>
+          </p>
+        </div>
+        <div class="row" id="fwActionsRow">
+          <button type="button" class="cmd secondary" id="btnCheckUpdate" disabled>Check for updates</button>
+          <button type="button" class="cmd" id="btnStartUpdate" hidden>
+            Update to <span id="fwTargetVersion"></span>
+          </button>
+          <button type="button" class="cmd secondary" id="btnFlashLocalFile" disabled hidden>
+            Flash local file&hellip;
+          </button>
+        </div>
+        <div id="fwWizard" hidden>
+          <ol class="fw-steps" aria-hidden="true">
+            <li id="fwStepBackup">Back up</li>
+            <li id="fwStepRestart">Restart device</li>
+            <li id="fwStepFlash">Flash</li>
+            <li id="fwStepRestore">Verify & restore</li>
+          </ol>
+          <p id="fwWizardStep" role="status" class="fw-step"></p>
+          <div class="row">
+            <progress id="fwProgress" value="0" max="100" aria-label="Firmware update progress"></progress
+            ><span id="fwPct" class="fw-pct"></span>
+          </div>
+          <div class="row">
+            <button type="button" id="btnFwContinue" hidden>Continue</button>
+            <button type="button" class="secondary" id="btnFwCancel" hidden>Cancel</button>
+            <button type="button" class="secondary" id="btnDownloadBackup" hidden>Download settings backup</button>
+          </div>
+          <p class="hint" id="fwWizardHint"></p>
+        </div>
+        <input type="file" id="fwFileInput" accept=".zip,application/zip" hidden aria-label="Firmware file" />
+        <p class="hint">
+          The check compares your LipSync&#8217;s firmware against the latest published release from Makers Making
+          Change. Updating keeps your personal settings and restores them automatically.
+        </p>
+      </section>
+
       <section class="section-card" id="sec-help" aria-label="Help and troubleshooting">
         <h2>Help &amp; troubleshooting</h2>
         <div class="notice">
@@ -698,6 +759,28 @@
           <p class="hint">
             If using the Android WebUSB fallback, the browser will only see the device when it is plugged in and awake.
             Try unplugging and replugging, then click Connect again.
+          </p>
+        </details>
+
+        <details>
+          <summary>Firmware update does not start or gets stuck</summary>
+          <p class="hint">
+            <strong>Device did not restart into update mode.</strong> The update normally restarts the LipSync by
+            itself. If nothing happens, press the small reset button on the Hub twice, slowly — the device enters update
+            mode on its own — then click Continue in the wizard.
+          </p>
+          <p class="hint">
+            <strong>The update port does not appear in the browser dialog.</strong> Unplug the LipSync, plug it back in,
+            and try again. Use a data cable connected directly to the computer.
+          </p>
+          <p class="hint">
+            <strong>Nothing is harmed if an update fails.</strong> The update only ever replaces the main firmware; the
+            device&#8217;s recovery loader stays intact. You can simply retry, or press reset twice and try again.
+          </p>
+          <p class="hint">
+            <strong>Your settings.</strong> The app backs them up before the update and restores them afterwards (you
+            can download the backup from the wizard). If a setting looks wrong afterwards, use
+            <em>Refresh all settings</em> in the Device section.
           </p>
         </details>
 

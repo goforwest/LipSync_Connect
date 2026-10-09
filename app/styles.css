@@ -1677,3 +1677,134 @@ html.dark-mode .appearance-popup {
     right: 16px;
   }
 }
+
+/* ---- Firmware update ---- */
+/* Status line under the version rows: a colored state dot makes the check
+   outcome legible at a glance for low-vision and low-tech users. */
+.fw-status {
+  font-size: 0.95rem;
+  min-height: 1.2em;
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+.fw-status:empty {
+  display: none;
+}
+.fw-status[data-state]::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: var(--muted);
+}
+.fw-status[data-state='ok']::before {
+  background: var(--success);
+}
+.fw-status[data-state='available'] {
+  font-weight: 600;
+}
+.fw-status[data-state='available']::before {
+  background: var(--accent2);
+}
+.fw-status[data-state='busy']::before {
+  background: var(--info);
+  animation: fw-pulse 1.2s ease-in-out infinite;
+}
+.fw-status[data-state='unknown']::before,
+.fw-status[data-state='warn']::before {
+  background: var(--warning);
+}
+@keyframes fw-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fw-status[data-state='busy']::before {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+/* The available version pops when an update is waiting. */
+#fwLatestVersion.fw-new {
+  color: var(--accent2);
+  font-weight: 700;
+  border-color: var(--accent2);
+}
+/* While the wizard runs, the check rows recede and only the panel matters. */
+#sec-firmware[data-wizard] .fw-check-rows {
+  opacity: 0.6;
+}
+#fwWizard {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent2);
+  border-radius: 8px;
+  background: var(--value-bg);
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+#fwWizard[data-state='done'] {
+  border-left-color: var(--success);
+}
+#fwWizard[data-state='failed'] {
+  border-left-color: var(--danger);
+}
+/* Step tracker: where the user is in Backup → Restart → Flash → Restore.
+   Decorative for assistive tech — the live step text carries the state. */
+.fw-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.fw-steps li {
+  position: relative;
+  padding-left: 17px;
+}
+.fw-steps li::before {
+  content: '○';
+  position: absolute;
+  left: 0;
+}
+.fw-steps li.active {
+  color: var(--text);
+  font-weight: 600;
+}
+.fw-steps li.active::before {
+  content: '●';
+  color: var(--accent2);
+}
+.fw-steps li.done::before {
+  content: '✓';
+  color: var(--success);
+}
+/* The wizard's instruction text is the most important text on the card —
+   full size and weight, unlike the surrounding hints. */
+.fw-step {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+#fwWizard[data-state='done'] .fw-step {
+  color: var(--success);
+  font-weight: 600;
+}
+#fwWizard[data-state='failed'] .fw-step {
+  color: var(--danger);
+}
+#fwProgress {
+  width: 100%;
+  flex: 1 1 120px;
+}
+.fw-pct {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 3.5em;
+  text-align: right;
+}

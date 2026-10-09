@@ -1,6 +1,6 @@
 # LipSync Connect
 
-Browser-based configuration and monitoring tool for the **LipSync** assistive joystick mouse. Connect the LipSync over USB serial (Web Serial or a WebUSB fallback on Android), adjust sip/puff thresholds, deadzones, cursor speed, feedback, and Bluetooth settings, run device self-tests and a health diagnostic, and calibrate the joystick — all from a secure Chromium page with no install.
+Browser-based configuration and monitoring tool for the **LipSync** assistive joystick mouse. Connect the LipSync over USB serial (Web Serial or a WebUSB fallback on Android), adjust sip/puff thresholds, deadzones, cursor speed, feedback, and Bluetooth settings, run device self-tests and a health diagnostic, calibrate the joystick — and check for and install firmware updates — all from a secure Chromium page with no install.
 
 Part of the OpenAT Joystick Project by [Makers Making Change](https://www.makersmakingchange.com/), a program of [Neil Squire](https://www.neilsquire.ca/).
 
@@ -45,6 +45,17 @@ CI (`.github/workflows/ci.yml`) runs everything above on every push/PR. Secrets 
 
 The app is a static site that deploys as-is to Vercel. `app/vercel.json` sets the strict CSP/security headers and rewrites `robots.txt`. The service worker precaches every asset so the page works offline after the first visit.
 
+## Firmware updates
+
+The **Firmware** section compares the connected device's version against the latest published [LipSync release](https://github.com/makersmakingchange/LipSync/releases) (via a `firmware-manifest.json` asset built by the firmware repo's release pipeline) and can install the update in place:
+
+- settings are backed up automatically (and downloadable) before anything is written
+- the app restarts the device into its stock bootloader with a 1200-baud touch (no firmware-side changes needed; a double-tap-reset fallback is offered)
+- the image is flashed over the bootloader's serial-DFU protocol — Web Serial on desktop, the same protocol over the WebUSB CDC shim on Android
+- after reconnecting, the new version is verified and the backed-up settings are restored automatically
+
+App-only DFU packages cannot touch the bootloader, so a failed update is always recoverable. In development, point the check at a local build with `localStorage['lipsync-fw-manifest-url'] = '/firmware-manifest.json'` (served by `dev/server.js` from `dev/firmware/dist/`) and build artifacts with `dev/firmware/build-firmware.sh`.
+
 ## Project layout
 
 ```
@@ -52,14 +63,17 @@ app/                      served application (front end)
   js/
     config/               shared constants (single source of truth)
     serial/               wire protocol, transport, command queue, read loop
-    services/             settings, calibration, self-test, health, hub mirror, log/export
+      dfu/                serial-DFU protocol, transports, DFU package parsing
+    services/             settings, calibration, self-test, health, hub mirror, log/export,
+                          firmware update (check + flash wizard)
     plotting/             joystick plot, pressure gauge, live diagnostics
     ui/                   connection chrome, sections, theme, a11y, guard
     state/ modes.js       operating/communication mode state
   service-worker.js       offline precache
 dev/                      dev server, lint/type/format configs, test runner entry
-tests/                    unit + integration tests (node) and a firmware simulator
-  harness/                DOM stubs, firmware simulator, ESM load-order helpers
+  firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
+tests/                    unit + integration tests (node) and firmware simulators
+  harness/                DOM stubs, firmware + bootloader simulators, ESM load-order helpers
 docs/                     scope and feature-list documents
 ```
 
