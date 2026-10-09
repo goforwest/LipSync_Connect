@@ -10,6 +10,10 @@ localhost.crt
 .DS_Store
 .vercel/
 
+# Local firmware build outputs (dev/firmware/build-firmware.sh artifacts)
+dev/firmware/dist/
+dev/firmware/.cache/
+
 # coding tools files
 opencode.json
 
