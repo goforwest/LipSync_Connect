@@ -20,7 +20,7 @@ import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
 import { parseDfuPackage } from '../serial/dfu/dfu-package.js';
-import { flashSerialDfu, requestDfuPort } from '../serial/dfu/dfu-serial.js';
+import { flashSerialDfu, isBootloaderPort, requestDfuPort } from '../serial/dfu/dfu-serial.js';
 import {
   FEEDBACK_MODES,
   OP_MODES,
@@ -579,6 +579,89 @@ async function sha256Hex(buffer) {
     .join('');
 }
 
+// Attempts to restart the device into its stock bootloader with the
+// 1200-baud touch. Flaky at the USB layer (observed on hardware: the same
+// build takes the touch one day and drops it the next), so each attempt is
+// verified strictly and retried — a manual double-tap reset stays the last
+// resort, never a required step.
+const TOUCH_MAX_ATTEMPTS = 3;
+
+/**
+ * One touch attempt: a wake pulse (an idle device may have suspended its USB
+ * stack and drop the touch), then open at 1200 baud + DTR drop, then verify
+ * by reopening the app-mode port — after a successful touch it no longer
+ * opens. Returns 'touched' | 'app-live' | 'inconclusive' | 'cancelled'.
+ */
+async function attemptTouchOnce(appPort, cancelled) {
+  try {
+    await appPort.open({ baudRate: 115200 });
+    await sleep(50);
+    await appPort.close();
+  } catch {}
+  if (cancelled?.()) return { result: 'cancelled' };
+  await sleep(300);
+  if (cancelled?.()) return { result: 'cancelled' };
+  try {
+    // 1200-baud touch: the running firmware sees the line-coding change and
+    // a DTR drop, and resets into its stock bootloader.
+    await appPort.open({ baudRate: 1200 });
+    try {
+      await appPort.setSignals?.({ dataTerminalReady: false });
+    } catch {}
+    await sleep(100);
+    await appPort.close();
+  } catch (e) {
+    // The app-mode device disappearing here means a previous attempt's
+    // touch landed — anything else means it is still running.
+    return { result: e?.name === 'NotFoundError' ? 'touched' : 'app-live', error: e?.message };
+  }
+  await sleep(1200);
+  if (cancelled?.()) return { result: 'cancelled' };
+  // Strict verify: only the device being GONE counts as touched. Any other
+  // open failure (port races, "already open") is inconclusive and must be
+  // retried — claiming success here strands the user at the port picker
+  // with a device that never rebooted (observed on hardware).
+  try {
+    await appPort.open({ baudRate: 115200 });
+    await appPort.close();
+    return { result: 'app-live' };
+  } catch (e) {
+    if (e?.name === 'NotFoundError' || /no longer|not connected|disconnected/i.test(e?.message ?? '')) {
+      return { result: 'touched' };
+    }
+    return { result: 'inconclusive', error: e?.message };
+  }
+}
+
+/**
+ * Runs the touch up to TOUCH_MAX_ATTEMPTS times, logging every outcome so
+ * hardware sessions are diagnosable from the exported log. Returns whether
+ * the device ended up in update mode.
+ */
+async function tryTouchDevice(appPort, cancelled) {
+  for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
+    const r = await attemptTouchOnce(appPort, cancelled);
+    if (r.result === 'cancelled') return false;
+    if (r.result === 'touched') {
+      log(
+        attempt === 1
+          ? 'Device restarted into update mode.'
+          : `Device restarted into update mode on retry (attempt ${attempt}).`,
+        'log-info',
+      );
+      return true;
+    }
+    if (attempt < TOUCH_MAX_ATTEMPTS) {
+      log(
+        `Automatic restart attempt ${attempt} did not take${r.error ? ' (' + r.error + ')' : ''} — retrying…`,
+        'log-info',
+      );
+    }
+  }
+  log(`Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts.`, 'log-err');
+  return false;
+}
+
 /**
  * The shared flash path used by both the release-update button and local
  * file flashing: snapshot → confirm → 1200-baud touch → bootloader port →
@@ -629,37 +712,7 @@ async function runFlashWizard({ pkg, targetVersion }) {
     wizard.stage = 'enter-bootloader';
     let touched = false;
     try {
-      // Wake pulse: a device that has sat idle may have suspended its USB
-      // stack and drop the touch (observed on hardware). A short open/close
-      // at the normal baud resumes it first.
-      try {
-        await appPort.open({ baudRate: 115200 });
-        await sleep(50);
-        await appPort.close();
-      } catch {}
-      if (cancelled()) return;
-      await sleep(300);
-      // 1200-baud touch: the running firmware sees the line-coding change and
-      // a DTR drop, and resets into its stock bootloader.
-      await appPort.open({ baudRate: 1200 });
-      try {
-        await appPort.setSignals?.({ dataTerminalReady: false });
-      } catch {}
-      await sleep(100);
-      await appPort.close();
-      if (cancelled()) return;
-      await sleep(1200);
-      if (cancelled()) return;
-      // Verify the device actually left application mode: after a successful
-      // touch the app-mode port is gone. If it still opens, the touch did not
-      // take and the user must double-tap reset instead of picking a port
-      // that can never answer the bootloader protocol.
-      try {
-        await appPort.open({ baudRate: 115200 });
-        await appPort.close();
-      } catch {
-        touched = true;
-      }
+      touched = await tryTouchDevice(appPort, cancelled);
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
@@ -669,7 +722,7 @@ async function runFlashWizard({ pkg, targetVersion }) {
     setWizardStep(
       touched
         ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
-        : 'The device did not restart automatically. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+        : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
         hint: 'The Hub\u2019s screen stays dark and its lights go quiet while it is in update mode — that is normal. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
@@ -702,6 +755,37 @@ async function continueWizard() {
           showCancel: true,
           showBackup: true,
           hint: 'If the device was unplugged, plug it back in first.',
+        },
+      );
+      return;
+    }
+    if (!wizard) return; // cancelled while the picker was open
+    // Self-heal: when the picked port carries the app-mode USB identity, the
+    // automatic restart never took and the user just picked the still-running
+    // LipSync. Retry the restart on this very port instead of failing — a
+    // manual reset stays the last resort, not the required path.
+    if (port?.getInfo && !isBootloaderPort(port)) {
+      log('The selected port is the running LipSync, not its update loader — restarting the device again.', 'log-err');
+      setWizardStatus('Firmware update — restarting the device again');
+      setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
+      let touched = false;
+      try {
+        touched = await tryTouchDevice(port, () => !wizard);
+      } catch (e) {
+        log('Could not restart the device automatically: ' + e.message, 'log-err');
+      }
+      if (!wizard) return;
+      wizard.stage = 'await-bootloader-port';
+      setWizardStatus('Firmware update — choose the update port');
+      setWizardStep(
+        touched
+          ? 'The LipSync is now in update mode. Click Continue and pick the update loader in the browser dialog.'
+          : 'The automatic restart keeps failing. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+        {
+          hint: 'The Hub\u2019s screen stays dark while it is in update mode — that is normal.',
+          showContinue: true,
+          showCancel: true,
+          showBackup: true,
         },
       );
       return;
@@ -777,6 +861,17 @@ async function continueWizard() {
   } catch (e) {
     // A cancel already closed the wizard — do not reopen it as a failure.
     if (!wizard) return;
+    if (e?.name === 'NotFoundError') {
+      // A previously-granted port whose device has since disconnected (e.g.
+      // the bootloader left after a reboot): back to the picker, not a
+      // failure panel.
+      wizard.stage = 'await-bootloader-port';
+      setWizardStep(
+        'The update loader is no longer connected. If the LipSync is running normally, click Continue and try again; if not, press its reset button twice, slowly, first.',
+        { showContinue: true, showCancel: true, showBackup: true },
+      );
+      return;
+    }
     failWizard(e);
   } finally {
     lockSessionButtons(false);

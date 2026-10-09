@@ -358,13 +358,7 @@ test('wizard: cancel at the confirm dialog changes nothing', async () => {
         };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
-  const appPort = {
-    async open() {},
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
-    writable: { getWriter: () => ({ write: async () => {} }) },
-  };
+  const appPort = makeTouchedAppPort();
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = appPort;
   setLoadedValues();
@@ -384,6 +378,27 @@ function sessionStoreSet(key, value) {
     else sessionStorage.setItem(key, JSON.stringify(value));
   } catch {}
 }
+
+// Realistic app-mode port: the touch works on the first attempt (the third
+// open — the verify probe — fails like a real device that has rebooted).
+const makeTouchedAppPort = () => {
+  let opens = 0;
+  return {
+    async open(opts) {
+      opens++;
+      if (opens > 2) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+};
 
 // ---- Hardening: cancel while the flash is in flight --------------------
 
@@ -412,15 +427,7 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
   // A slow bootloader so the flash is still running when Cancel lands.
   const sim = createBootloaderSim({ ackDelayMs: 150 });
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
-  const appPort = {
-    async open(opts) {
-      void opts;
-    },
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
-    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
-  };
+  const appPort = makeTouchedAppPort();
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = appPort;
   setLoadedValues();
@@ -466,15 +473,7 @@ test('wizard: a disconnect during settings restore retries on the next connect',
         };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
-  const appPort = {
-    async open(opts) {
-      void opts;
-    },
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
-    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
-  };
+  const appPort = makeTouchedAppPort();
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = appPort;
   setLoadedValues();
@@ -622,13 +621,7 @@ test('wizard: cancelling during the download does not resurrect the update', asy
     });
   };
   const { serialSession } = await import('../app/js/serial/session.js');
-  serialSession.port = {
-    async open() {},
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
-    writable: { getWriter: () => ({ write: async () => {} }) },
-  };
+  serialSession.port = makeTouchedAppPort();
   setLoadedValues();
 
   const logMod = await import('../app/js/services/log.js');
@@ -684,13 +677,7 @@ test('wizard: a disconnect during the download surfaces a clean failure', async 
     });
   };
   const { serialSession } = await import('../app/js/serial/session.js');
-  serialSession.port = {
-    async open() {},
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
-    writable: { getWriter: () => ({ write: async () => {} }) },
-  };
+  serialSession.port = makeTouchedAppPort();
   setLoadedValues();
 
   const wizardDone = fw.startFirmwareUpdate();
@@ -733,13 +720,7 @@ test('wizard: cancelling during the device restart stays quiet and closed', asyn
           json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
         };
   const { serialSession } = await import('../app/js/serial/session.js');
-  serialSession.port = {
-    async open() {},
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
-    writable: { getWriter: () => ({ write: async () => {} }) },
-  };
+  serialSession.port = makeTouchedAppPort();
   setLoadedValues();
 
   const wizardDone = fw.startFirmwareUpdate();
@@ -783,15 +764,7 @@ test('wizard: a changed operating mode gets restored with one extra reboot', asy
         };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
-  const appPort = {
-    async open(opts) {
-      void opts;
-    },
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
-    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
-  };
+  const appPort = makeTouchedAppPort();
   const { serialSession } = await import('../app/js/serial/session.js');
   // The user was on Gamepad when the update started.
   serialSession.port = appPort;
@@ -884,13 +857,7 @@ test('wizard: cancelling at the port picker says the device is in update mode', 
         };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
-  const appPort = {
-    async open() {},
-    async close() {},
-    async setSignals() {},
-    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
-    writable: { getWriter: () => ({ write: async () => {} }) },
-  };
+  const appPort = makeTouchedAppPort();
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = appPort;
   setLoadedValues();
@@ -929,4 +896,144 @@ test('isBootloaderPort recognizes update-loader ports and nothing else', async (
   const { UsbSerialPort } = await import('../app/js/serial/transport.js');
   const shim = new UsbSerialPort({ vendorId: 0x2886, productId: 0x0045 });
   assert.equal(isBootloaderPort(shim), true);
+});
+
+// ---- Hardening: the automatic restart retries itself --------------------
+
+test('wizard: a flaky touch is retried automatically instead of demanding reset', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // First touch attempt: the device "doesn't leave" (verify open succeeds).
+  // Second attempt: it does. No manual reset should ever be requested.
+  let opens = 0;
+  const appPort = {
+    async open(opts) {
+      opens++;
+      void opts;
+      if (opens > 5) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /attempt 1 did not take .* retrying/, 'the flaky first attempt is logged');
+  assert.match(history, /retry \(attempt 2\)/, 'the second attempt lands');
+  assert.doesNotMatch(history, /Automatic restart failed after/, 'no manual reset demanded');
+  assert.equal(byId('btnFwContinue').hidden, false, 'the picker step is reachable');
+  assert.doesNotMatch(byId('fwWizardStep').textContent, /did not restart/, 'the manual-reset text is not shown');
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardening: picking the still-running LipSync self-heals ------------
+
+test('wizard: picking the running LipSync retries the restart instead of failing', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The picker hands back the still-running LipSync (app USB identity) the
+  // first time — the wizard must re-touch it and return to the picker.
+  let pickerCalls = 0;
+  configureDfuPortSource({
+    serial: {
+      getPorts: async () => [],
+      requestPort: async () => {
+        pickerCalls++;
+        return pickerCalls === 1 ? makeTouchedAppPort() : sim.port;
+      },
+    },
+  });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue'); // picks the app port by mistake
+
+  // The self-heal runs the touch against that port and returns to the picker.
+  await sleep(2500);
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /running LipSync, not its update loader/, 'the mispick is diagnosed');
+  assert.match(history, /retry \(attempt 1\)|restarted into update mode/, 'the re-touch ran');
+  assert.match(byId('fwWizardStep').textContent, /now in update mode|pick the update loader/, 'back at the picker, not a failure');
+  assert.equal(byId('btnFwContinue').hidden, false, 'Continue is available again');
+  assert.doesNotMatch(history, /Firmware update failed:/, 'no failure panel was raised');
+
+  click('btnFwContinue'); // second pick: the real bootloader
+  await sleep(900);
+  assert.equal(sim.state.activated, true, 'the flash then completes on the loader');
+  await app.disconnect({ quiet: true });
 });
