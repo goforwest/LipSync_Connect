@@ -431,6 +431,7 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
   await wizardDone;
   click('btnFwContinue');
   await sleep(150); // inside the erase wait / early frames
+  assert.equal(byId('btnFwCancel').textContent, 'Stop update', 'the button says what it does mid-flash');
   click('btnFwCancel');
   await sleep(400);
 

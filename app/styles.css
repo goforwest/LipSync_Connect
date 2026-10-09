@@ -1150,6 +1150,23 @@ html.dark-mode .guide-card {
   height: 1em;
   display: block;
 }
+/* A firmware update waiting to be installed badges the nav trigger — the
+   dot mirrors the status pill's "available" color. Decorative: the check
+   status announcement already carries the news for screen readers. */
+.circle-trigger[data-notify] .circle-icon {
+  position: relative;
+}
+.circle-trigger[data-notify] .circle-icon::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent2);
+  border: 2px solid var(--panel);
+}
 .circle-trigger .circle-label {
   font-size: 0.72rem;
   opacity: 0.8;

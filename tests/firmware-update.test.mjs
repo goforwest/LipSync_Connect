@@ -71,6 +71,43 @@ test('compareVersions orders versions and rejects garbage', () => {
   assert.equal(fw.compareVersions('garbage', '4.1.0'), null);
 });
 
+test('an available update badges the Firmware nav trigger, up-to-date clears it', async () => {
+  storage.clear();
+  const navBadge = () =>
+    document.querySelector('.circle-trigger[data-section="sec-firmware"]')?.getAttribute('data-notify') ?? null;
+  fetchImpl = async (url) =>
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.2.0') };
+  setDeviceVersion('4.1.0');
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.equal(navBadge(), 'firmware-update', 'the nav trigger carries the badge');
+
+  // Up-to-date clears it.
+  fetchImpl = async (url) =>
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.1.0'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.1.0') };
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.equal(navBadge(), null, 'the badge clears when up to date');
+
+  // The disconnect hook clears it too.
+  fw.resetFirmwareUpdateUi();
+  assert.equal(navBadge(), null, 'reset clears the badge');
+});
+
+test('GitHub rate limiting reads as a limit, not as offline', async () => {
+  storage.clear();
+  fetchImpl = async () => ({ ok: false, status: 403 });
+  setDeviceVersion('4.1.0');
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.match(status(), /anonymous request limit/);
+  assert.equal(statusState(), 'warn');
+});
+
 test('check finds a newer release and offers the update', async () => {
   storage.clear();
   fetchCalls = [];

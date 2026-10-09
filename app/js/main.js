@@ -249,7 +249,11 @@ window.addEventListener('DOMContentLoaded', () => {
       // panel may be dismissed.
       const openEl = document.getElementById(getOpenSection());
       const wizardState = openEl?.getAttribute('data-wizard');
-      if (wizardState && wizardState !== 'done') {
+      // 'failed' panels stay dismissible: everything they say is already in
+      // the log, the panel is reopenable (the card is exempt from gating
+      // while data-wizard is set), and stranding a keyboard user on a dead
+      // panel is worse than letting them move on.
+      if (wizardState && wizardState !== 'done' && wizardState !== 'failed') {
         announceStatus('The firmware update is still in progress — the Firmware section stays open.');
         return;
       }

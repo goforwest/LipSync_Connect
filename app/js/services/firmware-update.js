@@ -165,7 +165,10 @@ async function fetchRepoJsonFile(repo, path, { allowMissing = false } = {}) {
     clearTimeout(timer);
   }
   if (res.status === 404 && allowMissing) return null;
-  if (!res.ok) throw new Error(`GitHub API ${res.status} while reading ${path}`);
+  if (res.status === 403) {
+    throw new Error('GitHub is limiting anonymous requests from this network — wait a while and try again.');
+  }
+  if (!res.ok) throw new Error(`GitHub returned an error (HTTP ${res.status}) while reading the firmware information.`);
   const payload = await res.json();
   if (payload.encoding !== 'base64' || !payload.content) throw new Error(`Unexpected payload for ${path}.`);
   return JSON.parse(new TextDecoder().decode(base64ToBytes(payload.content)));
@@ -180,10 +183,12 @@ export async function fetchRepoBinary(repo, fileName) {
   const treeUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/trees/${FIRMWARE_BINARIES_BRANCH}`;
   const tree = await fetchJson(treeUrl);
   const blob = (tree.tree || []).find((/** @type {{path: string}} */ e) => e.path === fileName);
-  if (!blob?.sha) throw new Error(`The published firmware package is missing ${fileName}.`);
+  if (!blob?.sha) throw new Error('The published firmware package is missing from the repository.');
   const blobUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/blobs/${blob.sha}`;
   const payload = await fetchJson(blobUrl);
-  if (payload.encoding !== 'base64' || !payload.content) throw new Error(`Unexpected payload for ${fileName}.`);
+  if (payload.encoding !== 'base64' || !payload.content) {
+    throw new Error('The published firmware package could not be read from GitHub.');
+  }
   return base64ToBytes(payload.content);
 }
 
@@ -209,11 +214,18 @@ function setCheckStatus(text, state = '') {
 function setUpdateButton(entry, deviceVersion) {
   const btn = $('btnStartUpdate');
   const target = $('fwTargetVersion');
-  if (!btn || !entry?.manifest) return;
-  const cmp = compareVersions(deviceVersion, entry.manifest.firmwareVersion);
-  const available = cmp !== null && cmp < 0;
+  if (!btn) return;
+  const available = !!entry?.manifest && compareVersions(deviceVersion, entry.manifest.firmwareVersion) === -1;
   btn.hidden = !available;
   if (available && target) target.textContent = entry.manifest.firmwareVersion;
+  // Badge the circle-nav trigger so an available update is discoverable
+  // without opening the Firmware card. Screen readers get the same news from
+  // the check status, so the dot itself is aria-silent.
+  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  if (nav) {
+    if (available) nav.setAttribute('data-notify', 'firmware-update');
+    else nav.removeAttribute('data-notify');
+  }
 }
 
 function describeCheckedAgo(checkedAt) {
@@ -248,7 +260,12 @@ export async function checkForFirmwareUpdate(options = {}) {
     } else {
       setRow('fwLatestVersion', '—');
       setUpdateButton(null, deviceVersion);
-      setCheckStatus('Could not check for updates. You may be offline.', 'warn');
+      setCheckStatus(
+        /403/.test(e.message)
+          ? 'Update check reached GitHub\u2019s anonymous request limit — try again in a while.'
+          : 'Could not check for updates. You may be offline.',
+        'warn',
+      );
     }
     log('Firmware update check failed: ' + e.message, 'log-err');
     return;
@@ -373,7 +390,7 @@ function settingsBackupText(snapshot) {
 export function downloadSettingsBackup(snapshot) {
   downloadLogFile({
     text: settingsBackupText(snapshot),
-    filename: `lipsync-settings-${snapshot.VN || 'backup'}.json`,
+    filename: `lipsync-settings-${snapshot.VN || 'backup'}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`,
   });
   log('Settings backup downloaded.', 'log-info');
 }
@@ -518,7 +535,15 @@ function setWizardStage(stage, { allDone = false } = {}) {
  */
 function setWizardStep(
   text,
-  { percent = null, etaSec = null, hint = null, showContinue = false, showCancel = false, showBackup = false } = {},
+  {
+    percent = null,
+    etaSec = null,
+    hint = null,
+    showContinue = false,
+    showCancel = false,
+    showBackup = false,
+    cancelLabel = null,
+  } = {},
 ) {
   const step = $('fwWizardStep');
   if (step) step.textContent = text || '';
@@ -537,7 +562,12 @@ function setWizardStep(
   const cont = $('btnFwContinue');
   if (cont) cont.hidden = !showContinue;
   const cancel = $('btnFwCancel');
-  if (cancel) cancel.hidden = !showCancel;
+  if (cancel) {
+    cancel.hidden = !showCancel;
+    // The button means "stop" mid-flash and "cancel" everywhere else — keep
+    // the label explicit per step so a stale label never carries over.
+    if (showCancel) cancel.textContent = cancelLabel ?? 'Cancel';
+  }
   const backup = $('btnDownloadBackup');
   if (backup) backup.hidden = !showBackup;
 }
@@ -575,10 +605,12 @@ async function runFlashWizard({ pkg, targetVersion }) {
       showBackup: true,
     });
 
+    const what =
+      targetVersion === 'unknown version' ? 'this firmware package' : `firmware <strong>${targetVersion}</strong>`;
     const confirmed = await showConfirm(
       'Update firmware',
-      `Install firmware <strong>${targetVersion}</strong> on the LipSync?` +
-        '<br>Keep the device plugged in until the update finishes. It will restart once or twice.',
+      `Install ${what} on the LipSync?` +
+        '<br>Keep the device plugged in until the update finishes — the whole update takes about a minute. The Hub will restart once or twice.',
     );
     if (!confirmed) {
       cancelWizard('Update cancelled. Nothing was changed.');
@@ -639,7 +671,7 @@ async function runFlashWizard({ pkg, targetVersion }) {
         ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
         : 'The device did not restart automatically. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
-        hint: 'If the device does not appear, unplug it, plug it back in, and press reset twice (slowly) to enter update mode.',
+        hint: 'The Hub\u2019s screen stays dark and its lights go quiet while it is in update mode — that is normal. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
         showCancel: true,
         showBackup: true,
@@ -704,6 +736,7 @@ async function continueWizard() {
           etaSec,
           showCancel: true,
           showBackup: true,
+          cancelLabel: 'Stop update',
           hint: p.stage === 'transfer' ? 'Usually under a minute; keep the device plugged in.' : undefined,
         });
         // The bar and percentage are visual-only (not in the live region) —
@@ -741,7 +774,6 @@ async function continueWizard() {
         hint: 'Update mode and normal mode can show the same port name — waiting (or a quick unplug/replug) clears the stale entry. If the device does not respond, unplug and replug it first.',
       },
     );
-    announceStatus('Firmware installed. Please reconnect the LipSync.');
   } catch (e) {
     // A cancel already closed the wizard — do not reopen it as a failure.
     if (!wizard) return;
@@ -755,7 +787,6 @@ function failWizard(e) {
   const message = e?.message ?? String(e);
   const duringFlash = wizard?.stage === 'flashing' || wizard?.stage === 'await-reconnect';
   log('Firmware update failed: ' + message, 'log-err');
-  announceStatus('Firmware update failed.');
   wizard = { ...wizard, stage: 'failed', failedDuringFlash: duringFlash };
   lockSessionButtons(false);
   resetStatusIfDisconnected();
@@ -964,7 +995,6 @@ async function finishPendingUpdate(pending) {
       showBackup: true,
       hint: 'Unplug and replug the LipSync if it does not appear, then click Connect.',
     });
-    announceStatus('Connection lost. Reconnect the LipSync to restore your settings.');
     return;
   }
   if (failures.length) {
@@ -1033,7 +1063,6 @@ async function finishPendingUpdate(pending) {
     failures.length ? 'warn' : 'ok',
   );
   log(message + extra, failures.length || calibrationLost ? 'log-err' : 'log-info');
-  announceStatus(message);
 }
 
 /** Disconnect/fresh-session hook: clears transient rows, hides actions. */
@@ -1044,6 +1073,8 @@ export function resetFirmwareUpdateUi() {
   setCheckStatus('', '');
   const btn = $('btnStartUpdate');
   if (btn) btn.hidden = true;
+  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  if (nav) nav.removeAttribute('data-notify');
   const notes = $('fwNotesLink');
   if (notes) notes.hidden = true;
   // No wizard is in flight (an active one survives the mid-update
