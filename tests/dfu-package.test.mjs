@@ -180,3 +180,11 @@ test('parses the real locally built artifact when present', { skip: !fs.existsSy
   assert.ok(pkg.bin.length > 250000, 'real firmware image is ~256 KB');
   assert.equal(pkg.dat.length, 14, 'adafruit init packet for this app is 14 bytes');
 });
+
+test('unzip refuses to inflate entries beyond the safety cap', async () => {
+  // A 9 MB run of zeros deflates to a few KB — the classic decompression-bomb
+  // shape. The parser must abort instead of buffering the expansion.
+  const bomb = Buffer.alloc(9 * 1024 * 1024);
+  const zip = buildDeflatedZip([{ name: 'manifest.json', data: bomb }]);
+  await assert.rejects(() => unzip(zip), /unexpectedly large|refusing/i);
+});

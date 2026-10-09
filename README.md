@@ -56,6 +56,13 @@ The **Firmware** section compares the connected device's version against the lat
 
 App-only DFU packages cannot touch the bootloader, so a failed update is always recoverable. In development, point the check at a local build with `localStorage['lipsync-fw-manifest-url'] = '/firmware-manifest.json'` (served by `dev/server.js` from `dev/firmware/dist/`) and build artifacts with `dev/firmware/build-firmware.sh`.
 
+### Security notes
+
+- Release packages are downloaded over TLS and their sha256 is checked against the release manifest before flashing. Release-path installs require that checksum — our release pipeline always publishes one.
+- The checksum guards the pipe (transport + CDN), not the source: the manifest travels in the same GitHub release it vouches for, so a compromised upstream repo or release workflow could publish arbitrary firmware. Meaningful hardening would be a signing key verified in-app; until then, the check protects against corrupted downloads and CDN tampering only.
+- "Flash local file…" trusts the file the user picks (that is its purpose). The package parser caps decompression at 8 MB — far above any real image — to defuse crafted zips.
+- The settings backup downloaded before each update is the recovery path if anything interrupts the automatic post-update restore.
+
 ## Project layout
 
 ```

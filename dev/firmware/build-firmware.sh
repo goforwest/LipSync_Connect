@@ -11,6 +11,11 @@
 #
 # This script is the local twin of the lipsync repo's CI workflow; keep the
 # compile/package steps identical so local artifacts match release artifacts.
+#
+# uf2conv.py + uf2families.json are vendored byte-identical from
+# https://github.com/microsoft/uf2 (utils/, MIT license) so the build has no
+# network dependency; re-vendor deliberately and note the source here if
+# they are ever refreshed.
 
 set -eu
 

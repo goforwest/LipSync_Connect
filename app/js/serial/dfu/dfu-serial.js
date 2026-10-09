@@ -111,12 +111,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *
  * @param {{port: any, bin: Uint8Array, dat: Uint8Array,
  *          onProgress?: (p: {stage: string, percent?: number, message: string}) => void,
- *          signal?: AbortSignal}} options
+ *          signal?: AbortSignal, ackTimeoutMs?: number}} options
  */
 export async function flashSerialDfu(options) {
   const { port, bin, dat } = options;
   const onProgress = options.onProgress ?? (() => {});
   const signal = options.signal;
+  const ackTimeoutMs = options.ackTimeoutMs ?? DFU_ACK_TIMEOUT_MS;
   const throwIfAborted = () => {
     if (signal?.aborted) throw new Error('Firmware update cancelled.');
   };
@@ -160,7 +161,7 @@ export async function flashSerialDfu(options) {
     throw new Error('Timed out waiting for the device to acknowledge a packet.');
   };
 
-  const send = async (frame, { expectAck = true, timeoutMs = DFU_ACK_TIMEOUT_MS } = {}) => {
+  const send = async (frame, { expectAck = true, timeoutMs = ackTimeoutMs } = {}) => {
     for (let attempt = 1; attempt <= DFU_MAX_TX_ATTEMPTS; attempt++) {
       throwIfAborted();
       rx = new Uint8Array(0);

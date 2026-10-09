@@ -238,7 +238,15 @@ function renderCheckResult(entry, deviceVersion, message, state = 'ok') {
   setRowClass('fwLatestVersion', 'fw-new', state === 'available');
   const notes = $('fwNotesLink');
   if (notes) {
-    if (entry.releaseUrl) {
+    // The URL comes from the GitHub API, but a poisoned cache could hold
+    // anything — only https links may reach the href sink.
+    let urlOk = false;
+    try {
+      urlOk = new URL(entry.releaseUrl).protocol === 'https:';
+    } catch {
+      urlOk = false;
+    }
+    if (entry.releaseUrl && urlOk) {
       notes.hidden = false;
       notes.setAttribute('href', entry.releaseUrl);
       notes.textContent = `What\u2019s new in ${entry.manifest.firmwareVersion}`;
@@ -322,17 +330,20 @@ export function downloadSettingsBackup(snapshot) {
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
   const order = ['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'];
+  let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];
     if (raw === undefined || raw === null || raw === '') continue;
     const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(raw) : String(raw);
     try {
       await sendCommand(`${ep},1:${value}`);
+      consecutive = 0;
     } catch (e) {
       failures.push(`${ep}: ${e.message}`);
-      // A failed write usually means the link died (unplug) — the remaining
-      // writes would only pile up timeouts. The finisher re-arms the update.
-      if (!serialSession.port) break;
+      // A dead link (unplug) fails fast; a wedged-but-open port would grind
+      // through nine 6-second timeouts instead. Stop after two consecutive
+      // failures — the finisher re-arms or reports either way.
+      if (!serialSession.port || ++consecutive >= 2) break;
     }
   }
   return failures;
@@ -365,6 +376,11 @@ export function writePending(entry) {
 // ---- Flash wizard ----
 
 let wizard = null; // { stage, target, pkg, snapshot, entry, abort }
+
+// Snapshot of the last completed update, kept only so the success panel's
+// "Download settings backup" button keeps working after the pending entry is
+// cleared. Cleared with the panel.
+let completedSnapshot = null;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -482,13 +498,16 @@ async function sha256Hex(buffer) {
  * file flashing: snapshot → confirm → 1200-baud touch → bootloader port →
  * serial DFU → await reconnect.
  */
-async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expectedSha256 = null }) {
+async function runFlashWizard({ pkg, targetVersion }) {
   if (wizard) throw new Error('An update is already in progress.');
   if (!serialSession.port) throw new Error('Connect the LipSync before updating its firmware.');
   wizard = { stage: 'snapshot', target: targetVersion, pkg, abort: new AbortController() };
   setWizardVisible(true);
   setWizardStage('backup');
   lockSessionButtons(true);
+  // A cancel nulls the wizard mid-flight; every await below can therefore
+  // resume into a dead flow — the guard keeps cancellations silent.
+  const cancelled = () => !wizard;
   try {
     setWizardStep('Backing up your settings…', { showCancel: true, showBackup: false });
     const snapshot = captureSettingsSnapshot();
@@ -513,7 +532,11 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
     setWizardStage('restart');
     setWizardStep('Restarting the LipSync into update mode…', { showCancel: true });
     const appPort = serialSession.port;
+    if (!appPort) {
+      throw new Error('The connection was lost before the update could start. Reconnect and retry.');
+    }
     await disconnect({ quiet: true });
+    if (cancelled()) return;
     lockSessionButtons(true);
     wizard.stage = 'enter-bootloader';
     let touched = false;
@@ -526,6 +549,7 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
         await sleep(50);
         await appPort.close();
       } catch {}
+      if (cancelled()) return;
       await sleep(300);
       // 1200-baud touch: the running firmware sees the line-coding change and
       // a DTR drop, and resets into its stock bootloader.
@@ -535,7 +559,9 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
       } catch {}
       await sleep(100);
       await appPort.close();
+      if (cancelled()) return;
       await sleep(1200);
+      if (cancelled()) return;
       // Verify the device actually left application mode: after a successful
       // touch the app-mode port is gone. If it still opens, the touch did not
       // take and the user must double-tap reset instead of picking a port
@@ -549,6 +575,7 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
+    if (cancelled()) return;
     wizard.stage = 'await-bootloader-port';
     setWizardStatus('Firmware update — choose the update port');
     setWizardStep(
@@ -563,6 +590,8 @@ async function runFlashWizard({ pkg, targetVersion, downloadUrl = null, expected
       },
     );
   } catch (e) {
+    // A cancel already closed the wizard — never reopen it as a failure.
+    if (!wizard) return;
     failWizard(e);
   }
 }
@@ -589,18 +618,23 @@ async function continueWizard() {
       );
       return;
     }
+    const { target, snapshot, pkg, abort } = wizard;
     wizard.stage = 'flashing';
+    // Mark the pending update the moment flashing begins: this is the signal
+    // that lets a later reconnect (or a page-reload survivor) distinguish
+    // "device already on the target version" from "update never happened".
+    writePending({ target, snapshot, installed: false, flashStarted: true });
     setWizardStage('flash');
     lockSessionButtons(true);
     setWizardStatus('Updating firmware…');
-    log('Flashing firmware ' + wizard.target + ' over the device bootloader…', 'log-info');
+    log('Flashing firmware ' + target + ' over the device bootloader…', 'log-info');
     let announcedMilestone = 0;
     let transferStart = 0;
     await flashSerialDfu({
       port,
-      bin: wizard.pkg.bin,
-      dat: wizard.pkg.dat,
-      signal: wizard.abort.signal,
+      bin: pkg.bin,
+      dat: pkg.dat,
+      signal: abort.signal,
       onProgress: (p) => {
         let etaSec;
         if (p.stage === 'transfer') {
@@ -626,6 +660,18 @@ async function continueWizard() {
         }
       },
     });
+    if (!wizard) {
+      // Cancelled inside the final STOP window: the bootloader completed the
+      // update anyway. The panel is already closed — keep the restore alive
+      // so the next connect verifies and restores instead of silently
+      // discarding the snapshot.
+      writePending({ target, snapshot, installed: true });
+      log(
+        'The update finished just as it was cancelled. Reconnect to have it verified and your settings restored.',
+        'log-info',
+      );
+      return;
+    }
     wizard.stage = 'await-reconnect';
     setWizardStage('restore');
     writePending({ target: wizard.target, snapshot: wizard.snapshot, installed: true });
@@ -674,18 +720,22 @@ function cancelWizard(message) {
   } catch {}
   wizard = null;
   writePending(null);
+  completedSnapshot = null;
   lockSessionButtons(false);
   resetStatusIfDisconnected();
   setWizardVisible(false);
   setWizardStep('', { percent: null });
   // Cancelling mid-flash leaves a partial image in the bootloader's hands:
   // the recovery loader discards it and boots the old firmware after a
-  // power cycle — say so instead of pretending nothing was touched.
+  // power cycle — say so instead of pretending nothing was touched. The
+  // restore-retry panels are a different story: the flash already finished.
   const finalMessage =
     message ??
-    (stage === 'flashing' || stage === 'await-reconnect'
+    (stage === 'flashing'
       ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
-      : 'Update cancelled. Nothing was changed.');
+      : stage === 'await-reconnect' || stage === 'mode-restored'
+        ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
+        : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
 }
@@ -698,26 +748,47 @@ export async function startFirmwareUpdate() {
     entry = readCheckCache();
   }
   const manifest = entry?.manifest;
-  if (!manifest?.files?.dfu) throw new Error('No downloadable firmware package is available yet.');
+  if (!manifest?.files?.dfu) {
+    // Distinguish "nothing published yet" from "we could not reach the
+    // update service" — the latter is what a fresh failed check means.
+    const statusState = $('fwUpdateStatus')?.getAttribute('data-state');
+    throw new Error(
+      statusState === 'warn'
+        ? 'Could not reach the update service — check your connection and retry.'
+        : 'No downloadable firmware package is available yet.',
+    );
+  }
   if (!entry.assetUrls?.dfu) throw new Error('The latest release does not include a downloadable firmware package.');
+  if (!manifest.files.dfu.sha256) {
+    // Our release pipeline always publishes a checksum; a release without
+    // one is not one of ours and will not be installed.
+    throw new Error('The latest release does not publish a checksum — refusing to install it.');
+  }
   const target = manifest.firmwareVersion;
   wizard = { stage: 'download', target, abort: new AbortController() };
   setWizardVisible(true);
   setWizardStage('backup');
+  lockSessionButtons(true);
   try {
     setWizardStep(`Downloading firmware ${target}…`, {
       showCancel: true,
       hint: 'This can take a moment on slower connections.',
     });
-    const zipResponse = await fetch(entry.assetUrls.dfu);
+    const zipResponse = await fetch(entry.assetUrls.dfu, { signal: wizard.abort.signal });
     if (!zipResponse.ok) throw new Error(`Could not download the firmware package (HTTP ${zipResponse.status}).`);
     const zipBuffer = await zipResponse.arrayBuffer();
     const sha256 = await sha256Hex(zipBuffer);
-    if (manifest.files.dfu.sha256 && sha256 !== manifest.files.dfu.sha256) {
+    if (sha256 !== manifest.files.dfu.sha256) {
       throw new Error('The downloaded firmware package did not match its published checksum.');
     }
     const pkg = await parseDfuPackage(zipBuffer);
     log(`Firmware package ${manifest.files.dfu.fileName} verified (sha256 ${sha256.slice(0, 12)}…).`, 'log-info');
+    // A cancel or disconnect during the download must not resurrect the
+    // wizard on completion.
+    if (!wizard) return;
+    if (!serialSession.port) {
+      throw new Error('The connection was lost during the download. Reconnect and retry the update.');
+    }
     wizard = null;
     await runFlashWizard({ pkg, targetVersion: target });
   } catch (e) {
@@ -757,15 +828,21 @@ export async function afterDeviceLoad() {
   // The page may have died mid-flash (reload, crash, tab close): the
   // bootloader finishes the update on its own, so a device already running
   // the target version with an unmarked pending update is a completed
-  // update — verify and restore. Skipped while a live wizard is still
-  // waiting at the port picker (its flash has not happened yet).
+  // update — verify and restore. `flashStarted` (set the moment flashing
+  // began) is what makes "already on the target version" mean "the update
+  // flashed" instead of "it never happened" — without it, a same-version
+  // local re-flash interrupted before the flash would be mistaken for a
+  // completed one. A wizard still parked before its flash (port picker or
+  // mid-restart) owns the flow and is excluded.
   const deviceVersion = ($('version')?.textContent || '').trim();
+  const preFlashStage = wizard && (wizard.stage === 'await-bootloader-port' || wizard.stage === 'enter-bootloader');
   const interruptedFlashComplete =
     pending &&
     !pending.installed &&
+    pending.flashStarted &&
     deviceVersion &&
     deviceVersion === pending.target &&
-    (!wizard || wizard.stage === 'flashing' || wizard.stage === 'download');
+    !preFlashStage;
   if (interruptedFlashComplete) {
     log('A firmware update that was interrupted mid-flash appears to have completed on its own.', 'log-info');
     await finishPendingUpdate({ ...pending, installed: true });
@@ -886,6 +963,7 @@ async function finishPendingUpdate(pending) {
     : '';
   const message =
     'Firmware update complete.' + (failures.length ? ' Some settings could not be restored automatically.' : '');
+  completedSnapshot = pending.snapshot ?? null;
   setWizardVisible(true, 'done');
   setWizardStage(null, { allDone: true });
   setWizardStep(message + extra, { percent: 100, showBackup: true });
@@ -912,8 +990,11 @@ export function resetFirmwareUpdateUi() {
   const notes = $('fwNotesLink');
   if (notes) notes.hidden = true;
   // No wizard is in flight (an active one survives the mid-update
-  // disconnect) — close a finished panel too.
-  if (!wizard) setWizardVisible(false);
+  // disconnect) — close a finished panel too, along with its snapshot.
+  if (!wizard) {
+    setWizardVisible(false);
+    completedSnapshot = null;
+  }
 }
 
 /** Button wiring from main.js (composition root). */
@@ -955,7 +1036,7 @@ export function bindFirmwareUpdate(guard) {
   const backup = $('btnDownloadBackup');
   if (backup)
     backup.addEventListener('click', () => {
-      const snapshot = wizard?.snapshot ?? readPending()?.snapshot;
+      const snapshot = wizard?.snapshot ?? readPending()?.snapshot ?? completedSnapshot;
       if (snapshot) downloadSettingsBackup(snapshot);
     });
 }

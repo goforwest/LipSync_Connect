@@ -46,7 +46,7 @@ export async function unzip(zipData) {
     } else if (method === 0) {
       files.set(name, raw);
     } else if (method === 8) {
-      files.set(name, new Uint8Array(await inflateRaw(raw)));
+      files.set(name, await inflateRaw(raw));
     } else {
       throw new Error(`Unsupported ZIP compression method ${method} for ${name}.`);
     }
@@ -54,6 +54,11 @@ export async function unzip(zipData) {
   }
   return files;
 }
+
+// The parser works on in-memory buffers, so inflated output needs a hard
+// ceiling: raw deflate reaches ~1000:1, and a crafted small zip entry could
+// otherwise demand gigabytes of RAM (real firmware images are ~256 KB).
+const MAX_INFLATED_BYTES = 8 * 1024 * 1024;
 
 /** @param {Uint8Array} deflated */
 async function inflateRaw(deflated) {
@@ -63,7 +68,26 @@ async function inflateRaw(deflated) {
   const stream = new Blob([/** @type {BlobPart} */ (deflated)])
     .stream()
     .pipeThrough(new DecompressionStream('deflate-raw'));
-  return new Response(stream).arrayBuffer();
+  const reader = stream.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_INFLATED_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw new Error('Firmware package entry is unexpectedly large — refusing to decompress it.');
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 /**

@@ -65,6 +65,17 @@ async function sha256Hex(buffer) {
     .join('');
 }
 
+async function sha256HexCompat(buffer) {
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+const FW_ZIP_SHA256 = await sha256HexCompat(
+  FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+);
+
 // ---- DOM stub with wizard controls pre-created ----
 
 const els = new Map();
@@ -325,7 +336,7 @@ test('wizard: cancel at the confirm dialog changes nothing', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
   const manifest = {
     firmwareVersion: '4.2.0',
-    files: { dfu: { fileName: 'x_dfu.zip', size: 10, sha256: null } },
+    files: { dfu: { fileName: 'x_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
   };
   try {
     localStorage.setItem(
@@ -374,7 +385,7 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: null } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
@@ -426,7 +437,7 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
 
 test('wizard: a disconnect during settings restore retries on the next connect', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
-  const manifest = { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: null } } };
+  const manifest = { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } };
   try {
     localStorage.setItem(
       'lipsync-fw-check',
@@ -526,6 +537,7 @@ test('wizard: a reload during the flash still verifies and restores', async () =
   fw.writePending({
     target: '4.2.0',
     installed: false, // the page died before continueWizard could mark it
+    flashStarted: true, // the flash had begun — the bootloader finished it
     snapshot: { VN: '4.1.0', SS: '5', SL: '5' },
   });
   const sentReload = [];
@@ -555,6 +567,253 @@ test('wizard: a reload during the flash still verifies and restores', async () =
     "the snapshot's writable settings are restored",
   );
   assert.equal(fw.readPending(), null, 'the pending update is cleared');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+// ---- Audit: cancel/disconnect during the firmware download ------------
+
+test('wizard: cancelling during the download does not resurrect the update', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  // A fetch we control: the download hangs until we release it.
+  let release = null;
+  globalThis.fetch = () =>
+    new Promise((resolve) => {
+      release = () =>
+        resolve({
+          ok: true,
+          arrayBuffer: async () =>
+            FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+        });
+    });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
+    writable: { getWriter: () => ({ write: async () => {} }) },
+  };
+  setLoadedValues();
+
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  assert.equal(byId('fwWizard').hidden, false, 'the download step is showing');
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true, 'cancel closes the panel');
+
+  release();
+  await wizardDone;
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true, 'the finished download must not resurrect the wizard');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.doesNotMatch(history, /Flashing firmware/, 'no flash was started');
+  assert.doesNotMatch(history, /Update failed:/, 'no failure panel was raised either');
+  assert.equal(fw.readPending(), null, 'the pending update stays cleared');
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: a disconnect during the download surfaces a clean failure', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  let release = null;
+  globalThis.fetch = () =>
+    new Promise((resolve) => {
+      release = () =>
+        resolve({
+          ok: true,
+          arrayBuffer: async () =>
+            FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+        });
+    });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
+    writable: { getWriter: () => ({ write: async () => {} }) },
+  };
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  await app.disconnect({ quiet: true }); // the link dies mid-download
+  release();
+  await wizardDone;
+  await flush();
+
+  assert.equal(byId('fwWizard').hidden, false, 'the failure panel opens');
+  assert.match(byId('fwWizardStep').textContent, /connection was lost during the download/);
+  assert.equal(byId('btnFwCancel').hidden, false, 'the user can dismiss the failure');
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true);
+});
+
+// ---- Audit: cancel during the 1200-baud touch window ------------------
+
+test('wizard: cancelling during the device restart stays quiet and closed', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () =>
+      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
+    writable: { getWriter: () => ({ write: async () => {} }) },
+  };
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await sleep(80); // inside the wake-pulse / pre-touch sleeps
+  click('btnFwCancel');
+  await wizardDone;
+  await sleep(400);
+
+  assert.equal(byId('fwWizard').hidden, true, 'the wizard stays closed after the cancel');
+  const history = (await import('../app/js/services/log.js')).getLogHistory().join('\n');
+  assert.doesNotMatch(history, /Update failed:/, 'a cancelled touch is not a failure');
+  assert.doesNotMatch(history, /Cannot set properties/, 'no internal TypeError leaks to the user');
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Audit: operating-mode restore (the two-reboot path) ---------------
+
+test('wizard: a changed operating mode gets restored with one extra reboot', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        checkedAt: Date.now(),
+        assetUrls: { dfu: 'https://github.com/x' },
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () =>
+      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  });
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = {
+    async open(opts) {
+      void opts;
+    },
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  // The user was on Gamepad when the update started.
+  serialSession.port = appPort;
+  setLoadedValues({ opmode: 'Gamepad' });
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(900);
+  assert.equal(sim.state.activated, true);
+
+  // After the flash, the firmware reports default Mouse (as a major-version
+  // reset would): the wizard must restore Gamepad and reboot once more.
+  const sentMode = [];
+  const writerMode = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentMode.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerMode);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0', opmode: 'Mouse', commode: 'USB' });
+  await fw.afterDeviceLoad();
+  await sleep(150);
+
+  assert.deepEqual(
+    sentMode.filter((t) => /,1:/.test(t)).slice(-2),
+    ['OM,1:2', 'SR,1:1'],
+    'the mode write is followed by the apply reboot',
+  );
+  assert.match(byId('fwWizardStep').textContent, /Click Connect one more time/);
+  assert.equal(byId('fwWizard').hidden, false, 'the mode-restored wizard survives the reboot');
+
+  // The final reconnect closes the wizard and reports completion.
+  const sentFinal2 = [];
+  const writerFinal2 = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentFinal2.push(text);
+      if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerFinal2);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0', opmode: 'Gamepad' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizard').hidden, true, 'the wizard closes after the final reconnect');
+  assert.equal(document.getElementById('fwUpdateStatus').textContent, 'Firmware update complete.');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });

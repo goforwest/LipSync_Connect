@@ -245,9 +245,11 @@ window.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       // A section with an active firmware wizard stays open — closing it would
       // hide the only surface showing update progress, and mid-update the
-      // card is exempt from gating so it could not be reopened.
+      // card is exempt from gating so it could not be reopened. A finished
+      // panel may be dismissed.
       const openEl = document.getElementById(getOpenSection());
-      if (openEl && openEl.getAttribute('data-wizard')) {
+      const wizardState = openEl?.getAttribute('data-wizard');
+      if (wizardState && wizardState !== 'done') {
         announceStatus('The firmware update is still in progress — the Firmware section stays open.');
         return;
       }
