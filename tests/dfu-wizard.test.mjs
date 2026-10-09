@@ -853,3 +853,79 @@ test('wizard: a changed operating mode gets restored with one extra reboot', asy
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
+
+// ---- Hardening: cancel at the port picker leaves the device in update mode --
+
+test('wizard: cancelling at the port picker says the device is in update mode', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }) }) },
+    writable: { getWriter: () => ({ write: async () => {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone; // the touch ran: the device is in its bootloader now
+  assert.equal(byId('btnFwContinue').hidden, false, 'sitting at the port picker');
+
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  click('btnFwCancel');
+  await flush();
+
+  assert.equal(byId('fwWizard').hidden, true, 'the wizard closes');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /now in update mode/, 'the cancel message says the device is in update mode');
+  assert.match(history, /unplug and replug/, 'recovery guidance is present');
+  assert.doesNotMatch(history, /Nothing was changed/, 'the lying message is gone for this stage');
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardening: the bootloader port is recognized before any timeout grind --
+
+test('isBootloaderPort recognizes update-loader ports and nothing else', async () => {
+  const { isBootloaderPort } = await import('../app/js/serial/dfu/dfu-serial.js');
+  assert.equal(isBootloaderPort({ getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }) }), true);
+  assert.equal(isBootloaderPort({ getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0044 }) }), true);
+  // App-mode LipSync, other vendors, shapeless ports: all not the bootloader.
+  assert.equal(isBootloaderPort({ getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8044 }) }), false);
+  assert.equal(isBootloaderPort({ getInfo: () => ({ usbVendorId: 0x1209, usbProductId: 0x0044 }) }), false);
+  assert.equal(isBootloaderPort({}), false);
+  assert.equal(isBootloaderPort(null), false);
+  // The WebUSB shim exposes the same identity.
+  const { UsbSerialPort } = await import('../app/js/serial/transport.js');
+  const shim = new UsbSerialPort({ vendorId: 0x2886, productId: 0x0045 });
+  assert.equal(isBootloaderPort(shim), true);
+});

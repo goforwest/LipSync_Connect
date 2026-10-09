@@ -756,7 +756,7 @@ function failWizard(e) {
   const duringFlash = wizard?.stage === 'flashing' || wizard?.stage === 'await-reconnect';
   log('Firmware update failed: ' + message, 'log-err');
   announceStatus('Firmware update failed.');
-  wizard = { ...wizard, stage: 'failed' };
+  wizard = { ...wizard, stage: 'failed', failedDuringFlash: duringFlash };
   lockSessionButtons(false);
   resetStatusIfDisconnected();
   setWizardVisible(true, 'failed');
@@ -771,6 +771,7 @@ function failWizard(e) {
 
 function cancelWizard(message) {
   const stage = wizard?.stage;
+  const failedDuringFlash = !!wizard?.failedDuringFlash;
   try {
     wizard?.abort.abort();
   } catch {}
@@ -787,11 +788,13 @@ function cancelWizard(message) {
   // restore-retry panels are a different story: the flash already finished.
   const finalMessage =
     message ??
-    (stage === 'flashing'
+    (stage === 'flashing' || failedDuringFlash
       ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
       : stage === 'await-reconnect' || stage === 'mode-restored'
         ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
-        : 'Update cancelled. Nothing was changed.');
+        : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
+          ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
+          : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
 }

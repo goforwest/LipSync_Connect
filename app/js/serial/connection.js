@@ -6,6 +6,7 @@ import { BAUD } from '../config/constants.js';
 import { serialSession, serialBus, readWatchdog, loadDoneTimerRef } from './session.js';
 import { resetReadTimer } from './commands.js';
 import { serialApi } from './transport.js';
+import { isBootloaderPort } from './dfu/dfu-serial.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -44,6 +45,25 @@ export async function connect() {
     hideGuide();
     setConnectStage('opening');
     await serialSession.port.open({ baudRate: BAUD });
+    // A LipSync sitting in its update loader accepts the port but cannot
+    // answer the settings protocol — every command would time out. It is
+    // recognizable by USB identity, so fail fast with recovery guidance
+    // (this is the common state after cancelling an update after the
+    // 1200-baud restart).
+    if (isBootloaderPort(serialSession.port)) {
+      try {
+        await serialSession.port.close();
+      } catch {}
+      serialSession.port = null;
+      const message =
+        'That is the LipSync\u2019s update loader, not the LipSync itself. Unplug and replug the LipSync (or press its reset button once), wait for it to start normally, then click Connect again.';
+      log(message, 'log-err');
+      announceStatus('Update loader selected. Replug the LipSync and connect again.');
+      setConnectStageAutoHide('failed', 3000);
+      setConnectedUI(false);
+      showConnectionError(message, connect);
+      return;
+    }
     serialSession.writer = serialSession.port.writable.getWriter();
     readLoop().catch((e) => {
       if (!serialSession.disconnecting) log('Read loop fatal: ' + e.message, 'log-err');

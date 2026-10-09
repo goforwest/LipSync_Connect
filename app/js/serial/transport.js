@@ -15,6 +15,10 @@ export class UsbSerialPort {
     this.epIn = null;
     this.epOut = null;
   }
+  /** Web Serial-compatible identity, so bootloader detection works on Android too. */
+  getInfo() {
+    return { usbVendorId: this.device.vendorId, usbProductId: this.device.productId };
+  }
   async open({ baudRate }) {
     const d = this.device;
     await d.open();

@@ -51,14 +51,20 @@ const APP_PIDS = new Set([USB_PID_APPLICATION, USB_PID_APPLICATION_SENSE]);
 const isBootloaderUsbDevice = (/** @type {any} */ d) =>
   d.vendorId === USB_VENDOR_ID && (BOOTLOADER_PIDS.has(d.productId) || APP_PIDS.has(d.productId));
 
-const isLipSyncPort = (port) => {
-  const info = port.getInfo?.() ?? {};
+/**
+ * True when the port is the LipSync bootloader's serial-DFU interface —
+ * also used by the regular Connect flow so a device stranded in update
+ * mode is recognized immediately instead of grinding through command
+ * timeouts (the bootloader cannot answer the settings protocol).
+ */
+export function isBootloaderPort(port) {
+  const info = port?.getInfo?.() ?? {};
   return info.usbVendorId === USB_VENDOR_ID && BOOTLOADER_PIDS.has(info.usbProductId);
-};
+}
 
 async function requestWebSerialDfuPort(serial) {
   for (const p of await serial.getPorts()) {
-    if (isLipSyncPort(p)) return p;
+    if (isBootloaderPort(p)) return p;
   }
   try {
     return await serial.requestPort({
