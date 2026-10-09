@@ -20,7 +20,13 @@ const MANIFEST = (firmwareVersion) => ({
 const releaseWithManifest = (version) => ({
   tag_name: 'V' + version,
   html_url: 'https://github.com/makersmakingchange/LipSync/releases/tag/V' + version,
-  assets: [{ name: 'firmware-manifest.json', browser_download_url: 'https://github.com/x/firmware-manifest.json' }],
+});
+// The manifest now rides the firmware-binaries branch and is read through
+// the CORS-clean contents API as base64.
+const contentsPayload = (json) => ({
+  ok: true,
+  status: 200,
+  json: async () => ({ encoding: 'base64', content: Buffer.from(JSON.stringify(json)).toString('base64') }),
 });
 
 let fetchCalls = [];
@@ -69,9 +75,9 @@ test('check finds a newer release and offers the update', async () => {
   storage.clear();
   fetchCalls = [];
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.2.0') }
-      : { ok: true, json: async () => releaseWithManifest('4.2.0') };
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
   await flush();
@@ -91,9 +97,9 @@ test('check finds a newer release and offers the update', async () => {
 test('up-to-date devices get a calm status and no update button', async () => {
   storage.clear();
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.1.0') }
-      : { ok: true, json: async () => releaseWithManifest('4.1.0') };
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.1.0'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.1.0') };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
   await flush();
@@ -105,7 +111,17 @@ test('up-to-date devices get a calm status and no update button', async () => {
 
 test('a release without a manifest asset reads as unknown, not an error', async () => {
   storage.clear();
-  fetchImpl = async () => ({ ok: true, json: async () => ({ tag_name: 'V4.1.1', html_url: 'x', assets: [] }) });
+  fetchImpl = async (url) =>
+    url.includes('/contents/firmware-manifest.json')
+      ? { ok: false, status: 404 }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            tag_name: 'V4.1.1',
+            html_url: 'https://github.com/makersmakingchange/LipSync/releases/tag/V4.1.1',
+          }),
+        };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
   await flush();
@@ -137,10 +153,10 @@ test('the release-API override redirects the check and bypasses the cache', asyn
   fetchCalls = [];
   fetchImpl = async (url) =>
     url.includes('goforwest')
-      ? { ok: true, json: async () => releaseWithManifest('4.2.0') }
-      : url.includes('firmware-manifest.json')
-        ? { ok: true, json: async () => MANIFEST('4.2.0') }
-        : { ok: true, json: async () => ({ assets: [] }) };
+      ? { ok: true, status: 200, json: async () => releaseWithManifest('4.2.0') }
+      : url.includes('/contents/firmware-manifest.json')
+        ? contentsPayload(MANIFEST('4.2.0'))
+        : { ok: false, status: 404 };
   setDeviceVersion('4.1.0');
   // Seed a fresh upstream cache entry that would otherwise mask the override.
   try {
@@ -150,8 +166,8 @@ test('the release-API override redirects the check and bypasses the cache', asyn
         manifest: MANIFEST('9.9.9'),
         tagName: 'V9.9.9',
         releaseUrl: null,
+        repo: { owner: 'makersmakingchange', name: 'LipSync' },
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
       }),
     );
   } catch {}
@@ -173,8 +189,8 @@ test('auto checks reuse the 6-hour cache instead of re-fetching', async () => {
   storage.clear();
   fetchCalls = [];
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.2.0') }
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
       : { ok: true, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
@@ -190,8 +206,8 @@ test('manual (forced) checks bypass the cache', async () => {
   storage.clear();
   fetchCalls = [];
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.2.0') }
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
       : { ok: true, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
@@ -204,8 +220,8 @@ test('manual (forced) checks bypass the cache', async () => {
 test('resetFirmwareUpdateUi clears rows and hides actions', async () => {
   storage.clear();
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.2.0') }
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
       : { ok: true, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('4.1.0');
   await checkForFirmwareUpdate();
@@ -223,8 +239,8 @@ test('resetFirmwareUpdateUi clears rows and hides actions', async () => {
 test('an unparsable device version reports a comparison problem, not a false update', async () => {
   storage.clear();
   fetchImpl = async (url) =>
-    url.endsWith('firmware-manifest.json')
-      ? { ok: true, json: async () => MANIFEST('4.2.0') }
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.2.0'))
       : { ok: true, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('ERR');
   await checkForFirmwareUpdate();

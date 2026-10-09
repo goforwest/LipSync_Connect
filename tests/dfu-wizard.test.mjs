@@ -166,17 +166,21 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
       dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: FW_ZIP_BYTES.length, sha256: sha },
     },
   };
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () => FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   try {
     localStorage.setItem('lipsync-fw-check', JSON.stringify({
       manifest,
       tagName: 'V4.2.0',
       releaseUrl: 'https://github.com/x',
       checkedAt: Date.now(),
-      assetUrls: { dfu: 'https://github.com/x/download' },
+      repo: { owner: 'goforwest', name: 'LipSync' },
     }));
   } catch {}
   sessionStoreSet('lipsync-fw-pending', null);
@@ -336,18 +340,22 @@ test('wizard: cancel at the confirm dialog changes nothing', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
   const manifest = {
     firmwareVersion: '4.2.0',
-    files: { dfu: { fileName: 'x_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
   };
   try {
     localStorage.setItem(
       'lipsync-fw-check',
-      JSON.stringify({ manifest, tagName: 'V4.2.0', releaseUrl: null, checkedAt: Date.now(), assetUrls: { dfu: 'https://github.com/x' } }),
+      JSON.stringify({ manifest, tagName: 'V4.2.0', releaseUrl: null, checkedAt: Date.now(), repo: { owner: 'goforwest', name: 'LipSync' } }),
     );
   } catch {}
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () => FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
   const appPort = {
@@ -385,19 +393,22 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
+        repo: { owner: 'goforwest', name: 'LipSync' },
       }),
     );
   } catch {}
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () =>
-      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   // A slow bootloader so the flash is still running when Cancel lands.
   const sim = createBootloaderSim({ ackDelayMs: 150 });
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
@@ -437,18 +448,21 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
 
 test('wizard: a disconnect during settings restore retries on the next connect', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
-  const manifest = { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } };
+  const manifest = { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } };
   try {
     localStorage.setItem(
       'lipsync-fw-check',
-      JSON.stringify({ manifest, tagName: 'V4.2.0', releaseUrl: null, checkedAt: Date.now(), assetUrls: { dfu: 'https://github.com/x' } }),
+      JSON.stringify({ manifest, tagName: 'V4.2.0', releaseUrl: null, checkedAt: Date.now(), repo: { owner: 'goforwest', name: 'LipSync' } }),
     );
   } catch {}
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () =>
-      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
   const appPort = {
@@ -579,25 +593,33 @@ test('wizard: cancelling during the download does not resurrect the update', asy
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
+        repo: { owner: 'goforwest', name: 'LipSync' },
       }),
     );
   } catch {}
   // A fetch we control: the download hangs until we release it.
   let release = null;
-  globalThis.fetch = () =>
-    new Promise((resolve) => {
+  globalThis.fetch = (url) => {
+    if (!String(url).includes('/git/trees/')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+      });
+    }
+    return new Promise((resolve) => {
       release = () =>
         resolve({
           ok: true,
-          arrayBuffer: async () =>
-            FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
         });
     });
+  };
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = {
     async open() {},
@@ -634,24 +656,32 @@ test('wizard: a disconnect during the download surfaces a clean failure', async 
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
+        repo: { owner: 'goforwest', name: 'LipSync' },
       }),
     );
   } catch {}
   let release = null;
-  globalThis.fetch = () =>
-    new Promise((resolve) => {
+  globalThis.fetch = (url) => {
+    if (!String(url).includes('/git/trees/')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+      });
+    }
+    return new Promise((resolve) => {
       release = () =>
         resolve({
           ok: true,
-          arrayBuffer: async () =>
-            FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
         });
     });
+  };
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = {
     async open() {},
@@ -685,19 +715,22 @@ test('wizard: cancelling during the device restart stays quiet and closed', asyn
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
+        repo: { owner: 'goforwest', name: 'LipSync' },
       }),
     );
   } catch {}
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () =>
-      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   const { serialSession } = await import('../app/js/serial/session.js');
   serialSession.port = {
     async open() {},
@@ -731,19 +764,22 @@ test('wizard: a changed operating mode gets restored with one extra reboot', asy
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
-        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'x', size: 10, sha256: FW_ZIP_SHA256 } } },
+        manifest: { firmwareVersion: '4.2.0', files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } } },
         tagName: 'V4.2.0',
         releaseUrl: null,
         checkedAt: Date.now(),
-        assetUrls: { dfu: 'https://github.com/x' },
+        repo: { owner: 'goforwest', name: 'LipSync' },
       }),
     );
   } catch {}
-  globalThis.fetch = async () => ({
-    ok: true,
-    arrayBuffer: async () =>
-      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
-  });
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
   const appPort = {

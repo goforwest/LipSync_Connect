@@ -28,7 +28,9 @@ import {
   CMD_MODE_TIMEOUT,
   CMD_RESET_TIMEOUT,
   FIRMWARE_RELEASE_API,
-  FIRMWARE_MANIFEST_ASSET_NAME,
+  FIRMWARE_API_BASE,
+  FIRMWARE_BINARIES_BRANCH,
+  FIRMWARE_MANIFEST_PATH,
   FIRMWARE_MANIFEST_URL_OVERRIDE_KEY,
   FIRMWARE_RELEASE_API_OVERRIDE_KEY,
   FIRMWARE_CHECK_STORAGE_KEY,
@@ -90,9 +92,10 @@ function writeCheckCache(entry) {
 
 /**
  * Resolves the latest known firmware entry:
- *   { manifest, tagName, releaseUrl, checkedAt, assetUrls: { dfu, uf2 } }
- * manifest is null when a release exists but carries no manifest asset yet.
- * `force` bypasses the time-based cache (manual re-checks).
+ *   { manifest, tagName, releaseUrl, repo: {owner, name}, checkedAt }
+ * manifest is null when the repo publishes no firmware yet (no
+ * firmware-binaries branch — today's upstream state). `force` bypasses the
+ * time-based cache (manual re-checks).
  * @param {{ force?: boolean }} [options]
  */
 export async function fetchLatestFirmware(options = {}) {
@@ -104,7 +107,7 @@ export async function fetchLatestFirmware(options = {}) {
   } catch {}
   if (overrideUrl) {
     const manifest = await fetchJson(overrideUrl);
-    return { manifest, tagName: null, releaseUrl: null, checkedAt: Date.now(), assetUrls: {} };
+    return { manifest, tagName: null, releaseUrl: null, repo: null, checkedAt: Date.now() };
   }
   // A redirected release API is a dev pointing at another repo (usually a
   // fork): a stale cached upstream entry would mask it, so bypass the cache
@@ -116,27 +119,72 @@ export async function fetchLatestFirmware(options = {}) {
   const release = await fetchJson(releaseApiOverride || FIRMWARE_RELEASE_API, {
     Accept: 'application/vnd.github+json',
   });
-  const assets = release.assets || [];
-  const asset = assets.find((/** @type {{name: string}} */ a) => a.name === FIRMWARE_MANIFEST_ASSET_NAME);
   const base = {
     tagName: release.tag_name ?? null,
     releaseUrl: release.html_url ?? null,
     checkedAt: Date.now(),
   };
-  if (!asset) return { ...base, manifest: null, assetUrls: {} };
-  const manifest = await fetchJson(asset.browser_download_url);
-  const urlFor = (name) =>
-    name ? (assets.find((/** @type {{name: string}} */ a) => a.name === name)?.browser_download_url ?? null) : null;
-  const entry = {
-    ...base,
-    manifest,
-    assetUrls: {
-      dfu: urlFor(manifest.files?.dfu?.fileName),
-      uf2: urlFor(manifest.files?.uf2?.fileName),
-    },
-  };
+  const repo = repoCoordsFromHtmlUrl(release.html_url);
+  if (!repo) return { ...base, manifest: null, repo: null };
+  // The release workflow publishes artifacts to the firmware-binaries
+  // branch; the manifest rides there. Its absence (404) is the "not
+  // published yet" state, not an error.
+  const manifest = await fetchRepoJsonFile(repo, FIRMWARE_MANIFEST_PATH, {
+    allowMissing: true,
+  });
+  if (!manifest) return { ...base, manifest: null, repo: null };
+  const entry = { ...base, manifest, repo };
   writeCheckCache(entry);
   return entry;
+}
+
+/** Extracts {owner, name} from a github.com release html_url. */
+function repoCoordsFromHtmlUrl(htmlUrl) {
+  const m = String(htmlUrl ?? '').match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\//);
+  return m ? { owner: m[1], name: m[2] } : null;
+}
+
+/** Decodes a GitHub base64 payload (line-wrapped) into bytes. */
+function base64ToBytes(b64) {
+  const clean = String(b64).replace(/\s+/g, '');
+  const bin = atob(clean);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/** Fetches a JSON document from the firmware-binaries branch (base64 contents API). */
+async function fetchRepoJsonFile(repo, path, { allowMissing = false } = {}) {
+  const url = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/contents/${path}?ref=${FIRMWARE_BINARIES_BRANCH}`;
+  let res;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FIRMWARE_FETCH_TIMEOUT_MS);
+  try {
+    res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' }, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 404 && allowMissing) return null;
+  if (!res.ok) throw new Error(`GitHub API ${res.status} while reading ${path}`);
+  const payload = await res.json();
+  if (payload.encoding !== 'base64' || !payload.content) throw new Error(`Unexpected payload for ${path}.`);
+  return JSON.parse(new TextDecoder().decode(base64ToBytes(payload.content)));
+}
+
+/**
+ * Downloads a binary from the firmware-binaries branch: tree lookup + git
+ * blob (base64, single CORS-clean api.github.com responses; no size limit
+ * surprises like the 1 MB contents-API cap).
+ */
+export async function fetchRepoBinary(repo, fileName) {
+  const treeUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/trees/${FIRMWARE_BINARIES_BRANCH}`;
+  const tree = await fetchJson(treeUrl);
+  const blob = (tree.tree || []).find((/** @type {{path: string}} */ e) => e.path === fileName);
+  if (!blob?.sha) throw new Error(`The published firmware package is missing ${fileName}.`);
+  const blobUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/blobs/${blob.sha}`;
+  const payload = await fetchJson(blobUrl);
+  if (payload.encoding !== 'base64' || !payload.content) throw new Error(`Unexpected payload for ${fileName}.`);
+  return base64ToBytes(payload.content);
 }
 
 // ---- Update-check UI ----
@@ -751,12 +799,12 @@ function cancelWizard(message) {
 /** Release-update entry point (the “Update to X” button). */
 export async function startFirmwareUpdate() {
   let entry = readCheckCache();
-  if (!entry?.manifest || !entry.manifest.files?.dfu || !entry.assetUrls?.dfu) {
+  if (!entry?.manifest || !entry.manifest.files?.dfu || !entry.repo) {
     await checkForFirmwareUpdate();
     entry = readCheckCache();
   }
   const manifest = entry?.manifest;
-  if (!manifest?.files?.dfu) {
+  if (!manifest?.files?.dfu || !entry?.repo) {
     // Distinguish "nothing published yet" from "we could not reach the
     // update service" — the latter is what a fresh failed check means.
     const statusState = $('fwUpdateStatus')?.getAttribute('data-state');
@@ -766,7 +814,6 @@ export async function startFirmwareUpdate() {
         : 'No downloadable firmware package is available yet.',
     );
   }
-  if (!entry.assetUrls?.dfu) throw new Error('The latest release does not include a downloadable firmware package.');
   if (!manifest.files.dfu.sha256) {
     // Our release pipeline always publishes a checksum; a release without
     // one is not one of ours and will not be installed.
@@ -782,9 +829,8 @@ export async function startFirmwareUpdate() {
       showCancel: true,
       hint: 'This can take a moment on slower connections.',
     });
-    const zipResponse = await fetch(entry.assetUrls.dfu, { signal: wizard.abort.signal });
-    if (!zipResponse.ok) throw new Error(`Could not download the firmware package (HTTP ${zipResponse.status}).`);
-    const zipBuffer = await zipResponse.arrayBuffer();
+    const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName);
+    const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
     const sha256 = await sha256Hex(zipBuffer);
     if (sha256 !== manifest.files.dfu.sha256) {
       throw new Error('The downloaded firmware package did not match its published checksum.');

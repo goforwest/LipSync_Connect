@@ -35,14 +35,17 @@ test('all three CSP definitions carry the same connect-src host list', () => {
   assert.deepEqual(connectSrcs[1], connectSrcs[2]);
 });
 
-test('connect-src allows self plus the GitHub API and release-CDN redirect hops', () => {
+test('connect-src allows self plus the GitHub API only (artifacts ride api.github.com)', () => {
   const { vercelCsp } = readCspDefinitions();
   const hosts = extractConnectSrc(vercelCsp).split(/\s+/);
   assert.ok(hosts.includes("'self'"));
   assert.ok(hosts.includes('https://api.github.com'));
-  assert.ok(hosts.includes('https://github.com'));
-  assert.ok(hosts.includes('https://objects.githubusercontent.com'));
-  assert.ok(hosts.includes('https://release-assets.githubusercontent.com'));
+  // GitHub release download URLs and their CDN are NOT CORS-servable from
+  // browsers — the app never fetches them, so they stay out of connect-src.
+  assert.equal(hosts.includes('https://github.com'), false);
+  assert.equal(hosts.includes('https://raw.githubusercontent.com'), false);
+  assert.equal(hosts.includes('https://objects.githubusercontent.com'), false);
+  assert.equal(hosts.includes('https://release-assets.githubusercontent.com'), false);
 });
 
 test('CSP stays otherwise locked down (default-src self, no widening)', () => {

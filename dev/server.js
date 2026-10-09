@@ -16,7 +16,7 @@ const certFile = path.join(appDir, 'localhost.crt');
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://api.github.com https://github.com https://objects.githubusercontent.com https://release-assets.githubusercontent.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://api.github.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'serial=(self), usb=(self)',

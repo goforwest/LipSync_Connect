@@ -110,12 +110,18 @@ export const MODELS = { 1: 'LipSync 4' };
 export const MODEL_FEATURES = { 1: { bluetooth: true, gamepad: true } };
 
 // ---- Firmware update check ----
-// The latest-version source of truth is the manifest asset attached to the
-// newest non-prerelease GitHub release of the firmware repo (built by the
-// lipsync repo's release workflow). Manifest shape:
+// "Latest" is decided by the GitHub release; the flashable artifacts are read
+// through api.github.com (the only GitHub surface with CORS headers usable
+// from a browser — release download URLs and the asset CDN are not
+// fetchable cross-origin). The release workflow publishes the artifacts to
+// the FIRMWARE_BINARIES_BRANCH, and the app fetches them via the contents
+// and git-blob endpoints as base64. Manifest shape:
 //   { firmwareVersion, files: { dfu: { fileName, size, sha256 }, uf2: {...} } }
 export const FIRMWARE_RELEASE_API = 'https://api.github.com/repos/makersmakingchange/LipSync/releases/latest';
-export const FIRMWARE_MANIFEST_ASSET_NAME = 'firmware-manifest.json';
+// The api.github.com base (constant; kept separate so tests/CSP read clearly).
+export const FIRMWARE_API_BASE = 'https://api.github.com';
+export const FIRMWARE_BINARIES_BRANCH = 'firmware-binaries';
+export const FIRMWARE_MANIFEST_PATH = 'firmware-manifest.json';
 // Dev affordance: set this localStorage key to a manifest URL (e.g. the dev
 // server's /firmware-manifest.json route) to check against a local build.
 export const FIRMWARE_MANIFEST_URL_OVERRIDE_KEY = 'lipsync-fw-manifest-url';

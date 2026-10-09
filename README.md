@@ -58,8 +58,8 @@ App-only DFU packages cannot touch the bootloader, so a failed update is always 
 
 ### Security notes
 
-- Release packages are downloaded over TLS and their sha256 is checked against the release manifest before flashing. Release-path installs require that checksum — our release pipeline always publishes one.
-- The checksum guards the pipe (transport + CDN), not the source: the manifest travels in the same GitHub release it vouches for, so a compromised upstream repo or release workflow could publish arbitrary firmware. Meaningful hardening would be a signing key verified in-app; until then, the check protects against corrupted downloads and CDN tampering only.
+- Artifacts are fetched exclusively through `api.github.com` over TLS (GitHub release download URLs serve no CORS headers, so the release workflow also publishes them to a dedicated `firmware-binaries` branch the app reads via the contents/git-blob endpoints), and each package's sha256 is checked against the release manifest before flashing. Release-path installs require that checksum — our release pipeline always publishes one.
+- The checksum guards the pipe (transport + GitHub), not the source: the manifest travels in the same repo it vouches for, so a compromised upstream repo or release workflow could publish arbitrary firmware. Meaningful hardening would be a signing key verified in-app; until then, the check protects against corrupted or tampered downloads only.
 - "Flash local file…" trusts the file the user picks (that is its purpose). The package parser caps decompression at 8 MB — far above any real image — to defuse crafted zips.
 - The settings backup downloaded before each update is the recovery path if anything interrupts the automatic post-update restore.
 
