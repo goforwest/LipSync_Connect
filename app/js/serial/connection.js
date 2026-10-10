@@ -94,6 +94,18 @@ export async function connect() {
       setConnectedUI(false);
       return;
     }
+    // A port left mid-open by a just-cancelled restart attempt: the OS
+    // needs a moment; Chrome reports "A call to open() is already in
+    // progress." Point at the settle instead of the cable.
+    if (/already in progress/i.test(e.message ?? '')) {
+      log('Connection failed: ' + e.message, 'log-err');
+      showConnectionError(
+        'The serial port is still settling from the previous operation. Wait a couple of seconds, then click Connect again.',
+        connect,
+      );
+      await disconnect({ preserveBanner: true });
+      return;
+    }
     log('Connection failed: ' + e.message, 'log-err');
     showConnectionError('Connection failed: ' + e.message + '. Check cable and try again.', connect);
     await disconnect({ preserveBanner: true });

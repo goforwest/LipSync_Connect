@@ -619,8 +619,17 @@ const TOUCH_RECHECK_SETTLE_MS = 2000;
  * opens. Returns 'touched' | 'app-live' | 'inconclusive' | 'cancelled'.
  */
 async function attemptTouchOnce(appPort, cancelled, attempt) {
+  if (cancelled?.()) return { result: 'cancelled' };
   try {
     await appPort.open({ baudRate: 115200 });
+    if (cancelled?.()) {
+      // The open resolved after a cancel — release the port (nobody else can
+      // hold it while our open was pending) and stop touching anything.
+      try {
+        await appPort.close();
+      } catch {}
+      return { result: 'cancelled' };
+    }
     await sleep(50);
     await appPort.close();
   } catch {}
@@ -634,6 +643,16 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
     // 1200-baud touch: the running firmware sees the line-coding change and
     // a DTR drop, and resets into its stock bootloader.
     await appPort.open({ baudRate: 1200 });
+    if (cancelled?.()) {
+      // Closing a 1200-baud open IS the touch — the device may restart.
+      // Leaking the open would block every future connection, so close and
+      // report the state as uncertain.
+      try {
+        await appPort.close();
+      } catch {}
+      log('The restart signal was sent before the cancel — the LipSync may still enter update mode.', 'log-info');
+      return { result: 'cancelled' };
+    }
     try {
       await appPort.setSignals?.({ dataTerminalReady: false });
     } catch {}
@@ -644,7 +663,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
     // Gone-style error: either a previous attempt's touch landed, or the
     // port is wedged with the device still running. The recheck tells them
     // apart once the USB stack settles.
-    const recheck = await reopenAfterSettle(appPort);
+    const recheck = await reopenAfterSettle(appPort, cancelled);
     if (recheck === 'open') return { result: 'app-live', wedged: true };
     if (recheck === 'gone') return { result: 'touched' };
     return { result: 'inconclusive', error: e?.message };
@@ -665,7 +684,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
   } catch (e) {
     if (e?.name === 'NotFoundError') return { result: 'touched' };
     if (!deviceGone(e)) return { result: 'inconclusive', error: e?.message };
-    const recheck = await reopenAfterSettle(appPort);
+    const recheck = await reopenAfterSettle(appPort, cancelled);
     if (recheck === 'gone') return { result: 'touched' };
     if (recheck === 'open') return { result: 'app-live', wedged: true };
     return { result: 'inconclusive', error: e?.message };
@@ -681,8 +700,9 @@ function deviceGone(e) {
 }
 
 /** Reopens the port after the enumeration settle window: 'open' | 'gone' | 'other'. */
-async function reopenAfterSettle(appPort) {
+async function reopenAfterSettle(appPort, cancelled) {
   await sleep(TOUCH_RECHECK_SETTLE_MS);
+  if (cancelled?.()) return 'other';
   try {
     await appPort.open({ baudRate: 115200 });
     await appPort.close();
@@ -697,11 +717,27 @@ async function reopenAfterSettle(appPort) {
  * hardware sessions are diagnosable from the exported log. Returns whether
  * the device ended up in update mode.
  */
+// The in-flight touch attempt, if any — cancelWizard settles it before
+// closing the wizard so no half-finished open/close sequence survives into
+// the next connection (observed on hardware: a cancelled touch's leftover
+// open later closed the port under a fresh Connect, surfacing as
+// "The device has been lost" and blocking opens with "already in progress").
+let activeTouchOp = null;
+
 async function tryTouchDevice(appPort, cancelled) {
   for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
-    const r = await attemptTouchOnce(appPort, cancelled, attempt);
+    if (cancelled?.()) return false;
+    const op = attemptTouchOnce(appPort, cancelled, attempt);
+    activeTouchOp = op;
+    let r;
+    try {
+      r = await op;
+    } finally {
+      activeTouchOp = null;
+    }
     if (r.result === 'cancelled') return false;
     if (r.result === 'touched') {
+      if (wizard) wizard.touchLanded = true;
       log(
         attempt === 1
           ? 'Device restarted into update mode.'
@@ -733,9 +769,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
   setWizardVisible(true);
   setWizardStage('backup');
   lockSessionButtons(true);
-  // A cancel nulls the wizard mid-flight; every await below can therefore
-  // resume into a dead flow — the guard keeps cancellations silent.
-  const cancelled = () => !wizard;
+  // A cancel aborts the wizard's signal and nulls it mid-flight; the touch
+  // loop watches both so an in-flight attempt exits at its next checkpoint.
+  const cancelled = () => !wizard || wizard.abort.signal.aborted;
   try {
     setWizardStep('Backing up your settings…', { showCancel: true, showBackup: false });
     const snapshot = captureSettingsSnapshot();
@@ -829,7 +865,7 @@ async function continueWizard() {
       setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
       let touched = false;
       try {
-        touched = await tryTouchDevice(port, () => !wizard);
+        touched = await tryTouchDevice(port, () => !wizard || wizard.abort.signal.aborted);
       } catch (e) {
         log('Could not restart the device automatically: ' + e.message, 'log-err');
       }
@@ -955,13 +991,23 @@ function failWizard(e) {
   });
 }
 
-function cancelWizard(message) {
+async function cancelWizard(message) {
   const stage = wizard?.stage;
   const failedDuringFlash = !!wizard?.failedDuringFlash;
   const recovery = !!wizard?.recovery;
   try {
     wizard?.abort.abort();
   } catch {}
+  // Settle any in-flight touch operation BEFORE tearing the wizard down:
+  // its leftover open/close continuations must never outlive the cancel
+  // (observed on hardware: a zombie close killed the next connection, and
+  // a still-pending open blocked it with "already in progress"). A hung
+  // open gives up after the race window; its late continuation checks the
+  // aborted signal itself and releases the port quietly.
+  if (activeTouchOp) {
+    await Promise.race([activeTouchOp, sleep(2500)]);
+  }
+  const touchLanded = wizard?.touchLanded === true;
   wizard = null;
   writePending(null);
   completedSnapshot = null;
@@ -973,6 +1019,8 @@ function cancelWizard(message) {
   // the recovery loader discards it and boots the old firmware after a
   // power cycle — say so instead of pretending nothing was touched. The
   // restore-retry panels are a different story: the flash already finished.
+  // A cancel during the restart itself is honest about its uncertainty:
+  // only claim update mode when a touch demonstrably landed.
   const finalMessage =
     message ??
     (recovery && (stage === 'await-bootloader-port' || stage === 'flashing' || stage === 'download')
@@ -981,9 +1029,11 @@ function cancelWizard(message) {
         ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
         : stage === 'await-reconnect' || stage === 'mode-restored'
           ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
-          : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
+          : (stage === 'enter-bootloader' || stage === 'await-bootloader-port') && touchLanded
             ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
-            : 'Update cancelled. Nothing was changed.');
+            : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
+              ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen comes back, connect as usual; if it stays dark, unplug and replug it once, then connect.'
+              : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
 }

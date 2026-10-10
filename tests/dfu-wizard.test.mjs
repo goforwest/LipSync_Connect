@@ -1316,3 +1316,93 @@ test('recovery: cancelling says the device stays in update mode', async () => {
   assert.match(history, /remains in update mode/, 'it says the device stays in update mode');
   assert.equal(byId('fwWizard').hidden, true);
 });
+
+// ---- Zombie-touch hardening: cancel while an open() hangs ----------------
+
+test('wizard: cancelling a hung restart settles cleanly and cannot kill the next connect', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The wake open HANGS (the wedged-port variant seen on hardware: macOS
+  // can block a serial open indefinitely after rapid open/close cycling).
+  // The late-completing continuation must respect the cancel, close the
+  // port quietly, and never interfere afterwards.
+  let releaseOpen = null;
+  const portEvents = [];
+  const hungAppPort = {
+    open() {
+      portEvents.push('open');
+      return new Promise((resolve) => {
+        releaseOpen = () => resolve();
+      });
+    },
+    async close() {
+      portEvents.push('close');
+    },
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = hungAppPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await sleep(100); // the touch is parked inside the hung wake open
+  click('btnFwCancel');
+  await sleep(2600); // let the cancel's settle window elapse un-resolved
+  releaseOpen(); // the hung open resolves only now — after the cancel
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /state is uncertain/, 'the cancel message is honest about the unknown device state');
+  assert.doesNotMatch(history, /now in update mode/, 'it does not claim update mode it cannot prove');
+  assert.equal(byId('fwWizard').hidden, true);
+
+  // The zombie continuation must have closed the port (hygiene) and exited
+  // without logging errors.
+  await sleep(200);
+  // 'close' = the wizard's own session disconnect before the touch, then the
+  // hung wake open, then the late hygiene close from the cancelled flow.
+  assert.deepEqual(portEvents, ['close', 'open', 'close'], 'the late open was released quietly');
+  assert.doesNotMatch(logMod.getLogHistory().slice(histStart).join('\n'), /Update failed|Firmware update failed/);
+
+  // And the next connect is not blocked or killed by leftovers.
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  testHooks.attach({ simulated: true }, { write() {} });
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.1.0' });
+  await fw.afterDeviceLoad();
+  await sleep(100);
+  assert.equal(serialSession.port !== null, true, 'a fresh session works untouched');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
