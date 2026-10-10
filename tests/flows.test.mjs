@@ -278,3 +278,63 @@ test('mid-calibration disconnect clears corner/dot state and leaves a clean retr
     assert.equal(dot.hidden, true, `dotC${i} must be hidden after mid-flow disconnect`);
   }
 });
+
+// ---- Dead-link diagnosis: open port, zero answers -----------------------
+
+const { getLogHistory } = await import('../app/js/services/log.js');
+const getLogHistoryLength = () => getLogHistory().length;
+
+test('a silent port aborts the load early with an honest diagnosis', async () => {
+  const sent = [];
+  const silentWriter = {
+    write(bytes) {
+      sent.push(Buffer.from(bytes).toString('utf8'));
+      // deliberately no replies — the wedged OS port / frozen device case
+    },
+  };
+  testHooks.attach({ simulated: true }, silentWriter);
+  await sleep(30);
+
+  const histStart = getLogHistoryLength();
+  click('btnRefreshAll');
+  await sleep(9000); // two handshake timeouts (~4 s each) + settle
+
+  const newLines = getLogHistory().slice(histStart);
+  const failedLines = newLines.filter((l) => /Failed to load/.test(l));
+  assert.equal(failedLines.length, 2, 'the load gives up after two consecutive dead handshakes');
+  assert.ok(
+    newLines.some((l) => /not responding/.test(l) && /Unplug it, plug it back in/.test(l)),
+    'the dead-link diagnosis with recovery guidance is logged',
+  );
+  assert.ok(
+    !newLines.some((l) => /17 error/.test(l)),
+    'the misleading 17-errors summary never appears',
+  );
+  assert.ok(sent.filter((s) => s === 'SETTINGS').length >= 2, 'the handshake was genuinely attempted');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('a close failure during disconnect is logged honestly', async () => {
+  testHooks.attach(
+    {
+      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+      async close() {
+        throw new Error('NetworkError: the port is wedged');
+      },
+    },
+    { write() {} },
+  );
+  const histStart = getLogHistoryLength();
+  await app.disconnect({ quiet: true });
+  const newLines = getLogHistory().slice(histStart);
+  assert.ok(
+    newLines.some((l) => /did not close cleanly/.test(l)),
+    'the close failure is named instead of swallowed',
+  );
+  assert.ok(
+    newLines.some((l) => /unplug and replug the LipSync or reload the page/.test(l)),
+    'the remedy is stated',
+  );
+  testHooks.detach();
+});

@@ -54,7 +54,8 @@ export async function loadDeviceInfo() {
   });
   const tasks = getDeviceLoadTasks();
   let failed = 0,
-    loadAborted = false;
+    loadAborted = false,
+    deadLink = false;
   const progBar = $('loadProgress'),
     progRow = $('loadProgressRow'),
     progLabel = $('loadProgressLabel');
@@ -91,6 +92,15 @@ export async function loadDeviceInfo() {
       if (!serialSession.port || e.message === 'Disconnected' || e.message === 'Not connected') break;
       failed++;
       log('Failed to load ' + tasks[i][0] + ': ' + e.message, 'log-err');
+      // Two consecutive handshake timeouts from the very start of a fresh
+      // session mean the port is open but nothing is answering — a wedged
+      // OS port or a frozen device (a healthy device's known hiccup is a
+      // single rejected handshake, which sendCommand already retries).
+      // Diagnose the dead link instead of grinding all seventeen tasks.
+      if (failed >= 2 && failed === i + 1) {
+        deadLink = true;
+        break;
+      }
     }
   }
   if (gen !== loadGeneration) {
@@ -138,7 +148,13 @@ export async function loadDeviceInfo() {
   clearTimeout(loadTimer);
   if (!serialSession.port) return;
   updateStepButtons();
-  if (loadAborted) {
+  if (deadLink) {
+    const message =
+      'The port opened but the LipSync is not responding. Unplug it, plug it back in, wait a few seconds, then click Connect again.';
+    $('modeGuardHint').textContent = message;
+    announceStatus(message);
+    log(message, 'log-err');
+  } else if (loadAborted) {
     const message = 'Settings partially loaded: overall timeout reached. Values shown as ERR did not load.';
     $('modeGuardHint').textContent = message;
     announceStatus(message);

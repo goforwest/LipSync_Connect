@@ -7,6 +7,7 @@ import { serialSession, serialBus, readWatchdog, loadDoneTimerRef } from './sess
 import { resetReadTimer } from './commands.js';
 import { serialApi } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
+import { openPortBounded } from '../utils/port-open.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -33,6 +34,28 @@ export function configureConnection(svc) {
   services = { ...services, ...svc };
 }
 
+/**
+ * Opens the session port with a stall bound (a wedged macOS port can block
+ * the OS-level open indefinitely — observed on hardware). If Chrome reports
+ * the port as already open — the previous disconnect's close() failed
+ * silently — attempts a cleanup close and retries once before giving up.
+ */
+async function openSerialPortWithRecovery() {
+  try {
+    await openPortBounded(serialSession.port, { baudRate: BAUD });
+  } catch (e) {
+    if (!/already open/i.test(e?.message ?? '')) throw e;
+    log('The port was left open by the last session — closing it and retrying…', 'log-info');
+    try {
+      await serialSession.port.close();
+    } catch {}
+    await sleep(300);
+    await openPortBounded(serialSession.port, { baudRate: BAUD });
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export async function connect() {
   if (serialSession.port) return;
   $('btnConnect').disabled = true;
@@ -44,7 +67,7 @@ export async function connect() {
     serialSession.port = await /** @type {any} */ (serialApi).requestPort();
     hideGuide();
     setConnectStage('opening');
-    await serialSession.port.open({ baudRate: BAUD });
+    await openSerialPortWithRecovery();
     // A LipSync sitting in its update loader accepts the port but cannot
     // answer the settings protocol — every command would time out. It is
     // recognizable by USB identity, so fail fast with recovery guidance
@@ -97,6 +120,14 @@ export async function connect() {
     // A port left mid-open by a just-cancelled restart attempt: the OS
     // needs a moment; Chrome reports "A call to open() is already in
     // progress." Point at the settle instead of the cable.
+    if (e?.name === 'PortStallError') {
+      log(e.message, 'log-err');
+      setConnectStageAutoHide('failed', 3000);
+      setConnectedUI(false);
+      showConnectionError(e.message, connect);
+      await disconnect({ preserveBanner: true });
+      return;
+    }
     if (/already in progress/i.test(e.message ?? '')) {
       log('Connection failed: ' + e.message, 'log-err');
       showConnectionError(
@@ -133,7 +164,18 @@ export async function disconnect(options = {}) {
     if (serialSession.port) {
       try {
         await serialSession.port.close();
-      } catch {}
+      } catch (e) {
+        // A wedged OS port can refuse the close, leaving the SerialPort
+        // object open — the next connect would fail with "The port is
+        // already open" (observed on hardware). Name it so the user knows
+        // the remedy; connect() also attempts a cleanup retry.
+        log(
+          'The serial port did not close cleanly (' +
+            (e?.message ?? 'unknown error') +
+            '). If the next connect fails, unplug and replug the LipSync or reload the page.',
+          'log-err',
+        );
+      }
       serialSession.port = null;
     }
   } finally {

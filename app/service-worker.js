@@ -1,4 +1,4 @@
-const CACHE = 'lipsync-connect-v10';
+const CACHE = 'lipsync-connect-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
   './js/config/constants.js',
   './js/utils/timers.js',
   './js/utils/format.js',
+  './js/utils/port-open.js',
   './js/ui/dom.js',
   './js/ui/a11y.js',
   './js/ui/notification.js',
