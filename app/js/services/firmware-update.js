@@ -585,6 +585,10 @@ async function sha256Hex(buffer) {
 // verified strictly and retried — a manual double-tap reset stays the last
 // resort, never a required step.
 const TOUCH_MAX_ATTEMPTS = 3;
+// How long to let the USB stack settle before re-checking a port that
+// reported a gone-style open failure — enough for the bootloader to finish
+// enumerating (or for a wedged port to clear) on the slowest host.
+const TOUCH_RECHECK_SETTLE_MS = 2000;
 
 /**
  * One touch attempt: a wake pulse (an idle device may have suspended its USB
@@ -592,14 +596,17 @@ const TOUCH_MAX_ATTEMPTS = 3;
  * by reopening the app-mode port — after a successful touch it no longer
  * opens. Returns 'touched' | 'app-live' | 'inconclusive' | 'cancelled'.
  */
-async function attemptTouchOnce(appPort, cancelled) {
+async function attemptTouchOnce(appPort, cancelled, attempt) {
   try {
     await appPort.open({ baudRate: 115200 });
     await sleep(50);
     await appPort.close();
   } catch {}
   if (cancelled?.()) return { result: 'cancelled' };
-  await sleep(300);
+  // Give wedged ports progressively longer to settle between attempts — a
+  // rapid close/open cycle is the main cause of a port refusing to open
+  // while the device is still alive (observed on hardware).
+  await sleep(300 + (attempt - 1) * 700);
   if (cancelled?.()) return { result: 'cancelled' };
   try {
     // 1200-baud touch: the running firmware sees the line-coding change and
@@ -611,25 +618,55 @@ async function attemptTouchOnce(appPort, cancelled) {
     await sleep(100);
     await appPort.close();
   } catch (e) {
-    // The app-mode device disappearing here means a previous attempt's
-    // touch landed — anything else means it is still running.
-    return { result: e?.name === 'NotFoundError' ? 'touched' : 'app-live', error: e?.message };
+    if (!deviceGone(e)) return { result: 'app-live', error: e?.message };
+    // Gone-style error: either a previous attempt's touch landed, or the
+    // port is wedged with the device still running. The recheck tells them
+    // apart once the USB stack settles.
+    const recheck = await reopenAfterSettle(appPort);
+    if (recheck === 'open') return { result: 'app-live', wedged: true };
+    if (recheck === 'gone') return { result: 'touched' };
+    return { result: 'inconclusive', error: e?.message };
   }
   await sleep(1200);
   if (cancelled?.()) return { result: 'cancelled' };
-  // Strict verify: only the device being GONE counts as touched. Any other
-  // open failure (port races, "already open") is inconclusive and must be
-  // retried — claiming success here strands the user at the port picker
-  // with a device that never rebooted (observed on hardware).
+  // Verify the device actually left application mode: after a successful
+  // touch the app-mode port no longer opens. NotFoundError is definitive;
+  // on macOS Chrome a departed device instead reports NetworkError
+  // "Failed to open serial port" — the same error a wedged-but-alive port
+  // produces — so for those, settle and look once more before believing
+  // either outcome (observed on hardware: touches that landed were logged
+  // as failures and the user was wrongly told to press reset).
   try {
     await appPort.open({ baudRate: 115200 });
     await appPort.close();
     return { result: 'app-live' };
   } catch (e) {
-    if (e?.name === 'NotFoundError' || /no longer|not connected|disconnected/i.test(e?.message ?? '')) {
-      return { result: 'touched' };
-    }
+    if (e?.name === 'NotFoundError') return { result: 'touched' };
+    if (!deviceGone(e)) return { result: 'inconclusive', error: e?.message };
+    const recheck = await reopenAfterSettle(appPort);
+    if (recheck === 'gone') return { result: 'touched' };
+    if (recheck === 'open') return { result: 'app-live', wedged: true };
     return { result: 'inconclusive', error: e?.message };
+  }
+}
+
+/** Did the port fail because the device behind it has departed? */
+function deviceGone(e) {
+  return (
+    e?.name === 'NotFoundError' ||
+    /no longer|not connected|disconnected|failed to open serial port/i.test(e?.message ?? '')
+  );
+}
+
+/** Reopens the port after the enumeration settle window: 'open' | 'gone' | 'other'. */
+async function reopenAfterSettle(appPort) {
+  await sleep(TOUCH_RECHECK_SETTLE_MS);
+  try {
+    await appPort.open({ baudRate: 115200 });
+    await appPort.close();
+    return 'open';
+  } catch (e) {
+    return deviceGone(e) ? 'gone' : 'other';
   }
 }
 
@@ -640,7 +677,7 @@ async function attemptTouchOnce(appPort, cancelled) {
  */
 async function tryTouchDevice(appPort, cancelled) {
   for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
-    const r = await attemptTouchOnce(appPort, cancelled);
+    const r = await attemptTouchOnce(appPort, cancelled, attempt);
     if (r.result === 'cancelled') return false;
     if (r.result === 'touched') {
       log(
@@ -861,10 +898,11 @@ async function continueWizard() {
   } catch (e) {
     // A cancel already closed the wizard — do not reopen it as a failure.
     if (!wizard) return;
-    if (e?.name === 'NotFoundError') {
+    if (deviceGone(e)) {
       // A previously-granted port whose device has since disconnected (e.g.
-      // the bootloader left after a reboot): back to the picker, not a
-      // failure panel.
+      // the bootloader left after a reboot) — reported as NotFoundError or
+      // macOS Chrome's NetworkError "Failed to open serial port". Back to
+      // the picker, not a failure panel.
       wizard.stage = 'await-bootloader-port';
       setWizardStep(
         'The update loader is no longer connected. If the LipSync is running normally, click Continue and try again; if not, press its reset button twice, slowly, first.',

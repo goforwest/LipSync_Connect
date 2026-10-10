@@ -1037,3 +1037,157 @@ test('wizard: picking the running LipSync retries the restart instead of failing
   assert.equal(sim.state.activated, true, 'the flash then completes on the loader');
   await app.disconnect({ quiet: true });
 });
+
+// ---- macOS Chrome semantics: NetworkError means the device departed ------
+
+test('wizard: a departed device reporting NetworkError still counts as restarted', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // macOS Chrome: after the device reboots, opening the stale app port
+  // throws NetworkError "Failed to open serial port" — not NotFoundError.
+  // The recheck (after settling) must still fail → the touch counted.
+  const goneError = () => {
+    const e = new Error("Failed to execute 'open' on 'SerialPort': Failed to open serial port.");
+    e.name = 'NetworkError';
+    return e;
+  };
+  let opens = 0;
+  const appPort = {
+    async open(opts) {
+      opens++;
+      void opts;
+      if (opens > 2) throw goneError();
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /Device restarted into update mode/, 'the touch is recognized despite NetworkError');
+  assert.doesNotMatch(history, /did not take/, 'no bogus failure was logged');
+  assert.doesNotMatch(
+    byId('fwWizardStep').textContent,
+    /did not restart|keeps failing/,
+    'the reset instruction is not shown',
+  );
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: a wedged port is distinguished from a departed device and retried', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // Attempt 1: the touch fires but the verify open hits a WEDGED port —
+  // NetworkError that clears after settling (the recheck finds the device
+  // alive, so the attempt is correctly retried). Attempt 2: clean touch.
+  const goneError = () => {
+    const e = new Error("Failed to execute 'open' on 'SerialPort': Failed to open serial port.");
+    e.name = 'NetworkError';
+    return e;
+  };
+  let opens = 0;
+  const appPort = {
+    async open(opts) {
+      opens++;
+      void opts;
+      // opens 1-3: wake, touch, and the wedged verify on attempt 1.
+      // open 4: the recheck — the wedged port recovered, device alive.
+      // opens 5-6: attempt 2's wake and touch; open 7 (verify) sees the
+      // device genuinely gone.
+      if (opens === 3) throw goneError();
+      if (opens > 6) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /attempt 1 did not take/, 'the wedged attempt is reported, not mistaken for success');
+  assert.match(history, /retry \(attempt 2\)/, 'the retry lands once the port clears');
+  assert.doesNotMatch(history, /Automatic restart failed after/, 'no manual reset demanded');
+  assert.doesNotMatch(byId('fwWizardStep').textContent, /did not restart/);
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
