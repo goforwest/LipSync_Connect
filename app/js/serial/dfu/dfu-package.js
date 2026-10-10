@@ -12,6 +12,17 @@ const LFH_SIGNATURE = 0x04034b50;
  * @returns {Promise<Map<string, Uint8Array>>} file name → contents
  */
 export async function unzip(zipData) {
+  try {
+    return await unzipInner(zipData);
+  } catch (e) {
+    if (/bounds|offset|Corrupt ZIP|compression method|SLIP decode/i.test(e?.message ?? '')) {
+      throw new Error('The firmware package could not be read — it may be corrupted or in an unsupported format.');
+    }
+    throw e;
+  }
+}
+
+async function unzipInner(zipData) {
   const bytes = new Uint8Array(zipData);
   const view = new DataView(zipData);
   const scanStart = Math.max(0, bytes.length - 0xffff - 22);

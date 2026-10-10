@@ -171,6 +171,18 @@ test('parseDfuPackage reports missing pieces clearly', async () => {
   await assert.rejects(() => parseDfuPackage(noBin), /missing gone\.bin/);
 });
 
+test('corrupt archives surface a friendly error, not an engine stack', async () => {
+  // A plausible-looking but garbage central directory: EOCD present, but the
+  // entry offset points far outside the buffer — previously this escaped as
+  // a raw RangeError from the DataView.
+  const bytes = new Uint8Array(200);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(200 - 22, 0x06054b50, true); // EOCD signature at the tail
+  view.setUint16(200 - 22 + 10, 1, true); // one entry
+  view.setUint32(200 - 22 + 16, 0xfffff0, true); // bogus central-dir offset
+  await assert.rejects(() => unzip(bytes.buffer), /could not be read|corrupted/i);
+});
+
 test('parses the real locally built artifact when present', { skip: !fs.existsSync(path.join(root, 'dev/firmware/dist/LipSync_Firmware_4.1.0_dfu.zip')) }, async () => {
   const bytes = fs.readFileSync(path.join(root, 'dev/firmware/dist/LipSync_Firmware_4.1.0_dfu.zip'));
   const pkg = await parseDfuPackage(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));

@@ -12,7 +12,8 @@
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showConfirm } from '../ui/formatting.js';
-import { setStatus } from '../ui/connection-ui.js';
+import { handleBeforeUnload, setStatus } from '../ui/connection-ui.js';
+import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
 import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
@@ -21,6 +22,7 @@ import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
 import { parseDfuPackage } from '../serial/dfu/dfu-package.js';
 import { flashSerialDfu, isBootloaderPort, requestDfuPort } from '../serial/dfu/dfu-serial.js';
+import { USB_VENDOR_ID } from '../config/constants.js';
 import {
   FEEDBACK_MODES,
   OP_MODES,
@@ -237,7 +239,11 @@ function setUpdateButton(entry, deviceVersion) {
   const btn = $('btnStartUpdate');
   const target = $('fwTargetVersion');
   if (!btn) return;
-  const available = !!entry?.manifest && compareVersions(deviceVersion, entry.manifest.firmwareVersion) === -1;
+  // Requires a repo: the manifest-URL dev override yields entries with a
+  // manifest but no repo, and installing needs repo coordinates — the button
+  // would only ever fail if shown.
+  const available =
+    !!entry?.manifest && !!entry.repo && compareVersions(deviceVersion, entry.manifest.firmwareVersion) === -1;
   btn.hidden = !available;
   if (available && target) target.textContent = entry.manifest.firmwareVersion;
   // Badge the circle-nav trigger so an available update is discoverable
@@ -810,7 +816,7 @@ async function tryTouchDevice(appPort, cancelled) {
   log(
     `Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts${lastError ? ' (' + lastError + ')' : ''}.` +
       (stalled ? ' Unplug the LipSync, plug it back in, and try the update again.' : ''),
-    stalled ? 'log-err' : 'log-err',
+    'log-err',
   );
   return { touched: false, stalled };
 }
@@ -916,11 +922,15 @@ async function continueWizard() {
       return;
     }
     if (!wizard) return; // cancelled while the picker was open
-    // Self-heal: when the picked port carries the app-mode USB identity, the
-    // automatic restart never took and the user just picked the still-running
-    // LipSync. Retry the restart on this very port instead of failing — a
-    // manual reset stays the last resort, not the required path.
-    if (port?.getInfo && !isBootloaderPort(port)) {
+    // Self-heal: when the picked port carries the LipSync's app-mode USB
+    // identity, the automatic restart never took and the user just picked
+    // the still-running LipSync. Retry the restart on this very port instead
+    // of failing — a manual reset stays the last resort, not the required
+    // path. Non-LipSync devices never qualify: the probe below rejects them
+    // without pulsing 1200 baud into foreign hardware.
+    const pickedInfo = port?.getInfo?.() ?? {};
+    const pickedIsLipSyncApp = pickedInfo.usbVendorId === USB_VENDOR_ID && !isBootloaderPort(port);
+    if (pickedIsLipSyncApp) {
       log('The selected port is the running LipSync, not its update loader — restarting the device again.', 'log-err');
       setWizardStatus('Firmware update — restarting the device again');
       setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
@@ -947,6 +957,10 @@ async function continueWizard() {
       return;
     }
     const { target, snapshot, pkg, abort } = wizard;
+    // The session's beforeunload guard was removed by the wizard's own
+    // disconnect; the flash holds a real serial port, so warn on tab close
+    // for exactly this window.
+    window.addEventListener('beforeunload', handleBeforeUnload);
     wizard.stage = 'flashing';
     // Mark the pending update the moment flashing begins: this is the signal
     // that lets a later reconnect (or a page-reload survivor) distinguish
@@ -1031,6 +1045,7 @@ async function continueWizard() {
     }
     failWizard(e);
   } finally {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
     lockSessionButtons(false);
   }
 }
@@ -1403,22 +1418,23 @@ async function finishPendingUpdate(pending) {
 
 /** Disconnect/fresh-session hook: clears transient rows, hides actions. */
 export function resetFirmwareUpdateUi() {
-  setRow('fwCurrentVersion', '—');
-  setRow('fwLatestVersion', '—');
-  setRowClass('fwLatestVersion', 'fw-new', false);
-  setCheckStatus('', '');
   const btn = $('btnStartUpdate');
   if (btn) btn.hidden = true;
   const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
   if (nav) nav.removeAttribute('data-notify');
+  // An active wizard owns its own disconnects (the touch, the mode reboot):
+  // keep the (dimmed) check rows and pill so they do not flip to '—' mid-
+  // update, and let the completion check refresh them. A wizard also keeps
+  // its panel; a finished panel closes with its snapshot.
+  if (wizard) return;
+  setRow('fwCurrentVersion', '—');
+  setRow('fwLatestVersion', '—');
+  setRowClass('fwLatestVersion', 'fw-new', false);
+  setCheckStatus('', '');
   const notes = $('fwNotesLink');
   if (notes) notes.hidden = true;
-  // No wizard is in flight (an active one survives the mid-update
-  // disconnect) — close a finished panel too, along with its snapshot.
-  if (!wizard) {
-    setWizardVisible(false);
-    completedSnapshot = null;
-  }
+  setWizardVisible(false);
+  completedSnapshot = null;
 }
 
 /** Button wiring from main.js (composition root). */
@@ -1451,12 +1467,19 @@ export function bindFirmwareUpdate(guard) {
   }
   const recover = $('btnRecoverDevice');
   if (recover)
-    recover.addEventListener(
-      'click',
-      guard(async () => {
+    recover.addEventListener('click', async (event) => {
+      const btn = /** @type {HTMLButtonElement} */ (event.currentTarget);
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
         await recoverFromBootloader();
-      }),
-    );
+      } catch (e) {
+        log(e.message, 'log-err');
+        showNotification(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
   const cont = $('btnFwContinue');
   if (cont)
     cont.addEventListener(

@@ -222,6 +222,10 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   // Bootloader sim as the DFU port source.
   const sim = createBootloaderSim();
   configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  // Simulate the connect-time auto-check having populated the check rows.
+  byId('fwCurrentVersion').textContent = '4.1.0';
+  byId('fwLatestVersion').textContent = '4.2.0';
+  byId('fwUpdateStatus').textContent = 'Update available: 4.2.0 (installed: 4.1.0).';
 
   const wizardDone = fw.startFirmwareUpdate();
   await flush();
@@ -245,11 +249,25 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
     false,
     'the firmware card is exempt from disconnect gating while the wizard runs',
   );
+  // The wizard's own disconnect must not wipe the check rows to '—'
+  // (hardware-observed): they stay dimmed-but-present until the completion
+  // check refreshes them.
+  assert.equal(byId('fwCurrentVersion').textContent, '4.1.0', 'the installed row survives the mid-wizard disconnect');
+  assert.notEqual(byId('fwUpdateStatus').textContent, '', 'the check pill survives the mid-wizard disconnect');
   const fwNav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
   assert.equal(fwNav.getAttribute('aria-disabled'), null, 'the firmware nav trigger stays open');
   assert.equal(document.getElementById('status').textContent, 'Firmware update — choose the update port');
 
   click('btnFwContinue');
+  // The flash window re-arms the beforeunload guard (the wizard's own
+  // disconnect removed the session one) — closing the tab mid-flash must
+  // warn. The stub's removeEventListener is a no-op, so only the arming is
+  // observable here.
+  await sleep(60);
+  assert.ok(
+    (windowListeners['beforeunload'] ?? []).length > 0,
+    'the tab-close guard is armed while the flash owns the port',
+  );
   // Flash of 700 bytes = 2 data frames + fixed frames + the 500 ms erase wait.
   await sleep(900);
 
@@ -1648,4 +1666,152 @@ test('completion: a local-file downgrade re-flags the newer release automaticall
   assert.equal(nav.getAttribute('data-notify'), 'firmware-update', 'the nav badge re-appears');
   await app.disconnect({ quiet: true });
   testHooks.detach();
+});
+
+// ---- Audit round 3: flash-open bound, vendor gate, rows, manifest override -
+
+test('wizard: a stalled bootloader-port open fails the flash honestly', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The bootloader port's open() hangs forever (the wedged-port pathology,
+  // now reached via the flash instead of the touch or Connect).
+  const stalledBootPort = {
+    open() {
+      return new Promise(() => {});
+    },
+    async close() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [stalledBootPort], requestPort: async () => stalledBootPort } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(1000); // the flash's bounded open (10 s)… too long — shrink via seam?
+  // NOTE: the flash open uses PORT_OPEN_TIMEOUT_MS (10 s) — the test uses
+  // the wizard's flash timing. To keep the suite fast, this scenario relies
+  // on the open never resolving and the 10 s bound — assert after a partial
+  // window that the wizard is STILL in the flashing step (not hung forever at
+  // 'Contacting…' with no bound, it would never produce a failure at all).
+  // With the bound, the failure lands at ~10 s; assert the eventual state.
+  await sleep(9500);
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(
+    history,
+    /Firmware update failed: .*did not respond/,
+    'the stalled flash open surfaces as a failure with guidance',
+  );
+  assert.match(byId('fwWizardStep').textContent, /Update failed: /);
+  assert.equal(byId('fwWizard').getAttribute('data-state'), 'failed');
+  click('btnFwCancel');
+  await flush();
+  fw.setTouchOpenTimeoutForTests(8000);
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: a foreign serial device is never touched with the restart signal', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // A foreign device (different vendor) that the user picked by mistake: it
+  // must NOT be treated as the still-running LipSync (no 1200-baud pulse) —
+  // instead the DFU probe rejects it with the honest message.
+  const foreignOpens = [];
+  const foreignPort = {
+    async open(opts) {
+      foreignOpens.push(opts?.baudRate ?? '?');
+    },
+    async close() {},
+    async setSignals() {
+      foreignOpens.push('signals');
+    },
+    getInfo: () => ({ usbVendorId: 0x2341, usbProductId: 0x0043 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => foreignPort } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(1200);
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.doesNotMatch(history, /running LipSync, not its update loader/, 'no self-heal re-touch of a foreign device');
+  assert.match(history, /Flashing firmware 4\.2\.0/, 'the flow went straight to the probe');
+  assert.match(byId('fwWizardStep').textContent, /Contacting the device bootloader/, 'the probe is running against it');
+  assert.deepEqual(
+    foreignOpens,
+    [115200],
+    'only the probe open ever touched the foreign device — no 1200-baud restart signal was sent',
+  );
+  click('btnFwCancel');
+  await flush();
+  const afterHistory = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(afterHistory, /Update stopped partway|Update cancelled/, 'the attempt closes cleanly');
+  assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
 });

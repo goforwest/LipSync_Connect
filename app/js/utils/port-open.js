@@ -1,14 +1,21 @@
-// Bounded serial-port open. macOS can wedge an OS-level open indefinitely
-// after rapid open/close cycling (observed repeatedly on hardware — the
-// same pathology that stalls the update wizard's restart step), and Web
-// Serial open() provides no signal to cancel with, so every open that a
-// user waits on needs a bound. A stalled open throws PortStallError with
-// recovery guidance; if the open resolves later, the port is released
-// quietly so it cannot wedge the next attempt.
+// Bounded serial-port open/close. macOS can wedge an OS-level open
+// indefinitely after rapid open/close cycling (observed repeatedly on
+// hardware — the same pathology that stalls the update wizard's restart
+// step), and Web Serial provides no signal to cancel with, so every
+// user-waited open needs a bound. A stalled open throws PortStallError;
+// if the open resolves later, the port is released quietly so it cannot
+// wedge the next attempt.
 
 export const PORT_OPEN_TIMEOUT_MS = 10000;
+export const PORT_CLOSE_TIMEOUT_MS = 5000;
 
-export async function openPortBounded(port, options, timeoutMs = PORT_OPEN_TIMEOUT_MS) {
+/**
+ * @param {any} port
+ * @param {any} options
+ * @param {number} [timeoutMs]
+ * @param {string} [stallMessage] recovery guidance for the PortStallError
+ */
+export async function openPortBounded(port, options, timeoutMs = PORT_OPEN_TIMEOUT_MS, stallMessage) {
   let openError = null;
   const opened = port.open(options).then(
     () => 'open',
@@ -28,12 +35,19 @@ export async function openPortBounded(port, options, timeoutMs = PORT_OPEN_TIMEO
       } catch {}
     });
     const e = new Error(
-      'The serial port did not respond. Unplug the LipSync, plug it back in, and click Connect again.',
+      stallMessage ?? 'The serial port did not respond. Unplug the LipSync, plug it back in, and click Connect again.',
     );
     e.name = 'PortStallError';
     throw e;
   }
   if (openError) throw openError;
+}
+
+/** Best-effort close with a bound: a wedged close never hangs the caller. */
+export async function closePortBounded(port, timeoutMs = PORT_CLOSE_TIMEOUT_MS) {
+  try {
+    await Promise.race([port.close(), sleep(timeoutMs).then(() => 'stalled')]);
+  } catch {}
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

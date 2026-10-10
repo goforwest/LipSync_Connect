@@ -182,6 +182,25 @@ test('offline failures surface a readable status without throwing', async () => 
   assert.equal(updateBtnHidden(), true);
 });
 
+test('manifest-override entries never offer the (uninstallable) Update button', async () => {
+  storage.clear();
+  try {
+    localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json');
+  } catch {}
+  fetchCalls = [];
+  // The manifest-URL override path fetches the manifest document directly.
+  fetchImpl = async () => ({ ok: true, status: 200, json: async () => MANIFEST('4.2.0') });
+  setDeviceVersion('4.1.0');
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.match(status(), /Update available: 4\.2\.0/);
+  // The check lights up, but installing needs release coordinates the
+  // override path does not have — the button must stay hidden so clicking
+  // Update can never end in "No downloadable firmware package is available yet."
+  assert.equal(updateBtnHidden(), true, 'the Update button is not offered for manifest-only entries');
+  assert.equal(document.getElementById('btnStartUpdate').hidden, true);
+});
+
 test('the release-API override redirects the check and bypasses the cache', async () => {
   storage.clear();
   try {

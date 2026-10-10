@@ -25,6 +25,7 @@ import {
   startFrame,
   stopFrame,
 } from './dfu-protocol.js';
+import { closePortBounded, openPortBounded } from '../../utils/port-open.js';
 import {
   USB_PID_APPLICATION,
   USB_PID_APPLICATION_SENSE,
@@ -128,7 +129,15 @@ export async function flashSerialDfu(options) {
     if (signal?.aborted) throw new Error('Firmware update cancelled.');
   };
 
-  await port.open({ baudRate: DFU_BAUD_RATE });
+  // The flash's open is as exposed to the wedged-port hang as the touch and
+  // Connect opens are (observed on hardware) — bound it the same way, with
+  // flash-appropriate guidance.
+  await openPortBounded(
+    port,
+    { baudRate: DFU_BAUD_RATE },
+    DFU_ACK_TIMEOUT_MS,
+    'The update loader\u2019s serial port did not respond. Unplug the LipSync, plug it back in, then click Continue and pick it again.',
+  );
   const reader = port.readable.getReader();
   const writer = port.writable.getWriter();
   let rx = new Uint8Array(0);
@@ -238,9 +247,7 @@ export async function flashSerialDfu(options) {
     try {
       writer.releaseLock();
     } catch {}
-    try {
-      await port.close();
-    } catch {}
+    await closePortBounded(port);
     pump.catch(() => {});
   }
 }

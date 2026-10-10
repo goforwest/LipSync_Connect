@@ -7,7 +7,7 @@ import { serialSession, serialBus, readWatchdog, loadDoneTimerRef } from './sess
 import { resetReadTimer } from './commands.js';
 import { serialApi } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
-import { openPortBounded } from '../utils/port-open.js';
+import { closePortBounded, openPortBounded } from '../utils/port-open.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -46,9 +46,7 @@ async function openSerialPortWithRecovery() {
   } catch (e) {
     if (!/already open/i.test(e?.message ?? '')) throw e;
     log('The port was left open by the last session — closing it and retrying…', 'log-info');
-    try {
-      await serialSession.port.close();
-    } catch {}
+    await closePortBounded(serialSession.port, 3000);
     await sleep(300);
     await openPortBounded(serialSession.port, { baudRate: BAUD });
   }
@@ -74,9 +72,7 @@ export async function connect() {
     // (this is the common state after cancelling an update after the
     // 1200-baud restart).
     if (isBootloaderPort(serialSession.port)) {
-      try {
-        await serialSession.port.close();
-      } catch {}
+      await closePortBounded(serialSession.port);
       serialSession.port = null;
       const message =
         'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Firmware and use “Recover a device stuck in update mode” to repair it.';
