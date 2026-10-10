@@ -200,6 +200,28 @@ function setRow(id, text) {
 }
 
 /**
+ * Marks/unmarks the device as stranded in its update loader (set by the
+ * Connect guard when the picked port carries the bootloader identity).
+ * While set, the Firmware card and its Recover button stay reachable even
+ * though no session exists — recovery is the only way back when the app
+ * firmware is incomplete (an interrupted flash erases before writing, so
+ * reset and replug both land back in update mode).
+ */
+export function setBootloaderStranded() {
+  const section = $('sec-firmware');
+  if (section) section.setAttribute('data-recover', 'true');
+  const btn = $('btnRecoverDevice');
+  if (btn) btn.hidden = false;
+}
+
+export function clearBootloaderStranded() {
+  const section = $('sec-firmware');
+  if (section) section.removeAttribute('data-recover');
+  const btn = $('btnRecoverDevice');
+  if (btn) btn.hidden = true;
+}
+
+/**
  * Renders the update-check status line with a visual state pill.
  * state: 'busy' | 'ok' | 'available' | 'unknown' | 'warn' | '' (cleared).
  */
@@ -936,6 +958,7 @@ function failWizard(e) {
 function cancelWizard(message) {
   const stage = wizard?.stage;
   const failedDuringFlash = !!wizard?.failedDuringFlash;
+  const recovery = !!wizard?.recovery;
   try {
     wizard?.abort.abort();
   } catch {}
@@ -952,19 +975,21 @@ function cancelWizard(message) {
   // restore-retry panels are a different story: the flash already finished.
   const finalMessage =
     message ??
-    (stage === 'flashing' || failedDuringFlash
-      ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
-      : stage === 'await-reconnect' || stage === 'mode-restored'
-        ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
-        : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
-          ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
-          : 'Update cancelled. Nothing was changed.');
+    (recovery && (stage === 'await-bootloader-port' || stage === 'flashing' || stage === 'download')
+      ? 'Recovery cancelled. The LipSync remains in update mode — its firmware stays incomplete until a full recovery finishes. Use Recover again to repair it.'
+      : stage === 'flashing' || failedDuringFlash
+        ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
+        : stage === 'await-reconnect' || stage === 'mode-restored'
+          ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
+          : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
+            ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
+            : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
 }
 
-/** Release-update entry point (the “Update to X” button). */
-export async function startFirmwareUpdate() {
+/** Resolves the latest release entry, fetching a fresh check if needed. */
+async function resolveLatestRelease() {
   let entry = readCheckCache();
   if (!entry?.manifest || !entry.manifest.files?.dfu || !entry.repo) {
     await checkForFirmwareUpdate();
@@ -986,7 +1011,26 @@ export async function startFirmwareUpdate() {
     // one is not one of ours and will not be installed.
     throw new Error('The latest release does not publish a checksum — refusing to install it.');
   }
-  const target = manifest.firmwareVersion;
+  return { entry, target: manifest.firmwareVersion };
+}
+
+/** Downloads + checksum-verifies + parses the release's DFU package. */
+async function downloadReleasePackage(entry) {
+  const manifest = entry.manifest;
+  const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName);
+  const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
+  const sha256 = await sha256Hex(zipBuffer);
+  if (sha256 !== manifest.files.dfu.sha256) {
+    throw new Error('The downloaded firmware package did not match its published checksum.');
+  }
+  const pkg = await parseDfuPackage(zipBuffer);
+  log(`Firmware package ${manifest.files.dfu.fileName} verified (sha256 ${sha256.slice(0, 12)}…).`, 'log-info');
+  return pkg;
+}
+
+/** Release-update entry point (the “Update to X” button). */
+export async function startFirmwareUpdate() {
+  const { entry, target } = await resolveLatestRelease();
   wizard = { stage: 'download', target, abort: new AbortController() };
   setWizardVisible(true);
   setWizardStage('backup');
@@ -996,14 +1040,7 @@ export async function startFirmwareUpdate() {
       showCancel: true,
       hint: 'This can take a moment on slower connections.',
     });
-    const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName);
-    const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
-    const sha256 = await sha256Hex(zipBuffer);
-    if (sha256 !== manifest.files.dfu.sha256) {
-      throw new Error('The downloaded firmware package did not match its published checksum.');
-    }
-    const pkg = await parseDfuPackage(zipBuffer);
-    log(`Firmware package ${manifest.files.dfu.fileName} verified (sha256 ${sha256.slice(0, 12)}…).`, 'log-info');
+    const pkg = await downloadReleasePackage(entry);
     // A cancel or disconnect during the download must not resurrect the
     // wizard on completion.
     if (!wizard) return;
@@ -1014,6 +1051,46 @@ export async function startFirmwareUpdate() {
     await runFlashWizard({ pkg, targetVersion: target });
   } catch (e) {
     // A cancel already closed the wizard — don't reopen it with an error.
+    if (!wizard) return;
+    failWizard(e);
+  }
+}
+
+/**
+ * Recovery entry point: the device sits in its update loader because its app
+ * firmware is incomplete (an interrupted flash erases the app region before
+ * writing, and the bootloader has nothing valid to boot — reset and replug
+ * both land back in update mode). There is nothing to back up or restart:
+ * flash the latest release straight through the bootloader port. Settings
+ * survive in the device's separate storage and reappear when it reboots.
+ */
+export async function recoverFromBootloader() {
+  if (wizard) throw new Error('An update is already in progress.');
+  const { entry, target } = await resolveLatestRelease();
+  wizard = { stage: 'download', target, abort: new AbortController(), recovery: true };
+  setWizardVisible(true);
+  // Nothing to prepare or restart — the device is already in update mode.
+  setWizardStage('flash');
+  lockSessionButtons(true);
+  try {
+    setWizardStep(`Downloading firmware ${target} for recovery…`, {
+      showCancel: true,
+      hint: 'This can take a moment on slower connections.',
+    });
+    const pkg = await downloadReleasePackage(entry);
+    if (!wizard) return;
+    wizard.pkg = pkg;
+    wizard.stage = 'await-bootloader-port';
+    setWizardStatus('Recovery — choose the update port');
+    setWizardStep(
+      'The LipSync is in update mode. Click Continue and pick the update loader in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.',
+      {
+        hint: 'The Hub\u2019s screen stays dark while it is in update mode — that is normal.',
+        showContinue: true,
+        showCancel: true,
+      },
+    );
+  } catch (e) {
     if (!wizard) return;
     failWizard(e);
   }
@@ -1041,6 +1118,7 @@ export async function flashLocalFile(file) {
  * version, restore settings) and otherwise runs the automatic update check.
  */
 export async function afterDeviceLoad() {
+  clearBootloaderStranded();
   const pending = readPending();
   if (pending?.installed) {
     await finishPendingUpdate(pending);
@@ -1132,8 +1210,12 @@ async function finishPendingUpdate(pending) {
   }
   if (failures.length) {
     log('Some settings could not be restored: ' + failures.join('; '), 'log-err');
-  } else {
+  } else if (pending.snapshot) {
     log('Settings restored after firmware update.', 'log-info');
+  } else {
+    // Recovery: no snapshot was taken (the device was in update mode when it
+    // started) — the settings simply survived in the device's storage.
+    log('Device settings are intact after the recovery.', 'log-info');
   }
   // Calibration lives outside the serial API's write set — if the update reset
   // it, the user needs one guided calibration run. Only the four corners are
@@ -1246,6 +1328,14 @@ export function bindFirmwareUpdate(guard) {
       }),
     );
   }
+  const recover = $('btnRecoverDevice');
+  if (recover)
+    recover.addEventListener(
+      'click',
+      guard(async () => {
+        await recoverFromBootloader();
+      }),
+    );
   const cont = $('btnFwContinue');
   if (cont)
     cont.addEventListener(

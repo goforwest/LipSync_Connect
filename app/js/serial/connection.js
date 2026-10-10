@@ -56,9 +56,16 @@ export async function connect() {
       } catch {}
       serialSession.port = null;
       const message =
-        'That is the LipSync\u2019s update loader, not the LipSync itself. Unplug and replug the LipSync (or press its reset button once), wait for it to start normally, then click Connect again.';
+        'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Firmware and use “Recover a device stuck in update mode” to repair it.';
       log(message, 'log-err');
-      announceStatus('Update loader selected. Replug the LipSync and connect again.');
+      announceStatus('Update loader selected. Replug the LipSync — or use Firmware to recover it.');
+      // Keep the Firmware card openable and its Recover button reachable
+      // while disconnected — when the app firmware is incomplete, recovery
+      // is the only way out (reset and replug both land back in update mode).
+      const section = document.getElementById('sec-firmware');
+      if (section) section.setAttribute('data-recover', 'true');
+      const recoverBtn = document.getElementById('btnRecoverDevice');
+      if (recoverBtn) recoverBtn.hidden = false;
       setConnectStageAutoHide('failed', 3000);
       setConnectedUI(false);
       showConnectionError(message, connect);

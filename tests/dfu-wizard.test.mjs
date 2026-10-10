@@ -1191,3 +1191,128 @@ test('wizard: a wedged port is distinguished from a departed device and retried'
   await flush();
   await app.disconnect({ quiet: true });
 });
+
+// ---- Recovery: a device stranded in update mode by an interrupted flash --
+
+test('recovery: flashes the latest release through the bootloader and repairs the device', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The connect guard marked the device as stranded (as the real guard does).
+  fw.setBootloaderStranded();
+  assert.equal(byId('btnRecoverDevice').hidden, false, 'the Recover button is reachable');
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
+
+  const wizardDone = fw.recoverFromBootloader();
+  await flush();
+  await wizardDone;
+  assert.match(byId('fwWizardStep').textContent, /in update mode/, 'the picker step describes recovery');
+  assert.equal(
+    byId('fwStepFlash').classList.contains('active'),
+    true,
+    'the tracker sits on Flash — nothing to prepare or restart',
+  );
+
+  click('btnFwContinue');
+  await sleep(900);
+  assert.equal(sim.state.activated, true, 'the flash completed through the bootloader');
+
+  // Reconnect: the repaired device boots normally and reports the new version.
+  const sentRecovery = [];
+  const writerRecovery = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentRecovery.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerRecovery);
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.deepEqual(
+    sentRecovery.filter((t) => /,1:/.test(t)),
+    [],
+    'recovery never touches the settings — they survived in the device storage',
+  );
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /settings are intact after the recovery/);
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), null, 'the stranded marker clears on success');
+  assert.equal(byId('btnRecoverDevice').hidden, true, 'the Recover button hides again');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('recovery: cancelling says the device stays in update mode', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  const wizardDone = fw.recoverFromBootloader();
+  await flush();
+  await wizardDone;
+  click('btnFwCancel');
+  await flush();
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /Recovery cancelled/, 'the recovery cancel message is used');
+  assert.match(history, /remains in update mode/, 'it says the device stays in update mode');
+  assert.equal(byId('fwWizard').hidden, true);
+});

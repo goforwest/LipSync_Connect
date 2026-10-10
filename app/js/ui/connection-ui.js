@@ -77,7 +77,9 @@ export function setCmdButtons(enabled) {
 // continue or follow progress.
 export function updateConnectionGating() {
   const gated = !serialSession.port;
-  const firmwareActive = () => !!document.getElementById('sec-firmware')?.getAttribute('data-wizard');
+  const firmwareActive = () =>
+    !!document.getElementById('sec-firmware')?.getAttribute('data-wizard') ||
+    !!document.getElementById('sec-firmware')?.getAttribute('data-recover');
   document.querySelectorAll('.section-card.needs-conn').forEach((el) => {
     el.classList.toggle('card-off', gated && !(el.id === 'sec-firmware' && firmwareActive()));
   });

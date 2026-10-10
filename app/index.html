@@ -704,6 +704,11 @@
           <button type="button" class="cmd secondary" id="btnFlashLocalFile" disabled hidden>
             Flash local file&hellip;
           </button>
+          <!-- Not class="cmd": recovery must be reachable while disconnected —
+              which is exactly when a device is stuck in update mode. -->
+          <button type="button" class="secondary" id="btnRecoverDevice" hidden>
+            Recover a device stuck in update mode&hellip;
+          </button>
         </div>
         <div id="fwWizard" hidden>
           <ol class="fw-steps" aria-hidden="true">
@@ -755,6 +760,11 @@
           <p class="hint">
             <strong>Device needs a reboot.</strong> After a mode change or reset, wait ~30 seconds for the LipSync to
             finish restarting before trying to connect.
+          </p>
+          <p class="hint">
+            <strong>Stuck in update mode after a stopped update?</strong> If the LipSync always shows as the update
+            loader even after replugging, its firmware was interrupted mid-write — open <em>Firmware</em> and use
+            <em>Recover a device stuck in update mode</em> to repair it. Your settings survive the repair.
           </p>
           <p class="hint">
             If using the Android WebUSB fallback, the browser will only see the device when it is plugged in and awake.
