@@ -327,7 +327,7 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   assert.equal(byId('fwStepRestore').classList.contains('done'), true, 'every tracker step is done');
   assert.equal(byId('fwCurrentVersion').textContent, '4.2.0', 'check rows sync to the new version');
   assert.equal(byId('fwUpdateStatus').getAttribute('data-state'), 'ok');
-  assert.equal(byId('fwUpdateStatus').textContent, 'Firmware update complete.');
+  assert.match(byId('fwUpdateStatus').textContent, /up to date/, 'the completion auto-check reports the truth');
   await app.disconnect({ quiet: true });
   assert.equal(byId('fwWizard').hidden, true, 'a finished wizard closes on disconnect');
   assert.equal(byId('fwActionsRow').hidden, false, 'the normal actions return');
@@ -823,7 +823,7 @@ test('wizard: a changed operating mode gets restored with one extra reboot', asy
   await sleep(120);
 
   assert.equal(byId('fwWizard').hidden, true, 'the wizard closes after the final reconnect');
-  assert.equal(document.getElementById('fwUpdateStatus').textContent, 'Firmware update complete.');
+  assert.match(document.getElementById('fwUpdateStatus').textContent, /up to date/, 'the completion auto-check reports the truth');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
@@ -1569,6 +1569,83 @@ test('restore: writes that fail on a silent device are retried on the next conne
     ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
     'every setting is re-written on the retry',
   );
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+// ---- Completion re-check: flashing down must re-flag the newer release ----
+
+test('completion: a local-file downgrade re-flags the newer release automatically', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  // The cached check says 4.2.0 is latest (the fork release); the user is
+  // about to flash DOWN to 4.1.0 from a local file — exactly the hardware
+  // scenario where the finisher used to fabricate "latest == installed".
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  // Local file: a 4.1.0-named DFU package (the version comes from the name).
+  const localFile = {
+    name: 'LipSync_Firmware_4.1.0_dfu.zip',
+    arrayBuffer: async () =>
+      FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  };
+  const wizardDone = fw.flashLocalFile(localFile);
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await sleep(900);
+  assert.equal(sim.state.activated, true);
+
+  // Reconnect: the device now reports the downgraded version.
+  const sentDown = [];
+  const writerDown = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentDown.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerDown);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.1.0' });
+
+  await fw.afterDeviceLoad();
+  await sleep(150);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.', 'the update itself completed');
+  assert.equal(byId('fwCurrentVersion').textContent, '4.1.0');
+  // The completion must NOT claim "latest == installed" — the auto-check
+  // re-flags the newer cached release without a manual Check click.
+  assert.equal(byId('fwLatestVersion').textContent, '4.2.0');
+  assert.match(byId('fwUpdateStatus').textContent, /Update available: 4\.2\.0 \(installed: 4\.1\.0\)/);
+  assert.equal(byId('fwUpdateStatus').getAttribute('data-state'), 'available');
+  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  assert.equal(nav.getAttribute('data-notify'), 'firmware-update', 'the nav badge re-appears');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });

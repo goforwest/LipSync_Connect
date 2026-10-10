@@ -1264,12 +1264,11 @@ export async function afterDeviceLoad() {
     wizard = null;
     setWizardVisible(false);
     setCheckStatus('Firmware update complete.', 'ok');
+    // The finisher knows the installed version only — let the auto-check
+    // below report what is actually latest instead of fabricating rows.
     setRow('fwCurrentVersion', ($('version')?.textContent || '').trim() || '—');
-    setRow('fwLatestVersion', $('fwCurrentVersion')?.textContent || '—');
-    setRowClass('fwLatestVersion', 'fw-new', false);
     log('Firmware update complete.', 'log-info');
     announceStatus('Firmware update complete.');
-    return;
   }
   void checkForFirmwareUpdate({ auto: true });
 }
@@ -1387,15 +1386,19 @@ async function finishPendingUpdate(pending) {
   setWizardVisible(true, 'done');
   setWizardStage(null, { allDone: true });
   setWizardStep(message + extra, { percent: 100, showBackup: true });
-  // Sync the check rows: the device now runs the target version.
+  // The finisher knows the installed version, but NOT what is latest: the
+  // user may have flashed down from a local file, or a newer release may
+  // exist. Only the current-version row is synced here — the real check
+  // then fills in the latest row, the status pill, and the nav badge
+  // (cache-backed, so it is instant and does not burn the rate limit).
   setRow('fwCurrentVersion', installedVersion);
-  setRow('fwLatestVersion', installedVersion);
   setRowClass('fwLatestVersion', 'fw-new', false);
   setCheckStatus(
     failures.length ? 'Update complete, but some settings need a manual retry.' : 'Firmware update complete.',
     failures.length ? 'warn' : 'ok',
   );
   log(message + extra, failures.length || calibrationLost ? 'log-err' : 'log-info');
+  void checkForFirmwareUpdate({ auto: true });
 }
 
 /** Disconnect/fresh-session hook: clears transient rows, hides actions. */
