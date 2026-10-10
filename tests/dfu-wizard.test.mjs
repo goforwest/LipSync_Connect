@@ -1406,3 +1406,169 @@ test('wizard: cancelling a hung restart settles cleanly and cannot kill the next
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
+
+// ---- Stalled opens: the touch can never freeze the wizard ---------------
+
+test('wizard: a stalled serial open fails fast with replug guidance, not a frozen wizard', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  fw.setTouchOpenTimeoutForTests(250);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The macOS wedged-port hang: open() never resolves at all.
+  const stalledAppPort = {
+    open() {
+      return new Promise(() => {});
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = stalledAppPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone; // previously froze forever — now bounded per attempt
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /attempt 1 did not take \(the serial port did not respond\)/, 'the stall is diagnosed');
+  assert.match(history, /failed after 3 attempts \(the serial port did not respond\)/, 'the failure names the stall');
+  assert.match(history, /Unplug the LipSync, plug it back in/, 'the guidance is actionable');
+  assert.match(
+    byId('fwWizardStep').textContent,
+    /serial port stopped responding/,
+    'the picker step says what to do',
+  );
+  assert.equal(byId('btnFwContinue').hidden, false, 'Continue remains available');
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true);
+  fw.setTouchOpenTimeoutForTests(8000);
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Restore re-arm: a silent device retries instead of declaring defeat --
+
+test('restore: writes that fail on a silent device are retried on the next connect', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.2.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+        },
+        tagName: 'V4.2.0',
+        releaseUrl: null,
+        repo: { owner: 'goforwest', name: 'LipSync' },
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The device answers everything EXCEPT the first two restore writes —
+  // the alive-but-silent hang right after a flash (observed on hardware).
+  let silentWrites = 0;
+  const writerSilent = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (!m) return;
+      if ((m[1] === 'SS' || m[1] === 'SL') && silentWrites < 2) {
+        silentWrites++;
+        return; // silence — the write times out
+      }
+      setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach({ simulated: true }, writerSilent);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+
+  fw.writePending({
+    target: '4.2.0',
+    installed: true,
+    snapshot: { SS: '5', SL: '5', ST: '3.00', PT: '3.00', IZ: '0.07', OZ: '0.95', SM: '1', LM: '1', LL: '5' },
+  });
+  await fw.afterDeviceLoad();
+  await sleep(400);
+
+  assert.equal(fw.readPending()?.restoreRetried, true, 'the restore is re-armed');
+  const history1 = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history1, /retried automatically on the next connect/);
+  assert.match(byId('fwWizardStep').textContent, /retried automatically/);
+
+  // Second connect with a healthy device: the full restore completes.
+  const sentSecond = [];
+  const writerSecond = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentSecond.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerSecond);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.equal(fw.readPending(), null, 'the pending restore is cleared');
+  assert.deepEqual(
+    sentSecond.filter((t) => /,1:/.test(t)),
+    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    'every setting is re-written on the retry',
+  );
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});

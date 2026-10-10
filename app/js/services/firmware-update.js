@@ -621,7 +621,7 @@ const TOUCH_RECHECK_SETTLE_MS = 2000;
 async function attemptTouchOnce(appPort, cancelled, attempt) {
   if (cancelled?.()) return { result: 'cancelled' };
   try {
-    await appPort.open({ baudRate: 115200 });
+    await openBounded(appPort, { baudRate: 115200 });
     if (cancelled?.()) {
       // The open resolved after a cancel — release the port (nobody else can
       // hold it while our open was pending) and stop touching anything.
@@ -642,7 +642,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
   try {
     // 1200-baud touch: the running firmware sees the line-coding change and
     // a DTR drop, and resets into its stock bootloader.
-    await appPort.open({ baudRate: 1200 });
+    await openBounded(appPort, { baudRate: 1200 });
     if (cancelled?.()) {
       // Closing a 1200-baud open IS the touch — the device may restart.
       // Leaking the open would block every future connection, so close and
@@ -678,7 +678,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
   // either outcome (observed on hardware: touches that landed were logged
   // as failures and the user was wrongly told to press reset).
   try {
-    await appPort.open({ baudRate: 115200 });
+    await openBounded(appPort, { baudRate: 115200 });
     await appPort.close();
     return { result: 'app-live' };
   } catch (e) {
@@ -689,6 +689,54 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
     if (recheck === 'open') return { result: 'app-live', wedged: true };
     return { result: 'inconclusive', error: e?.message };
   }
+}
+
+// macOS can wedge a serial open indefinitely after rapid open/close cycling
+// (observed repeatedly on hardware: the wizard sat on 'Restarting…' for
+// 3.5 minutes with no log and no way out). Every touch-phase open is
+// therefore bounded; a stalled open fails the attempt, which is retried.
+const TOUCH_OPEN_TIMEOUT_MS = 8000;
+let touchOpenTimeoutMs = TOUCH_OPEN_TIMEOUT_MS;
+
+/** Test seam: shrink the stall bound so stalled-port scenarios run fast. */
+export function setTouchOpenTimeoutForTests(ms) {
+  touchOpenTimeoutMs = ms;
+}
+
+const OPEN_STALLED = Symbol('open-stalled');
+
+/**
+ * Opens the port with a stall bound. If the open is still pending when the
+ * bound elapses, throws 'the serial port did not respond' — and attaches a
+ * late handler so an open that eventually lands releases the port quietly
+ * (a late 1200-baud close IS the restart signal: the device simply enters
+ * update mode, which the next verify catches).
+ */
+async function openBounded(port, opts) {
+  let openError = null;
+  const opened = port.open(opts).then(
+    () => 'open',
+    (e) => {
+      openError = e;
+      return 'failed';
+    },
+  );
+  const winner = await Promise.race([opened, sleep(touchOpenTimeoutMs).then(() => OPEN_STALLED)]);
+  if (winner === OPEN_STALLED) {
+    opened.then(async (result) => {
+      if (result !== 'open') return;
+      try {
+        await port.close();
+      } catch {}
+      if (opts?.baudRate === 1200) {
+        log('A stalled restart signal was sent late — the LipSync may enter update mode.', 'log-info');
+      }
+    });
+    const e = new Error('the serial port did not respond');
+    e.name = 'PortStallError';
+    throw e;
+  }
+  if (openError) throw openError;
 }
 
 /** Did the port fail because the device behind it has departed? */
@@ -704,7 +752,7 @@ async function reopenAfterSettle(appPort, cancelled) {
   await sleep(TOUCH_RECHECK_SETTLE_MS);
   if (cancelled?.()) return 'other';
   try {
-    await appPort.open({ baudRate: 115200 });
+    await openBounded(appPort, { baudRate: 115200 });
     await appPort.close();
     return 'open';
   } catch (e) {
@@ -725,8 +773,10 @@ async function reopenAfterSettle(appPort, cancelled) {
 let activeTouchOp = null;
 
 async function tryTouchDevice(appPort, cancelled) {
+  let stalled = false;
+  let lastError = null;
   for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
-    if (cancelled?.()) return false;
+    if (cancelled?.()) return { touched: false, stalled };
     const op = attemptTouchOnce(appPort, cancelled, attempt);
     activeTouchOp = op;
     let r;
@@ -735,7 +785,7 @@ async function tryTouchDevice(appPort, cancelled) {
     } finally {
       activeTouchOp = null;
     }
-    if (r.result === 'cancelled') return false;
+    if (r.result === 'cancelled') return { touched: false, stalled };
     if (r.result === 'touched') {
       if (wizard) wizard.touchLanded = true;
       log(
@@ -744,8 +794,12 @@ async function tryTouchDevice(appPort, cancelled) {
           : `Device restarted into update mode on retry (attempt ${attempt}).`,
         'log-info',
       );
-      return true;
+      return { touched: true, stalled: false };
     }
+    if (r.error) lastError = r.error;
+    // The stall error can surface through either classification — the
+    // 1200-open path reports non-gone failures as 'app-live' with the error.
+    if (r.error?.includes('did not respond')) stalled = true;
     if (attempt < TOUCH_MAX_ATTEMPTS) {
       log(
         `Automatic restart attempt ${attempt} did not take${r.error ? ' (' + r.error + ')' : ''} — retrying…`,
@@ -753,8 +807,12 @@ async function tryTouchDevice(appPort, cancelled) {
       );
     }
   }
-  log(`Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts.`, 'log-err');
-  return false;
+  log(
+    `Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts${lastError ? ' (' + lastError + ')' : ''}.` +
+      (stalled ? ' Unplug the LipSync, plug it back in, and try the update again.' : ''),
+    stalled ? 'log-err' : 'log-err',
+  );
+  return { touched: false, stalled };
 }
 
 /**
@@ -806,8 +864,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
     lockSessionButtons(true);
     wizard.stage = 'enter-bootloader';
     let touched = false;
+    let stalled = false;
     try {
-      touched = await tryTouchDevice(appPort, cancelled);
+      ({ touched, stalled } = await tryTouchDevice(appPort, cancelled));
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
@@ -817,7 +876,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
     setWizardStep(
       touched
         ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
-        : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+        : stalled
+          ? 'The serial port stopped responding. Unplug the LipSync, plug it back in, wait a few seconds — then click Continue and pick the update loader.'
+          : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
         hint: 'The Hub\u2019s screen stays dark and its lights go quiet while it is in update mode — that is normal. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
@@ -865,7 +926,7 @@ async function continueWizard() {
       setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
       let touched = false;
       try {
-        touched = await tryTouchDevice(port, () => !wizard || wizard.abort.signal.aborted);
+        ({ touched } = await tryTouchDevice(port, () => !wizard || wizard.abort.signal.aborted));
       } catch (e) {
         log('Could not restart the device automatically: ' + e.message, 'log-err');
       }
@@ -1244,18 +1305,25 @@ async function finishPendingUpdate(pending) {
   } finally {
     lockSessionButtons(false);
   }
-  if (failures.length && !serialSession.port) {
-    // The link died mid-restore (cable pulled, device wedged): re-arm the
-    // update so the next connect picks the restore back up instead of
-    // leaving the user to re-enter everything by hand.
-    writePending({ ...pending, installed: true });
-    log('Connection lost while restoring settings — they will be restored on the next connect.', 'log-err');
+  if (failures.length && !pending.restoreRetried) {
+    // Writes failed — whether the link died outright (cable pulled) or the
+    // device went silent with the port open (observed on hardware right
+    // after a flash): re-arm once so the next connect automatically retries
+    // instead of leaving the user to re-enter anything by hand. A second
+    // failing pass falls through and reports honestly.
+    writePending({ ...pending, installed: true, restoreRetried: true });
+    log('Some settings could not be written — they will be retried automatically on the next connect.', 'log-err');
     setWizardVisible(true);
-    setWizardStep('Connection lost while restoring your settings. Reconnect — they will be restored automatically.', {
-      showCancel: true,
-      showBackup: true,
-      hint: 'Unplug and replug the LipSync if it does not appear, then click Connect.',
-    });
+    setWizardStep(
+      serialSession.port
+        ? 'Some settings could not be written. Reconnect — they will be retried automatically.'
+        : 'Connection lost while restoring your settings. Reconnect — they will be restored automatically.',
+      {
+        showCancel: true,
+        showBackup: true,
+        hint: 'Unplug and replug the LipSync if it does not appear, then click Connect.',
+      },
+    );
     return;
   }
   if (failures.length) {
