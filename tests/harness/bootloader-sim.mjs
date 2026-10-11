@@ -155,7 +155,14 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
           readQueue.length
             ? Promise.resolve({ value: readQueue.shift(), done: false })
             : new Promise((res) => readWaiters.push(res)),
-        async cancel() {},
+        async cancel() {
+          // A parked read holds no timer — if the host's event loop drains
+          // while a read is parked, everything after it dead-locks (flaky
+          // suite-wide cancellations). flashSerialDfu cancels its reader in
+          // the finally; the parked pump must be released, not parked forever.
+          const waiters = readWaiters.splice(0);
+          for (const w of waiters) w({ value: undefined, done: true });
+        },
         releaseLock() {},
       }),
     },

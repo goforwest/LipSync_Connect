@@ -7,7 +7,7 @@ import { serialSession, serialBus, readWatchdog, loadDoneTimerRef, portGeneratio
 import { resetReadTimer } from './commands.js';
 import { requestSerialPort } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
-import { closePortBounded, openPortBounded, PORT_CLOSE_TIMEOUT_MS } from '../utils/port-open.js';
+import { closePortBounded, closePortWithOutcome, openPortBounded, getPortCloseTimeoutMs } from '../utils/port-open.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -46,7 +46,19 @@ async function openSerialPortWithRecovery() {
   } catch (e) {
     if (!/already open/i.test(e?.message ?? '')) throw e;
     log('The port was left open by the last session — closing it and retrying…', 'log-info');
-    await closePortBounded(serialSession.port, 3000);
+    const close = await closePortWithOutcome(serialSession.port, 3000);
+    if (close.outcome !== 'closed') {
+      // The port cannot be closed either (hardware: a close stuck as
+      // "already in progress") — a retry open would just fail the same way.
+      // Name the dead end instead of grinding through it.
+      log(
+        'The port would not close (' +
+          (close.error?.message ?? close.outcome) +
+          '). Unplug and replug the LipSync or reload the page.',
+        'log-err',
+      );
+      throw e;
+    }
     await sleep(300);
     await openPortBounded(serialSession.port, { baudRate: BAUD });
   }
@@ -183,7 +195,7 @@ export async function disconnect(options = {}) {
           return 'failed';
         }
       })();
-      const winner = await Promise.race([closed, sleep(PORT_CLOSE_TIMEOUT_MS).then(() => 'stalled')]);
+      const winner = await Promise.race([closed, sleep(getPortCloseTimeoutMs()).then(() => 'stalled')]);
       if (winner !== 'closed') {
         // A failed close leaves the SerialPort object open — the next
         // connect would fail with "The port is already open" (observed on

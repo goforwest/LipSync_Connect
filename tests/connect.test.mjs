@@ -109,3 +109,32 @@ test('connect: a port left open by the last session is cleaned up and retried on
   await disconnect({ quiet: true });
   testHooks.detach();
 });
+
+test('connect: a cleanup close that is itself stuck surfaces the remedy, not a doomed retry', async () => {
+  const { make } = portStubs();
+  // The terminal wedge: the port reports "already open" and its close is
+  // stuck as "already in progress" — nothing this page session can free.
+  // Connect must name the dead end instead of swallowing the failed close
+  // and retrying the open into the same wall.
+  const wedgedShut = make(() => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }));
+  wedgedShut.open = async () => {
+    throw new Error("Failed to execute 'open' on 'SerialPort': The port is already open.");
+  };
+  wedgedShut.close = async () => {
+    throw new Error("Failed to execute 'close' on 'SerialPort': A call to close() is already in progress.");
+  };
+  configureSerialPortSource({ requestPort: async () => wedgedShut });
+  const histStart = getLogHistory().length;
+
+  await connect();
+  const history = historyFrom(histStart);
+  assert.match(history, /left open by the last session/, 'the recovery was attempted');
+  assert.match(
+    history,
+    /The port would not close \(Failed to execute 'close'.*already in progress/,
+    'the stuck close is named',
+  );
+  assert.match(history, /Unplug and replug the LipSync or reload the page/, 'the remedy is stated');
+  assert.match(history, /Connection failed: .*The port is already open/, 'the failure surfaces honestly');
+  assert.equal(serialSession.port, null, 'no session was created against the wedged port');
+});

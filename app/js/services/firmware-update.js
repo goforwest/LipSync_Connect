@@ -20,7 +20,7 @@ import { fmtApiFloat } from '../utils/format.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
-import { openPortBounded } from '../utils/port-open.js';
+import { openPortBounded, closePortWithOutcome } from '../utils/port-open.js';
 import { parseDfuPackage } from '../serial/dfu/dfu-package.js';
 import { flashSerialDfu, getKnownSerialPorts, isBootloaderPort, requestDfuPort } from '../serial/dfu/dfu-serial.js';
 import { USB_VENDOR_ID } from '../config/constants.js';
@@ -538,6 +538,12 @@ export function writePending(entry) {
 
 let wizard = null; // { stage, target, pkg, snapshot, entry, abort }
 
+// The port the last flash attempt failed on (probe silence, write error…).
+// It must not be silently reused from getPorts() on the next attempt: the
+// wizard's copy says "pick the update loader again", and only the picker can
+// honor that. Cleared the moment a flash completes on any port.
+let lastFlashFailurePort = null;
+
 // Snapshot of the last completed update, kept only so the success panel's
 // "Download settings backup" button keeps working after the pending entry is
 // cleared. Cleared with the panel.
@@ -677,6 +683,77 @@ const TOUCH_MAX_ATTEMPTS = 3;
 // reported a gone-style open failure — enough for the bootloader to finish
 // enumerating (or for a wedged port to clear) on the slowest host.
 const TOUCH_RECHECK_SETTLE_MS = 2000;
+// The settle between the wizard's own session close and the first touch
+// open: a close→open with no gap is the documented cause of wedged macOS
+// opens (hardware: the wake open stalled 22 s after the session close
+// completed, and the pending open then poisoned every retry).
+export const TOUCH_AFTER_CLOSE_SETTLE_MS = 2000;
+let touchSettleAfterDisconnectMs = TOUCH_AFTER_CLOSE_SETTLE_MS;
+
+/** Test seam: shrink the post-close settle so wizard scenarios run fast. */
+export function setTouchSettleAfterDisconnectForTests(ms) {
+  touchSettleAfterDisconnectMs = ms;
+}
+
+// ---- SR-first restart (wedge-free device restart) --------------------------
+// Hardware fact: on some macOS machines the first open after a heavy
+// settings session's close wedges at the OS level and NEVER settles — the
+// 1200-baud restart signal becomes undeliverable and only a device
+// re-enumeration (physical replug, or reset) clears it. Rebooting the
+// device with SR,1:1 over the LIVE session makes it re-enumerate — the
+// same force-fail of the wedged open a replug performs — while leaving the
+// app running, so the touch then runs against a fresh enumeration (where
+// opens have never wedged). SR,1:1 is the firmware's established soft-reset
+// command (the mode-restore flow already sends it).
+export const SR_REBOOT_SETTLE_MS = 3000;
+let srRebootSettleMs = SR_REBOOT_SETTLE_MS;
+let srResetTimeoutMs = CMD_RESET_TIMEOUT;
+
+/** Test seams: shrink the SR timeouts so soft-reset scenarios run fast. */
+export function setSrRebootSettleForTests(ms) {
+  srRebootSettleMs = ms;
+}
+export function setSrResetTimeoutForTests(ms) {
+  srResetTimeoutMs = ms;
+}
+
+/**
+ * Reboots the device over the live session so it re-enumerates, then lets
+ * the caller run the 1200-baud touch against the fresh enumeration.
+ * Returns 'sent' (device rebooting; session torn down; settle elapsed) |
+ * 'unavailable' (SR could not be delivered — no live session or an
+ * unresponsive app; the session is untouched and the caller falls back to
+ * the standard close-then-touch choreography) | 'cancelled'.
+ * @param {() => boolean} [cancelled]
+ */
+async function attemptSoftResetRestart(cancelled) {
+  if (cancelled?.()) return 'cancelled';
+  if (!serialSession.port || !serialSession.writer) return 'unavailable';
+  // The reboot's departure must not trip the read loop's recovery chatter.
+  serialSession.disconnecting = true;
+  let sent = false;
+  try {
+    await sendCommand('SR,1:1', srResetTimeoutMs);
+    sent = true;
+  } catch (e) {
+    log(
+      'Could not reboot the device over the session (' + e.message + ') — using the standard restart instead.',
+      'log-info',
+    );
+  }
+  if (!sent) {
+    // The session is still alive and healthy — restore normal watchdog
+    // behavior; the standard restart path will disconnect it.
+    serialSession.disconnecting = false;
+    return 'unavailable';
+  }
+  log('Device is rebooting (soft reset) — waiting for it to come back before the update-mode signal.', 'log-info');
+  // Closing a port whose device is departing/departed rejects fast — the
+  // slow-close-then-wedge cycle never forms.
+  await disconnect({ quiet: true });
+  await sleep(srRebootSettleMs);
+  return cancelled?.() ? 'cancelled' : 'sent';
+}
 
 // The app-mode port stopped opening after a restart signal that never left:
 // the only bus-side proof that the device actually entered update mode is a
@@ -689,25 +766,34 @@ async function liveBootloaderPortPresent() {
 
 /**
  * One touch attempt: a wake pulse (an idle device may have suspended its USB
- * stack and drop the touch), then open at 1200 baud + DTR drop, then verify
- * by reopening the app-mode port — after a successful touch it no longer
- * opens. Returns 'touched' | 'app-live' | 'inconclusive' | 'cancelled'.
+ * stack and drop the touch — skipped after a soft reset, where the device
+ * just booted and is demonstrably awake), then open at 1200 baud + DTR
+ * drop, then verify by reopening the app-mode port — after a successful
+ * touch it no longer opens. Returns 'touched' | 'app-live' | 'inconclusive'
+ * | 'cancelled'.
+ * @param {any} appPort
+ * @param {() => boolean} cancelled
+ * @param {number} attempt
+ * @param {{ skipWake?: boolean }} [options]
  */
-async function attemptTouchOnce(appPort, cancelled, attempt) {
+async function attemptTouchOnce(appPort, cancelled, attempt, options = {}) {
+  const { skipWake = false } = options;
   if (cancelled?.()) return { result: 'cancelled' };
-  try {
-    await openBounded(appPort, { baudRate: 115200 });
-    if (cancelled?.()) {
-      // The open resolved after a cancel — release the port (nobody else can
-      // hold it while our open was pending) and stop touching anything.
-      try {
-        await appPort.close();
-      } catch {}
-      return { result: 'cancelled' };
-    }
-    await sleep(50);
-    await appPort.close();
-  } catch {}
+  if (!skipWake) {
+    try {
+      await openTouchWithRecovery(appPort, { baudRate: 115200 });
+      if (cancelled?.()) {
+        // The open resolved after a cancel — release the port (nobody else can
+        // hold it while our open was pending) and stop touching anything.
+        try {
+          await appPort.close();
+        } catch {}
+        return { result: 'cancelled' };
+      }
+      await sleep(50);
+      await appPort.close();
+    } catch {}
+  }
   if (cancelled?.()) return { result: 'cancelled' };
   // Give wedged ports progressively longer to settle between attempts — a
   // rapid close/open cycle is the main cause of a port refusing to open
@@ -717,7 +803,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
   try {
     // 1200-baud touch: the running firmware sees the line-coding change and
     // a DTR drop, and resets into its stock bootloader.
-    await openBounded(appPort, { baudRate: 1200 });
+    await openTouchWithRecovery(appPort, { baudRate: 1200 });
     if (cancelled?.()) {
       // Closing a 1200-baud open IS the touch — the device may restart.
       // Leaking the open would block every future connection, so close and
@@ -758,7 +844,7 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
   // either outcome (observed on hardware: touches that landed were logged
   // as failures and the user was wrongly told to press reset).
   try {
-    await openBounded(appPort, { baudRate: 115200 });
+    await openTouchWithRecovery(appPort, { baudRate: 115200 });
     await appPort.close();
     return { result: 'app-live' };
   } catch (e) {
@@ -804,6 +890,83 @@ function openBounded(port, opts) {
   });
 }
 
+// True while an open() on the touch port is believed stuck at the OS level
+// (the macOS wedged-port pathology: the open NEVER settles within the page
+// session — hardware showed it still pending after 16+ s, blocking every
+// later attempt with "A call to open() is already in progress" for minutes).
+// While set, in-progress errors are not waited out again — the wait proved
+// futile. The flag clears the moment any open settles (success or a real
+// error: after the device re-enumerates via reset/replug, the stuck open is
+// force-failed by the OS and the port responds again).
+let portOpenWedged = false;
+
+/**
+ * The touch-phase open with hardware-wedge recoveries:
+ *  - "A call to open() is already in progress": an earlier open is still
+ *    pending. Wait past the open bound once (it may land — its late handler
+ *    releases the port — or reject). If the retry says "in progress" too,
+ *    the open is OS-stuck for good: flag the wedge and fail fast — grinding
+ *    more attempts just stalls the user for minutes on a port only a device
+ *    reset, replug, or reload can free.
+ *  - "The port is already open": a stalled close left the port open. Close
+ *    it — outcome-checked, because a close stuck as "already in progress"
+ *    means this attempt cannot proceed — settle, and retry.
+ * Anything else rethrows: the attempt loop backs off, and repeated failure
+ * lands on the honest guidance.
+ */
+async function openTouchWithRecovery(port, opts) {
+  try {
+    const result = await openBounded(port, opts);
+    portOpenWedged = false;
+    return result;
+  } catch (e) {
+    const msg = e?.message ?? '';
+    if (/already in progress/i.test(msg)) {
+      if (portOpenWedged) throw e; // already proven stuck — fail fast
+      log('A previous open is still settling on this port — waiting for it before retrying…', 'log-info');
+      await sleep(touchOpenTimeoutMs + 500);
+      try {
+        const result = await openBounded(port, opts);
+        portOpenWedged = false;
+        return result;
+      } catch (e2) {
+        if (/already in progress/i.test(e2?.message ?? '')) {
+          portOpenWedged = true;
+          log(
+            'The serial port has wedged — an open is stuck at the OS level and will not settle. It clears with a device reset (press the small reset button twice, slowly), a replug, or a page reload.',
+            'log-err',
+          );
+        }
+        throw e2;
+      }
+    }
+    if (!/already open/i.test(msg)) {
+      // A settled error (NotFoundError and friends): the port responds —
+      // the wedge is gone. A stall (PortStallError) means the open hangs,
+      // consistent with the wedge: leave the flag as it was.
+      if (e?.name !== 'PortStallError') portOpenWedged = false;
+      throw e;
+    }
+    // "The port is already open" is itself a settled answer — responsive.
+    portOpenWedged = false;
+    log('The port was left open by the last session — closing it and retrying…', 'log-info');
+    const close = await closePortWithOutcome(port);
+    if (close.outcome !== 'closed') {
+      log(
+        'The port would not close (' +
+          (close.error?.message ?? close.outcome) +
+          '). Unplug the LipSync or reload the page, then try again.',
+        'log-err',
+      );
+      throw e;
+    }
+    await sleep(300);
+    const result = await openBounded(port, opts);
+    portOpenWedged = false;
+    return result;
+  }
+}
+
 /** Did the port fail because the device behind it has departed? */
 function deviceGone(e) {
   return (
@@ -817,7 +980,7 @@ async function reopenAfterSettle(appPort, cancelled) {
   await sleep(TOUCH_RECHECK_SETTLE_MS);
   if (cancelled?.()) return 'other';
   try {
-    await openBounded(appPort, { baudRate: 115200 });
+    await openTouchWithRecovery(appPort, { baudRate: 115200 });
     await appPort.close();
     return 'open';
   } catch (e) {
@@ -837,13 +1000,20 @@ async function reopenAfterSettle(appPort, cancelled) {
 // "The device has been lost" and blocking opens with "already in progress").
 let activeTouchOp = null;
 
-async function tryTouchDevice(appPort, cancelled) {
+/**
+ * Runs the touch up to TOUCH_MAX_ATTEMPTS times, logging every outcome so
+ * hardware sessions are diagnosable from the exported log. Returns whether
+ * the device ended up in update mode.
+ * @param {() => boolean} [cancelled]
+ * @param {{ skipWake?: boolean }} [options]
+ */
+async function tryTouchDevice(appPort, cancelled, options = {}) {
   let stalled = false;
   let unplugged = false;
   let lastError = null;
   for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
     if (cancelled?.()) return { touched: false, stalled, unplugged };
-    const op = attemptTouchOnce(appPort, cancelled, attempt);
+    const op = attemptTouchOnce(appPort, cancelled, attempt, options);
     activeTouchOp = op;
     let r;
     try {
@@ -878,12 +1048,14 @@ async function tryTouchDevice(appPort, cancelled) {
     `Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts${lastError ? ' (' + lastError + ')' : ''}.` +
       (stalled
         ? ' Unplug the LipSync, plug it back in, and try the update again.'
-        : unplugged
-          ? ' Check that the LipSync is plugged in securely (try another USB cable or port).'
-          : ''),
+        : portOpenWedged
+          ? ' The serial port wedged — press the small reset button on the Hub twice, slowly, to enter update mode; a replug or page reload also clears it.'
+          : unplugged
+            ? ' Check that the LipSync is plugged in securely (try another USB cable or port).'
+            : ''),
     'log-err',
   );
-  return { touched: false, stalled, unplugged };
+  return { touched: false, stalled, unplugged, wedged: portOpenWedged };
 }
 
 /**
@@ -930,15 +1102,31 @@ async function runFlashWizard({ pkg, targetVersion }) {
     if (!appPort) {
       throw new Error('The connection was lost before the update could start. Reconnect and retry.');
     }
-    await disconnect({ quiet: true });
-    if (cancelled()) return;
-    lockSessionButtons(true);
-    wizard.stage = 'enter-bootloader';
     let touched = false;
     let stalled = false;
     let unplugged = false;
+    let wedged = false;
+    // SR-first: reboot over the live session (wedge-free re-enumeration),
+    // then touch the fresh enumeration — no wake pulse needed, the device
+    // just booted. On failure ('unavailable') fall back to the standard
+    // close-then-touch choreography below.
+    const softReset = await attemptSoftResetRestart(cancelled);
+    if (cancelled()) return;
+    if (softReset !== 'sent') {
+      await disconnect({ quiet: true });
+      if (cancelled()) return;
+      // Ground truth (observed on hardware): a rapid close/open cycle is the
+      // main cause of a macOS port refusing to open — and the session close
+      // above JUST completed. Give the OS a beat first.
+      await sleep(touchSettleAfterDisconnectMs);
+      if (cancelled()) return;
+    }
+    lockSessionButtons(true);
+    wizard.stage = 'enter-bootloader';
     try {
-      ({ touched, stalled, unplugged } = await tryTouchDevice(appPort, cancelled));
+      ({ touched, stalled, unplugged, wedged } = await tryTouchDevice(appPort, cancelled, {
+        skipWake: softReset === 'sent',
+      }));
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
@@ -950,11 +1138,13 @@ async function runFlashWizard({ pkg, targetVersion }) {
         ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
         : stalled
           ? 'The serial port stopped responding. Unplug the LipSync, plug it back in, wait a few seconds — then click Continue and pick the update loader.'
-          : unplugged
-            ? 'The LipSync is not responding — check that it is plugged in securely (try another USB cable or port), then click Continue.'
-            : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+          : wedged
+            ? 'The serial port wedged while restarting (a macOS quirk after a settings session). Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue and pick the update loader. (Unplugging and replugging, or reloading the page, also clears it.)'
+            : unplugged
+              ? 'The LipSync is not responding — check that it is plugged in securely (try another USB cable or port), then click Continue.'
+              : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
-        hint: 'The Hub\u2019s screen stays dark and its lights go quiet while it is in update mode — that is normal. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
+        hint: 'In update mode the Hub\u2019s screen goes dark or stays frozen on its last message (you may still see \u201cRestarting\u201d) — the screen is not live, and that is normal. Its lights go quiet too. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
         showCancel: true,
         showBackup: true,
@@ -975,11 +1165,11 @@ async function continueWizard() {
   // flow. Every await below re-verifies ownership before mutating state.
   wizard.stage = 'picking';
   const stillOurs = () => wizard?.stage === 'picking';
+  let port = null;
   setWizardStep('Waiting for the update port…', { showBackup: true });
   try {
-    let port;
     try {
-      port = await requestDfuPort();
+      port = await requestDfuPort({ avoidPort: lastFlashFailurePort });
     } catch (e) {
       if (e?.name !== 'NotFoundError') throw e;
       // The picker was dismissed. Stay on this step so Continue works again
@@ -1011,8 +1201,9 @@ async function continueWizard() {
       setWizardStatus('Firmware update — restarting the device again');
       setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
       let touched = false;
+      let wedged = false;
       try {
-        ({ touched } = await tryTouchDevice(port, () => !wizard || wizard.abort.signal.aborted));
+        ({ touched, wedged } = await tryTouchDevice(port, () => !wizard || wizard.abort.signal.aborted));
       } catch (e) {
         log('Could not restart the device automatically: ' + e.message, 'log-err');
       }
@@ -1022,9 +1213,11 @@ async function continueWizard() {
       setWizardStep(
         touched
           ? 'The LipSync is now in update mode. Click Continue and pick the update loader in the browser dialog.'
-          : 'The automatic restart keeps failing. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+          : wedged
+            ? 'The serial port wedged (a macOS quirk). Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue and pick the update loader. (A replug or page reload also clears it.)'
+            : 'The automatic restart keeps failing. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
         {
-          hint: 'The Hub\u2019s screen stays dark while it is in update mode — that is normal.',
+          hint: 'In update mode the Hub\u2019s screen goes dark or stays frozen on its last message — the screen is not live, and that is normal.',
           showContinue: true,
           showCancel: true,
           showBackup: true,
@@ -1085,6 +1278,8 @@ async function continueWizard() {
         }
       },
     });
+    // The flash completed on this port: it is trusted again for silent reuse.
+    lastFlashFailurePort = null;
     if (!wizard) {
       // Cancelled inside the final STOP window: the bootloader completed the
       // update anyway. The panel is already closed — keep the restore alive
@@ -1113,6 +1308,11 @@ async function continueWizard() {
   } catch (e) {
     // A cancel already closed the wizard — do not reopen it as a failure.
     if (!wizard) return;
+    // Whatever failed, this port did not answer as an update loader this
+    // time: never silently reuse it again — the next attempt must show the
+    // picker, or the "pick the update loader again" guidance is a lie the
+    // user can only escape with a physical replug (observed on hardware).
+    lastFlashFailurePort = port;
     if (e?.name === 'StopWindowError') {
       // The STOP packet itself triggers validate + activate + reboot, and the
       // port vanishes within ~1s of its ACK. A link failure in that window
@@ -1145,8 +1345,9 @@ async function continueWizard() {
       // macOS Chrome's NetworkError "Failed to open serial port". Back to
       // the picker, not a failure panel. Past START an interruption strands
       // the device in its update loader, so the copy must not promise a
-      // normally-running LipSync.
+      // normally-running LipSync — and it offers Recover, so reveal it too.
       wizard.stage = 'await-bootloader-port';
+      if (wizard.postStart) setBootloaderStranded();
       setWizardStep(
         wizard.postStart
           ? 'The connection was lost during the update — the LipSync now starts in its update loader. Replug it, click Continue, and pick the update loader to finish the update (or use Recover).'
@@ -1166,6 +1367,11 @@ function failWizard(e) {
   const message = e?.message ?? String(e);
   const duringFlash = wizard?.stage === 'flashing' || wizard?.stage === 'await-reconnect';
   const postStart = wizard?.postStart === true;
+  // The post-START hint names the Recover button: reveal it NOW. Leaving it
+  // to the connect guard forces the user to attempt a Connect (and pick the
+  // bootloader port) before the button the message sends them to even
+  // exists — and a page reload loses the marker entirely.
+  if (duringFlash && postStart) setBootloaderStranded();
   log('Firmware update failed: ' + message, 'log-err');
   wizard = { ...wizard, stage: 'failed', failedDuringFlash: duringFlash };
   lockSessionButtons(false);
@@ -1192,6 +1398,12 @@ async function cancelWizard(message) {
   const postStart = wizard?.postStart === true;
   const stopWindowHedge = wizard?.stopWindowHedge === true;
   const recovery = !!wizard?.recovery;
+  // An interrupted flash past START strands the device in its update loader,
+  // and both the cancel and failure copy send the user to Recover — so the
+  // button must be visible the moment that copy is shown, not only after the
+  // next Connect attempt re-discovers the stranded state (and never mind a
+  // page reload, which would lose a connect-guard-set marker).
+  if ((stage === 'flashing' || failedDuringFlash) && postStart) setBootloaderStranded();
   try {
     wizard?.abort.abort();
   } catch {}
@@ -1240,7 +1452,7 @@ async function cancelWizard(message) {
             : (stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking') && touchLanded
               ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
               : stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking'
-                ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen comes back, connect as usual; if it stays dark, unplug and replug it once, then connect.'
+                ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen shows its normal menu again, connect as usual; if it shows nothing or a frozen message, unplug and replug it once, then connect.'
                 : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
@@ -1380,7 +1592,7 @@ export async function recoverFromBootloader() {
     setWizardStep(
       'The LipSync is in update mode. Click Continue and pick the update loader in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.',
       {
-        hint: 'The Hub\u2019s screen stays dark while it is in update mode — that is normal.',
+        hint: 'In update mode the Hub\u2019s screen goes dark or stays frozen on its last message — the screen is not live, and that is normal.',
         showContinue: true,
         showCancel: true,
       },

@@ -6,7 +6,12 @@
 // newer connect attempt has claimed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openPortBounded, closePortBounded, PORT_OPEN_TIMEOUT_MS } from '../app/js/utils/port-open.js';
+import {
+  openPortBounded,
+  closePortBounded,
+  PORT_OPEN_TIMEOUT_MS,
+  PORT_CLOSE_TIMEOUT_MS,
+} from '../app/js/utils/port-open.js';
 import { portGeneration } from '../app/js/serial/session.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,7 +47,9 @@ test('onLateOpen runs after a stalled open was released, and not when it failed'
     open: () => new Promise((resolve) => (release = resolve)),
     async close() {},
   };
-  await assert.rejects(() => openPortBounded(port, { baudRate: 1200 }, { timeoutMs: 20, onLateOpen: () => lateHook++ }));
+  await assert.rejects(() =>
+    openPortBounded(port, { baudRate: 1200 }, { timeoutMs: 20, onLateOpen: () => lateHook++ }),
+  );
   release();
   await sleep(20);
   assert.equal(lateHook, 1, 'the late-release hook fired once');
@@ -53,7 +60,9 @@ test('onLateOpen runs after a stalled open was released, and not when it failed'
     open: () => new Promise((_, rej) => (reject = rej)),
     async close() {},
   };
-  await assert.rejects(() => openPortBounded(failing, { baudRate: 1200 }, { timeoutMs: 20, onLateOpen: () => lateHook++ }));
+  await assert.rejects(() =>
+    openPortBounded(failing, { baudRate: 1200 }, { timeoutMs: 20, onLateOpen: () => lateHook++ }),
+  );
   reject(new Error('device no longer available'));
   await sleep(20);
   assert.equal(lateHook, 1, 'no hook for a failed late open');
@@ -88,10 +97,23 @@ test('a normal open resolves', async () => {
 
 test('an open failure propagates the original error', async () => {
   const original = new Error('NetworkError: Failed to open serial port.');
-  const port = { open: async () => { throw original; } };
-  await assert.rejects(() => openPortBounded(port, { baudRate: 115200 }, { timeoutMs: 50 }), (e) => e === original);
+  const port = {
+    open: async () => {
+      throw original;
+    },
+  };
+  await assert.rejects(
+    () => openPortBounded(port, { baudRate: 115200 }, { timeoutMs: 50 }),
+    (e) => e === original,
+  );
 });
 
-test('the default bound is generous (10 s)', () => {
+test('the default bounds are generous for real hardware', () => {
   assert.equal(PORT_OPEN_TIMEOUT_MS, 10000);
+  // Hardware observation: a macOS close right after a full settings load
+  // resolves anywhere in 5–20 s. A 5 s bound declared those healthy closes
+  // "stalled", left the port open, and every later open failed with "The
+  // port is already open". The bound defeats the hang-forever wedged close
+  // — it must cover the slow-but-alive range too.
+  assert.equal(PORT_CLOSE_TIMEOUT_MS, 20000);
 });

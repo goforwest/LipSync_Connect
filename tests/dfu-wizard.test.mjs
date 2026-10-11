@@ -138,6 +138,14 @@ const app = await import('../app/js/main.js');
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { testHooks } = await import('./harness/test-hooks.mjs');
 const fw = await import('../app/js/services/firmware-update.js');
+// The production post-close settle (2 s) exists for real macOS wedged opens;
+// the scenarios here don't need it — shrink it so the suite stays fast. The
+// settle itself is pinned by a dedicated test below.
+fw.setTouchSettleAfterDisconnectForTests(30);
+// The SR-first restart's timeouts shrink the same way (its happy path is
+// acked in ~2 ms; its failure path would otherwise wait the full 15 s).
+fw.setSrRebootSettleForTests(20);
+fw.setSrResetTimeoutForTests(400);
 const { configureDfuPortSource } = await import('../app/js/serial/dfu/dfu-serial.js');
 
 // Node lacks requestAnimationFrame (the settings-backup download uses it) and
@@ -555,6 +563,12 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
     'it says the device starts in its update loader — the old app is erased',
   );
   assert.match(history, /Recover a device stuck in update mode/, 'the message names the in-app repair path');
+  assert.equal(
+    byId('btnRecoverDevice').hidden,
+    false,
+    'the Recover button the message names is revealed by the cancel itself — no Connect round-trip needed',
+  );
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true', 'the stranded marker is set');
   assert.doesNotMatch(history, /Firmware update failed:/, 'a cancel is not reopened as a failure');
   assert.doesNotMatch(history, /starts normally again/, 'the false normal-boot claim is gone post-START');
   assert.equal(document.getElementById('status').textContent, 'Not connected');
@@ -564,6 +578,7 @@ test('wizard: cancelling mid-flash closes cleanly with honest recovery guidance'
 
 test('wizard: cancelling before the bootloader accepted START keeps the harmless copy', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
+  fw.clearBootloaderStranded(); // a previous test's stranded marker must not leak in
   try {
     localStorage.setItem(
       'lipsync-fw-check',
@@ -619,8 +634,9 @@ test('wizard: cancelling before the bootloader accepted START keeps the harmless
   assert.match(history, /Update stopped before anything was written/, 'the pre-START cancel says nothing was written');
   assert.match(history, /starts normally again/, 'the harmless-copy claim is honest before START');
   assert.doesNotMatch(history, /now in its update loader/, 'it does not over-claim update mode pre-START');
-  // The probe's ACK wait is still pending inside the aborted flash — wait for
-  // it to time out and unwind at its next abort checkpoint, so no dangling
+  assert.equal(byId('btnRecoverDevice').hidden, true, 'nothing was written — no stranded marker, no Recover button');
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), null, 'the stranded marker stays unset');
+  // The probe's ACK wait is still pending inside the aborted flash — wait for  // it to time out and unwind at its next abort checkpoint, so no dangling
   // continuation can leak into the following tests' shared module state.
   await sleep(5500);
   assert.doesNotMatch(
@@ -628,6 +644,186 @@ test('wizard: cancelling before the bootloader accepted START keeps the harmless
     /Firmware update failed:/,
     'the unwinding flash is not reopened as a failure after the cancel',
   );
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: a post-START flash failure reveals Recover immediately', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  fw.clearBootloaderStranded();
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const sim = createBootloaderSim();
+  // The port throws on the second data frame's write (frame 5) with a plain
+  // error — START was accepted (the device is being erased) but the link
+  // failed in a way that is neither the STOP window nor a gone-style error:
+  // failWizard runs with postStart, and its hint names Recover.
+  const baseWriter = sim.port.writable.getWriter();
+  let writes = 0;
+  sim.port.writable = {
+    getWriter: () => ({
+      async write(bytes) {
+        writes++;
+        if (writes >= 5) throw new Error('A random write failure');
+        return baseWriter.write(bytes);
+      },
+      releaseLock() {},
+    }),
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await waitFor(() => /Update failed/.test(byId('fwWizardStep').textContent), {
+    what: 'the post-START failure panel',
+  });
+
+  assert.match(byId('fwWizardStep').textContent, /Update failed/);
+  assert.match(
+    byId('fwWizardHint').textContent,
+    /Recover a device stuck in update mode/,
+    'the hint names the repair path',
+  );
+  assert.equal(
+    byId('btnRecoverDevice').hidden,
+    false,
+    'the Recover button is revealed by the failure itself — no Connect round-trip needed',
+  );
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
+  assert.equal(sim.state.activated, false, 'in this construction the image never completed');
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true, 'the failure panel closes');
+  assert.equal(
+    byId('btnRecoverDevice').hidden,
+    false,
+    'the stranded marker survives the panel dismiss — the device is still in update mode',
+  );
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardware round: a port the flash failed on is never silently reused ----
+
+test('wizard: after a probe failure, Continue shows the picker instead of reusing the port', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  // The granted bootloader port that stops answering (hardware: the probe
+  // goes silent after the device re-enumerates or wedges — fast-fails on
+  // write here so the scenario runs quickly).
+  const badOpens = [];
+  const badBootPort = {
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
+    async open() {
+      badOpens.push('open');
+    },
+    async close() {
+      badOpens.push('close');
+    },
+    async setSignals() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: {
+      getWriter: () => ({
+        async write() {
+          throw new Error('The device is not responding on this port.');
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  const goodSim = createBootloaderSim();
+  let pickerCalls = 0;
+  configureDfuPortSource({
+    serial: {
+      getPorts: async () => [badBootPort],
+      requestPort: async () => {
+        pickerCalls++;
+        return goodSim.port;
+      },
+    },
+  });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  // First attempt: Continue silently reuses the granted (now dead) port and
+  // the flash fails on the probe.
+  const firstDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await firstDone;
+  click('btnFwContinue');
+  await waitFor(() => /Update failed/.test(byId('fwWizardStep').textContent), {
+    what: 'the probe failure panel',
+  });
+  assert.match(byId('fwWizardStep').textContent, /did not respond as an update loader/);
+  assert.equal(pickerCalls, 0, 'the first attempt reused the granted port silently');
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+
+  // Second attempt: the guidance says "pick the update loader again" — the
+  // dead port must NOT be silently reused; the picker must actually appear.
+  serialSession.port = makeTouchedAppPort();
+  setLoadedValues();
+  const secondDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await secondDone;
+  click('btnFwContinue');
+  await waitFor(() => /installed/.test(byId('fwWizardStep').textContent), {
+    what: 'the picker-based flash to complete',
+  });
+  assert.equal(pickerCalls, 1, 'the retry showed the real picker (the guidance is followable)');
+  assert.equal(goodSim.state.activated, true, 'the flash completed on the freshly picked port');
+  assert.equal(
+    badOpens.filter((e) => e === 'open').length,
+    1,
+    'the failed port was never opened again after its failure',
+  );
+  click('btnFwCancel');
+  await flush();
   await app.disconnect({ quiet: true });
 });
 
@@ -1489,7 +1685,590 @@ test('wizard: a disconnect during the download surfaces a clean failure', async 
   assert.equal(byId('btnFwCancel').hidden, false, 'the user can dismiss the failure');
   click('btnFwCancel');
   await flush();
-  assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardware round: the touch survives a port left open by a stalled close --
+
+test('wizard: the touch recovers when the session left the port open', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  const { setPortCloseTimeoutForTests, PORT_CLOSE_TIMEOUT_MS } = await import('../app/js/utils/port-open.js');
+  // The real pathology: the session's close STALLS (macOS, after a settings
+  // load) — the bounded close gives up and leaves the port open, after which
+  // every touch open fails "The port is already open". Shrink the bound so
+  // the stalled close is abandoned quickly here.
+  setPortCloseTimeoutForTests(100);
+  let closeCalls = 0;
+  const portState = { open: true };
+  let opens = 0;
+  const wedgedAppPort = {
+    async open() {
+      opens++;
+      if (portState.open) {
+        throw new Error("Failed to execute 'open' on 'SerialPort': The port is already open.");
+      }
+      if (opens >= 4) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+      portState.open = true; // opened; a settled close() re-arms the wedge
+    },
+    close() {
+      closeCalls++;
+      if (closeCalls === 1) {
+        // The session close that stalls and never settles (left open).
+        return new Promise(() => {});
+      }
+      portState.open = false;
+      return Promise.resolve();
+    },
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = wedgedAppPort;
+  setLoadedValues();
+
+  try {
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await wizardDone;
+
+    const history = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(history, /left open by the last session/, 'the cleanup-retry ran');
+    assert.match(history, /Device restarted into update mode/, 'the 1200-baud signal went out despite the wedge');
+    assert.equal(opens, 4, 'wake (recovered) + touch + verify — exactly one recovery, no flailing');
+    assert.equal(byId('btnFwContinue').hidden, false, 'the wizard reached the picker step');
+    click('btnFwCancel');
+    await flush();
+    await app.disconnect({ quiet: true });
+  } finally {
+    setPortCloseTimeoutForTests(PORT_CLOSE_TIMEOUT_MS);
+  }
+});
+
+// ---- Hardware round 2: the post-close settle and the pending-open wedge ----
+
+test('wizard: the first touch open waits for the OS to settle after the session close', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  assert.equal(fw.TOUCH_AFTER_CLOSE_SETTLE_MS, 2000, 'the production settle is generous for real hardware');
+  fw.setTouchSettleAfterDisconnectForTests(1500);
+  try {
+    const times = [];
+    let opens = 0;
+    const appPort = {
+      async open() {
+        opens++;
+        times.push(['open', Date.now()]);
+        if (opens > 2) {
+          const e = new Error('device no longer available');
+          e.name = 'NotFoundError';
+          throw e;
+        }
+      },
+      async close() {
+        times.push(['close', Date.now()]);
+      },
+      async setSignals() {},
+      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+      readable: {
+        getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }),
+      },
+      writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+    };
+    const sim = createBootloaderSim();
+    configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+    const { serialSession } = await import('../app/js/serial/session.js');
+    serialSession.port = appPort;
+    setLoadedValues();
+
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await wizardDone;
+
+    const firstClose = times.find(([k]) => k === 'close');
+    const firstWake = times.find(([k]) => k === 'open');
+    assert.ok(firstClose && firstWake, 'a close and a wake open were recorded');
+    assert.ok(
+      firstWake[1] - firstClose[1] >= 1400,
+      `the wake open waits out the post-close settle (gap ${firstWake[1] - firstClose[1]}ms)`,
+    );
+    click('btnFwCancel');
+    await flush();
+    await app.disconnect({ quiet: true });
+  } finally {
+    fw.setTouchSettleAfterDisconnectForTests(30);
+  }
+});
+
+test('wizard: the touch waits out a pending stalled open instead of failing into it', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  // The wake open stalls (its bound fires; the OS-level open stays pending),
+  // so the 1200-baud open hits "A call to open() is already in progress" —
+  // the recovery must wait out the pending open, not fail the attempt.
+  fw.setTouchOpenTimeoutForTests(250);
+  let opens = 0;
+  const appPort = {
+    open() {
+      opens++;
+      if (opens === 1) return new Promise(() => {}); // the stalled wake open
+      if (opens === 2) {
+        return Promise.reject(
+          new Error("Failed to execute 'open' on 'SerialPort': A call to open() is already in progress."),
+        );
+      }
+      if (opens >= 4) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        return Promise.reject(e);
+      }
+      return Promise.resolve();
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+  try {
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await wizardDone;
+
+    const history = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(history, /previous open is still settling/, 'the pending-open recovery ran');
+    assert.match(
+      history,
+      /Device restarted into update mode/,
+      'the touch completed after waiting out the pending open',
+    );
+    assert.equal(opens, 4, 'stalled wake + in-progress 1200 + recovered 1200 + verify — no wasted attempts');
+    click('btnFwCancel');
+    await flush();
+    await app.disconnect({ quiet: true });
+  } finally {
+    fw.setTouchOpenTimeoutForTests(8000);
+  }
+});
+
+test('wizard: a port whose close is also stuck fails fast with honest guidance', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  // The terminal wedge: every open fails "The port is already open." AND
+  // every close fails "A call to close() is already in progress." — nothing
+  // in this page session can free the port. The touch must fail fast, name
+  // the dead end, and land on the replug guidance instead of looping a
+  // swallowed-close + doomed-retry storm.
+  const wedgedShut = {
+    async open() {
+      throw new Error("Failed to execute 'open' on 'SerialPort': The port is already open.");
+    },
+    close() {
+      return Promise.reject(
+        new Error("Failed to execute 'close' on 'SerialPort': A call to close() is already in progress."),
+      );
+    },
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => wedgedShut } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = wedgedShut;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(
+    history,
+    /The port would not close \(Failed to execute 'close'.*already in progress/,
+    'the dead end is named',
+  );
+  assert.match(history, /Unplug the LipSync or reload the page/, 'the remedy is stated');
+  assert.match(
+    history,
+    /Automatic restart failed after 3 attempts \(Failed to execute 'open' on 'SerialPort': The port is already open\.\)/,
+    'the attempts exhaust with the real cause',
+  );
+  assert.match(
+    byId('fwWizardStep').textContent,
+    /automatic restart did not take|did not restart/,
+    'the wizard stays on the restart step with guidance',
+  );
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Hardware round 3: the OS-level wedged open (never settles) ----------
+
+test('wizard: a wedged open fails fast to reset guidance and recovers after a replug', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  fw.setTouchOpenTimeoutForTests(250);
+  // Hardware model: the first open after the session close wedges at the OS
+  // level and NEVER settles — every later open reports "A call to open() is
+  // already in progress". After the device is unplugged/replugged the stuck
+  // open is force-failed and the port responds again (two opens succeed,
+  // then the rebooted enumeration answers NotFound like a departed device).
+  const mode = { wedged: true };
+  let opens = 0;
+  const appPort = {
+    open() {
+      opens++;
+      if (mode.wedged) {
+        if (opens === 1) return new Promise(() => {}); // the wedged open: never settles
+        return Promise.reject(
+          new Error("Failed to execute 'open' on 'SerialPort': A call to open() is already in progress."),
+        );
+      }
+      if (opens >= mode.replugBase + 3) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        return Promise.reject(e);
+      }
+      return Promise.resolve();
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  configureDfuPortSource({
+    serial: {
+      getPorts: async () => [],
+      requestPort: async () => appPort,
+    },
+  });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+  try {
+    // ---- Phase 1: the wedge. The first in-progress is waited out once;
+    // when the retry reports in-progress too, the port is flagged wedged and
+    // every later attempt fails FAST — no more 8.5 s waits per attempt.
+    const firstDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await firstDone;
+
+    const history = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(history, /previous open is still settling/, 'the one legitimate wait ran');
+    assert.match(history, /serial port has wedged/, 'the wedge is diagnosed');
+    assert.match(history, /reset button twice, slowly/, 'the reset path is the lead remedy');
+    assert.match(
+      byId('fwWizardStep').textContent,
+      /wedged/,
+      'the wizard step names the wedge instead of a generic failure',
+    );
+    const settleWaits = logMod
+      .getLogHistory()
+      .slice(histStart)
+      .filter((l) => /still settling/.test(l)).length;
+    assert.equal(settleWaits, 1, 'the futile wait happened exactly once, never again per attempt');
+    click('btnFwCancel');
+    await flush();
+    await app.disconnect({ quiet: true });
+
+    // ---- Phase 2: the replug. The device re-enumerates, the stuck open is
+    // force-failed by the OS, and the port answers again — the wedge flag
+    // must not poison the next attempt at restarting the device.
+    mode.wedged = false;
+    mode.replugBase = opens;
+    const wedgeOpens = opens;
+    serialSession.port = appPort;
+    const secondDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await secondDone; // the wizard's own touch now runs against the replugged port
+
+    const history2 = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(
+      history2,
+      /Device restarted into update mode/,
+      'the touch completed after the replug cleared the wedge',
+    );
+    assert.equal(opens, wedgeOpens + 3, 'wake + touch + verify ran — the wedge flag did not block them');
+    assert.match(byId('fwWizardStep').textContent, /Select the update port/, 'the wizard reached the picker');
+    assert.doesNotMatch(byId('fwWizardStep').textContent, /wedged/, 'the wedge copy is gone once cleared');
+    click('btnFwCancel');
+    await flush();
+    await app.disconnect({ quiet: true });
+  } finally {
+    fw.setTouchOpenTimeoutForTests(8000);
+  }
+});
+
+// ---- SR-first restart: wedge-free re-enumeration ----------------------------
+
+test('wizard: the soft reset reboots the device first and the touch skips the wake pulse', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  const opens = [];
+  const appPort = {
+    async open(opts) {
+      if (opens.length >= 1) {
+        // the verify open: the device left app mode after the 1200-baud signal
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+      opens.push(opts?.baudRate ?? null); // the successful 1200-baud signal
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const srEchoWriter = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach(appPort, srEchoWriter); // a live session: SR can be delivered
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /rebooting \(soft reset\)/, 'the device is rebooted over the live session first');
+  const relHistory = logMod.getLogHistory().slice(histStart);
+  const srIdx = relHistory.findIndex((l) => /rebooting \(soft reset\)/.test(l));
+  const touchedIdx = relHistory.findIndex((l) => /Device restarted into update mode/.test(l));
+  assert.ok(srIdx >= 0 && touchedIdx > srIdx, 'the soft reset precedes the update-mode signal');
+  assert.match(history, /Device restarted into update mode/, 'the touch landed against the fresh enumeration');
+  assert.deepEqual(
+    opens,
+    [1200],
+    'the first and only pre-verify open is the 1200-baud signal — no wake pulse after SR',
+  );
+  assert.equal(serialSession.port, null, 'the session was torn down by the soft-reset path');
+  assert.match(byId('fwWizardStep').textContent, /Select the update port/, 'the wizard reached the picker');
+  click('btnFwCancel');
+  await flush();
+  testHooks.detach();
+});
+
+test('wizard: when SR goes unanswered, the standard close-then-touch path runs', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  const opens = [];
+  const appPort = {
+    async open(opts) {
+      if (opens.length >= 2) {
+        // the verify open: the device left app mode after the 1200-baud signal
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+      opens.push(opts?.baudRate ?? null); // successful wake + touch opens
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  // Acks the SETTINGS handshake but never answers SR,1:1 — the soft reset
+  // cannot be delivered, and the wizard must fall back to the classic
+  // choreography (session close → settle → wake pulse → 1200-baud touch).
+  const silentSrWriter = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+    },
+  };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  testHooks.attach(appPort, silentSrWriter);
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /Could not reboot the device over the session/, 'the SR failure is diagnosed');
+  assert.match(history, /using the standard restart instead/, 'the fallback is named');
+  assert.match(history, /Device restarted into update mode/, 'the classic touch completed');
+  assert.deepEqual(opens, [115200, 1200], 'the fallback ran the full wake + touch choreography');
+  click('btnFwCancel');
+  await flush();
+  testHooks.detach();
 });
 
 // ---- Audit: cancel during the 1200-baud touch window ------------------

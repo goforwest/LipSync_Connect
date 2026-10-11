@@ -12,7 +12,24 @@
 import { portGeneration } from '../serial/session.js';
 
 export const PORT_OPEN_TIMEOUT_MS = 10000;
-export const PORT_CLOSE_TIMEOUT_MS = 5000;
+// Real macOS closes can be slow, not just wedged: hardware sessions show a
+// close right after a full settings load resolving anywhere in 5–20 s. A
+// 5 s bound declared those healthy closes "stalled" and left the port open,
+// poisoning every later flow ("The port is already open"). The bound exists
+// to defeat the hang-forever wedged close — it must be generous, not tight.
+export const PORT_CLOSE_TIMEOUT_MS = 20000;
+
+let closeTimeoutMs = PORT_CLOSE_TIMEOUT_MS;
+
+/** Test seam: shrink the close bound so wedged-close scenarios run fast. */
+export function setPortCloseTimeoutForTests(ms) {
+  closeTimeoutMs = ms;
+}
+
+/** The effective close bound (honors the test seam). */
+export function getPortCloseTimeoutMs() {
+  return closeTimeoutMs;
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,8 +73,32 @@ export async function openPortBounded(port, options, bounds = {}) {
 }
 
 /** Best-effort close with a bound: a wedged close never hangs the caller. */
-export async function closePortBounded(port, timeoutMs = PORT_CLOSE_TIMEOUT_MS) {
+export async function closePortBounded(port, timeoutMs = closeTimeoutMs) {
   try {
     await Promise.race([port.close(), sleep(timeoutMs).then(() => 'stalled')]);
   } catch {}
+}
+
+/**
+ * Bounded close that reports its outcome: 'closed' | 'failed' (the close
+ * threw) | 'stalled' (never settled within the bound). Recovery retries
+ * need the outcome — a best-effort swallow would send them into a doomed
+ * retry against a port nothing can actually free (observed on hardware: a
+ * close stuck as "already in progress" makes every later open fail "The
+ * port is already open").
+ * @returns {Promise<{outcome: 'closed'|'failed'|'stalled', error: any}>}
+ */
+export async function closePortWithOutcome(port, timeoutMs = closeTimeoutMs) {
+  let closeError = null;
+  const closed = (async () => {
+    try {
+      await port.close();
+      return 'closed';
+    } catch (e) {
+      closeError = e;
+      return 'failed';
+    }
+  })();
+  const outcome = await Promise.race([closed, sleep(timeoutMs).then(() => /** @type {'stalled'} */ ('stalled'))]);
+  return { outcome, error: closeError };
 }

@@ -306,10 +306,7 @@ test('a silent port aborts the load early with an honest diagnosis', async () =>
     newLines.some((l) => /not responding/.test(l) && /Unplug it, plug it back in/.test(l)),
     'the dead-link diagnosis with recovery guidance is logged',
   );
-  assert.ok(
-    !newLines.some((l) => /17 error/.test(l)),
-    'the misleading 17-errors summary never appears',
-  );
+  assert.ok(!newLines.some((l) => /17 error/.test(l)), 'the misleading 17-errors summary never appears');
   assert.ok(sent.filter((s) => s === 'SETTINGS').length >= 2, 'the handshake was genuinely attempted');
   await app.disconnect({ quiet: true });
   testHooks.detach();
@@ -340,29 +337,39 @@ test('a close failure during disconnect is logged honestly', async () => {
 });
 
 test('a wedged close cannot hang disconnect (bounded like every port operation)', async () => {
-  testHooks.attach(
-    {
-      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
-      // The OS-level close never settles — the same macOS wedged-port
-      // pathology that stalls opens. disconnect must still finish (its
-      // finally owns the UI reset and waiter cleanup) instead of hanging.
-      close() {
-        return new Promise(() => {});
+  const { setPortCloseTimeoutForTests, PORT_CLOSE_TIMEOUT_MS } = await import('../app/js/utils/port-open.js');
+  // The production bound is deliberately generous (real macOS closes after a
+  // full settings load resolve in 5–20 s — a tight bound declares healthy
+  // closes "stalled" and poisons every later flow). Shrink it here so the
+  // wedged scenario stays fast; restore before finishing.
+  setPortCloseTimeoutForTests(100);
+  try {
+    testHooks.attach(
+      {
+        getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+        // The OS-level close never settles — the wedged-port pathology.
+        // disconnect must still finish (its finally owns the UI reset and
+        // waiter cleanup) instead of hanging.
+        close() {
+          return new Promise(() => {});
+        },
       },
-    },
-    { write() {} },
-  );
-  const histStart = getLogHistoryLength();
-  const settled = await Promise.race([
-    app.disconnect({ quiet: true }).then(() => 'settled'),
-    sleep(15000).then(() => 'hung'),
-  ]);
-  assert.equal(settled, 'settled', 'disconnect completes despite the wedged close');
-  assert.equal(testHooks.pendingWaiters(), 0, 'waiters were cleaned up by the finally');
-  const newLines = getLogHistory().slice(histStart);
-  assert.ok(
-    newLines.some((l) => /did not close cleanly \(the close stalled\)/.test(l)),
-    'the stalled close is named with its remedy',
-  );
-  testHooks.detach();
+      { write() {} },
+    );
+    const histStart = getLogHistoryLength();
+    const settled = await Promise.race([
+      app.disconnect({ quiet: true }).then(() => 'settled'),
+      sleep(1500).then(() => 'hung'),
+    ]);
+    assert.equal(settled, 'settled', 'disconnect completes despite the wedged close');
+    assert.equal(testHooks.pendingWaiters(), 0, 'waiters were cleaned up by the finally');
+    const newLines = getLogHistory().slice(histStart);
+    assert.ok(
+      newLines.some((l) => /did not close cleanly \(the close stalled\)/.test(l)),
+      'the stalled close is named with its remedy',
+    );
+    testHooks.detach();
+  } finally {
+    setPortCloseTimeoutForTests(PORT_CLOSE_TIMEOUT_MS);
+  }
 });

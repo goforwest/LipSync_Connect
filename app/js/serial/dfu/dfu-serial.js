@@ -78,14 +78,22 @@ export function isBootloaderPort(port) {
   return info.usbVendorId === USB_VENDOR_ID && BOOTLOADER_PIDS.has(info.usbProductId);
 }
 
-async function requestWebSerialDfuPort(serial) {
+/**
+ * @param {any} serial
+ * @param {{ avoidPort?: any }} [options] avoidPort: a port the last flash
+ * attempt failed on — it must not be silently reused from getPorts(); the
+ * picker must be shown instead, or the wizard's "pick the update loader
+ * again" guidance can never actually be followed.
+ */
+async function requestWebSerialDfuPort(serial, options = {}) {
+  const { avoidPort } = options;
   for (const p of await serial.getPorts()) {
     // getPorts() lists previously-granted ports INCLUDING departed ones,
     // whose getInfo() still reports the cached VID/PID. Only a connected
     // port can be flashed: a stale entry must fall through to the picker
     // instead of dead-ending the flow in an open-reject loop. (Ports
     // without the `connected` property — sims, shims — are never filtered.)
-    if (isBootloaderPort(p) && p.connected !== false) return p;
+    if (isBootloaderPort(p) && p.connected !== false && p !== avoidPort) return p;
   }
   try {
     return await serial.requestPort({ filters: LIPSYNC_USB_FILTERS });
@@ -98,9 +106,20 @@ async function requestWebSerialDfuPort(serial) {
   }
 }
 
-async function requestWebUsbDfuPort(usb) {
+/**
+ * @param {any} usb
+ * @param {{ avoidPort?: any }} [options]
+ */
+async function requestWebUsbDfuPort(usb, options = {}) {
+  const { avoidPort } = options;
   for (const d of await usb.getDevices()) {
-    if (isBootloaderUsbDevice(d)) return new UsbSerialPort(d);
+    if (isBootloaderUsbDevice(d)) {
+      const wrapped = new UsbSerialPort(d);
+      // WebUSB wrappers are created fresh per call, so identity comparison
+      // only helps when the caller passes the very wrapper it failed on —
+      // best-effort, matching the Web Serial path's contract.
+      if (wrapped !== avoidPort) return wrapped;
+    }
   }
   try {
     return new UsbSerialPort(await usb.requestDevice({ filters: LIPSYNC_WEBUSB_FILTERS }));
@@ -114,12 +133,14 @@ async function requestWebUsbDfuPort(usb) {
  * Obtains the bootloader serial port on whichever transport the browser
  * offers. Previously-granted bootloader ports are reused silently (smooths
  * repeat updates); otherwise the browser picker is shown filtered to the
- * LipSync's USB identity.
+ * LipSync's USB identity. `avoidPort` (a port the last flash attempt failed
+ * on) forces the picker instead of a silent reuse.
+ * @param {{ avoidPort?: any }} [options]
  */
-export async function requestDfuPort() {
+export async function requestDfuPort(options = {}) {
   const { serial, usb } = portSource();
-  if (serial) return requestWebSerialDfuPort(serial);
-  if (usb) return requestWebUsbDfuPort(usb);
+  if (serial) return requestWebSerialDfuPort(serial, options);
+  if (usb) return requestWebUsbDfuPort(usb, options);
   throw new Error('Neither Web Serial nor WebUSB is available in this browser.');
 }
 
