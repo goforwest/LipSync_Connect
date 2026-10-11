@@ -145,3 +145,37 @@ test('bootloader sim: wrong-sequence frames are re-ACKed and never processed', a
     ['PROBE'],
   );
 });
+
+test('transport: a stale ACK forces an unchanged re-send, never a silent advance', async () => {
+  // The ACK-number contract: the device answers an accepted frame with the
+  // NEXT number it expects; any other number means "I did not accept this
+  // frame as-is — send it again". A host that swallowed a wrong number and
+  // advanced anyway could strand the transfer while believing it succeeded.
+  // The sim's staleAckOnce models a delayed duplicate ACK crossing the wire.
+  const { createBootloaderSim } = await import('./harness/bootloader-sim.mjs');
+  const { flashSerialDfu } = await import('../app/js/serial/dfu/dfu-serial.js');
+  const sim = createBootloaderSim({ staleAckOnce: true, ackDelayMs: 2 });
+  const bin = new Uint8Array(700).fill(0x5a);
+  const stages = [];
+  await flashSerialDfu({
+    port: sim.port,
+    bin,
+    dat: new Uint8Array(14).fill(0x11),
+    ackTimeoutMs: 300,
+    onProgress: (p) => stages.push(p.stage),
+  });
+
+  assert.equal(sim.state.activated, true, 'the transfer completes after the retry');
+  assert.equal(
+    sim.state.rejectedFrames,
+    1,
+    'the stale ACK forced exactly one re-send; the duplicate was transport-discarded',
+  );
+  assert.deepEqual(
+    sim.state.ops.map((o) => o.name).filter((n) => n !== 'DATA'),
+    ['PROBE', 'START', 'INIT', 'STOP'],
+    'every op reached the DFU layer exactly once',
+  );
+  assert.deepEqual([...sim.state.dataBytes], [...bin], 'no image byte was lost or doubled');
+  assert.ok(stages[stages.length - 1] === 'done');
+});

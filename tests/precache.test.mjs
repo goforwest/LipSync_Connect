@@ -33,3 +33,31 @@ test('every precache URL resolves to a file on disk', () => {
   }
   console.log(`PASS  all ${urls.length} precache URLs resolve to files on disk.`);
 });
+
+test('every JS module statically reachable from main.js is in the precache list', () => {
+  // The reverse direction: precache.test only proved listed→exists. A module
+  // missing from ASSETS would still work online (the SW caches it on fetch)
+  // but would NOT be present for a first offline navigation right after
+  // install — so reachability must be pinned statically.
+  const listed = new Set(urls);
+  const seen = new Set(['./js/main.js']);
+  const queue = ['./js/main.js'];
+  const missing = [];
+  const importRe = /(?:\bfrom|\bimport)\s+['"](\.[^'"]+)['"]/g;
+  while (queue.length) {
+    const rel = /** @type {string} */ (queue.pop());
+    const file = path.join(appDir, rel.replace(/^\.\//, ''));
+    const src = fs.readFileSync(file, 'utf8');
+    const dir = path.posix.dirname(rel.replace(/^\.\//, ''));
+    let m;
+    while ((m = importRe.exec(src)) !== null) {
+      const resolved = './' + path.posix.normalize(path.posix.join(dir, m[1]));
+      if (!listed.has(resolved)) missing.push(`${rel} imports ${resolved} — missing from ASSETS`);
+      if (!seen.has(resolved)) {
+        seen.add(resolved);
+        if (listed.has(resolved) && resolved.endsWith('.js')) queue.push(resolved);
+      }
+    }
+  }
+  assert.deepEqual(missing, [], `reachable modules missing from the SW precache list (${seen.size} modules walked)`);
+});

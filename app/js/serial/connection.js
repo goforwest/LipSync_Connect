@@ -3,11 +3,11 @@
 // clear) are injected via configureConnection() in main.js so this module
 // does not import service-layer code and the graph stays acyclic.
 import { BAUD } from '../config/constants.js';
-import { serialSession, serialBus, readWatchdog, loadDoneTimerRef } from './session.js';
+import { serialSession, serialBus, readWatchdog, loadDoneTimerRef, portGeneration } from './session.js';
 import { resetReadTimer } from './commands.js';
-import { serialApi } from './transport.js';
+import { requestSerialPort } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
-import { closePortBounded, openPortBounded } from '../utils/port-open.js';
+import { closePortBounded, openPortBounded, PORT_CLOSE_TIMEOUT_MS } from '../utils/port-open.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -56,13 +56,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function connect() {
   if (serialSession.port) return;
+  // A fresh connect attempt supersedes every in-flight port continuation
+  // (a stalled open's late release, a cancelled wizard touch): late
+  // teardowns check this generation and must never close what we claim.
+  portGeneration.current++;
   $('btnConnect').disabled = true;
   showGuide();
   setConnectStage('requesting');
   try {
     serialSession.disconnecting = false;
     resetPlotState();
-    serialSession.port = await /** @type {any} */ (serialApi).requestPort();
+    serialSession.port = await requestSerialPort();
     hideGuide();
     setConnectStage('opening');
     await openSerialPortWithRecovery();
@@ -74,8 +78,14 @@ export async function connect() {
     if (isBootloaderPort(serialSession.port)) {
       await closePortBounded(serialSession.port);
       serialSession.port = null;
-      const message =
-        'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Firmware and use “Recover a device stuck in update mode” to repair it.';
+      // When a firmware wizard is mid-flow (its section carries data-wizard
+      // "active"), the wizard owns the recovery: Recover refuses to run
+      // beside it, so the message must send the user to the wizard's own
+      // Continue button instead of a dead end.
+      const wizardActive = document.getElementById('sec-firmware')?.getAttribute('data-wizard') === 'active';
+      const message = wizardActive
+        ? 'That is the LipSync\u2019s update loader — an update is already in progress. Return to the Firmware section and use its Continue button to pick it there. If the update was abandoned, use \u201cRecover a device stuck in update mode\u201d.'
+        : 'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Firmware and use “Recover a device stuck in update mode” to repair it.';
       log(message, 'log-err');
       announceStatus('Update loader selected. Replug the LipSync — or use Firmware to recover it.');
       // Keep the Firmware card openable and its Recover button reachable
@@ -158,16 +168,30 @@ export async function disconnect(options = {}) {
       serialSession.writer = null;
     }
     if (serialSession.port) {
-      try {
-        await serialSession.port.close();
-      } catch (e) {
-        // A wedged OS port can refuse the close, leaving the SerialPort
-        // object open — the next connect would fail with "The port is
-        // already open" (observed on hardware). Name it so the user knows
-        // the remedy; connect() also attempts a cleanup retry.
+      // Bounded like every other port operation — a wedged OS close must
+      // never hang disconnect (its finally owns the UI reset and waiter
+      // cleanup). closePortBounded swallows, so the failure is surfaced
+      // here first for the log. A port object without a working close()
+      // (missing, wedged, or already dead) is a failed close, not a crash.
+      let closeFailed = null;
+      const closed = (async () => {
+        try {
+          await serialSession.port.close();
+          return 'closed';
+        } catch (e) {
+          closeFailed = e;
+          return 'failed';
+        }
+      })();
+      const winner = await Promise.race([closed, sleep(PORT_CLOSE_TIMEOUT_MS).then(() => 'stalled')]);
+      if (winner !== 'closed') {
+        // A failed close leaves the SerialPort object open — the next
+        // connect would fail with "The port is already open" (observed on
+        // hardware). Name it so the user knows the remedy; connect() also
+        // attempts a cleanup retry.
         log(
           'The serial port did not close cleanly (' +
-            (e?.message ?? 'unknown error') +
+            (closeFailed?.message ?? 'the close stalled') +
             '). If the next connect fails, unplug and replug the LipSync or reload the page.',
           'log-err',
         );

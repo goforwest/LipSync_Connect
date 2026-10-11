@@ -38,6 +38,16 @@ export const readWatchdog = Object.seal({
 // import session.js, so the reference is reachable without a module cycle.
 export const loadDoneTimerRef = { current: null };
 
+// Monotonic generation of "who is attempting to use the serial port".
+// connect() bumps it at the start of every fresh attempt; late continuations
+// from superseded flows (a stalled open that lands after a cancel, a wedged
+// touch attempt that outlived the wizard) check it before closing anything,
+// so a zombie teardown can never close a port a newer attempt has claimed.
+// A zombie that skips its close only leaves the port held open — the connect
+// path's cleanup-retry ("The port was left open by the last session")
+// recovers that safely.
+export const portGeneration = Object.seal({ current: 0 });
+
 // ---- Test / simulated-transport seam ----
 // The firmware simulator in tests/harness/ attaches a fake port through these
 // named functions instead of reaching into module state. Production code never

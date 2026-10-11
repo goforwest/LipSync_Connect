@@ -224,3 +224,37 @@ test('ECHO_WRITE_ENDPOINTS covers exactly the firmware write endpoints', () => {
     'ST',
   ]);
 });
+
+// ---- fmtApiFloat (the firmware line-length rule) ----------------------
+
+test('fmtApiFloat pads params so every command line lands on a length the firmware accepts', async () => {
+  const { fmtApiFloat } = await import('../app/js/utils/format.js');
+  // The firmware's isValidCommandFormat() accepts total lines of 6/7/8/9/11
+  // chars ("XX,d:" + param of length 1/2/3/4/6): a 5-char param would give a
+  // 10-char line and be REJECTED, so 5-char values gain a trailing zero.
+  const legalLineLengths = new Set([6, 7, 8, 9, 11]);
+  const vectors = [
+    ['3', '3.00'],
+    ['3.0', '3.00'],
+    ['3.00', '3.00'],
+    [3, '3.00'],
+    ['0.07', '0.07'],
+    ['10.25', '10.250'],
+    ['45.5', '45.500'],
+    ['149.99', '149.99'],
+    [149.99, '149.99'],
+  ];
+  for (const [input, expected] of vectors) {
+    const param = fmtApiFloat(input);
+    assert.equal(param, expected, `fmtApiFloat(${JSON.stringify(input)})`);
+    const line = 'ST,1:' + param;
+    assert.ok(
+      legalLineLengths.has(line.length),
+      `line "${line}" (${line.length} chars) must be a length the firmware validator accepts`,
+    );
+  }
+  // The exact regression: 5-char values MUST gain the trailing zero — a bare
+  // .toFixed(2) would emit the rejected 10-char "ST,1:10.25".
+  assert.equal(fmtApiFloat('10.25'), '10.250');
+  assert.equal('ST,1:' + fmtApiFloat('10.25'), 'ST,1:10.250');
+});

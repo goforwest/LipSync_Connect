@@ -141,3 +141,77 @@ test('requestDfuPort falls back to the picker for an unknown bootloader device',
     { vendorId: BOOT_VID, productId: 0x8045 },
   ]);
 });
+
+test('WebUSB: shim opens serialize per device and a stalled open cannot race a newer one', async () => {
+  // WebUSB (unlike Chrome Web Serial) does not serialize opens per device:
+  // two wrappers around one USBDevice used to interleave their open/close
+  // sequences. The shim now chains them per device.
+  const events = [];
+  let releaseFirstOpen = null;
+  const device = {
+    opened: false,
+    configuration: {
+      interfaces: [
+        { interfaceNumber: 1, alternates: [{ interfaceClass: 10, endpoints: [
+          { direction: 'in', endpointNumber: 1 },
+          { direction: 'out', endpointNumber: 2 },
+        ] }] },
+      ],
+    },
+    async open() {
+      events.push('device-open-start');
+      if (!releaseFirstOpen) {
+        await new Promise((resolve) => {
+          releaseFirstOpen = resolve;
+        });
+      }
+      this.opened = true;
+      events.push('device-open-end');
+    },
+    async selectConfiguration() {},
+    async claimInterface(n) {
+      events.push('claim:' + n);
+    },
+    async releaseInterface(n) {
+      events.push('release:' + n);
+    },
+    async close() {
+      events.push('device-close');
+    },
+    async controlTransferOut() {},
+    async transferIn() {
+      return { data: null };
+    },
+    async transferOut() {},
+  };
+
+  const first = new UsbSerialPort(device);
+  const second = new UsbSerialPort(device);
+  const openedFirst = first.open({ baudRate: 115200 });
+  await new Promise((r) => setTimeout(r, 20));
+  const openedSecond = second.open({ baudRate: 115200 });
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(events.filter((e) => e === 'device-open-start').length, 1, 'only the first open began');
+  assert.equal(events.filter((e) => e.startsWith('claim:')).length, 0, 'the queued open has not claimed anything');
+
+  releaseFirstOpen();
+  await openedFirst;
+  await openedSecond;
+  assert.equal(events.filter((e) => e === 'device-open-start').length, 1, 'the second wrapper adopted the open device');
+  assert.equal(events.filter((e) => e === 'claim:1').length, 2, 'each wrapper claimed its own interface, in order');
+
+  // A stale close (a newer port attempt has started since it was requested)
+  // is skipped inside the chain and never tears down the newer flow's claims.
+  const { portGeneration } = await import('../app/js/serial/session.js');
+  const staleClose = first.close(); // captures the current generation at call time
+  portGeneration.current++; // a fresh attempt starts before the teardown body runs
+  await staleClose;
+  assert.equal(events.filter((e) => e.startsWith('release:')).length, 0, 'the stale close released nothing');
+  assert.equal(events.filter((e) => e === 'device-close').length, 0, 'the stale close never closed the device');
+
+  // The same-generation close still works.
+  await second.close();
+  assert.ok(events.includes('release:1'), 'a current close releases its claims');
+  assert.ok(events.includes('device-close'), 'a current close closes the device');
+});

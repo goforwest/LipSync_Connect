@@ -391,11 +391,25 @@ export function installGatingDom(existingEls = null) {
   // Theme module surfaces: localStorage for persistence, getComputedStyle for
   // the contrast guard (defaults above; tests mutate computedStyles).
   setGlobal('localStorage', storage);
+  // sessionStorage: a separate backing store — the firmware update's
+  // pending-state persistence rides it, and its JSON round-trip must be
+  // exercised against a real (stubbed) storage, not the pendingMemory cache.
+  const sessionStore = createStorage();
+  setGlobal('sessionStorage', sessionStore);
   setGlobal('getComputedStyle', () => ({
     getPropertyValue(prop) {
       return computedStyles[prop] ?? CONTRAST_DEFAULTS[prop] ?? '';
     },
   }));
 
-  return { document: documentStub, windowListeners, sections, navs, els, storage, computedStyles };
+  return {
+    document: documentStub,
+    windowListeners,
+    sections,
+    navs,
+    els,
+    storage,
+    sessionStorage: sessionStore,
+    computedStyles,
+  };
 }

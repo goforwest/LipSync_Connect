@@ -1,7 +1,9 @@
 // Web Serial transport for the XIAO nRF52840 stock bootloader's serial DFU
 // mode. Owns the bootloader port end-to-end: open, ping, START/INIT/DATA/
-// STOP/VALIDATE/ACTIVATE frames with per-frame ACK tracking and retries,
-// flash-erase/write dwell pacing, progress reporting, and cancellation.
+// STOP frames with per-frame ACK tracking and retries, flash-erase/write
+// dwell pacing, progress reporting, and cancellation. The STOP frame is the
+// last protocol exchange: the bootloader validates, activates, and reboots
+// on its receipt — there is no separate validate/activate step to drive.
 //
 // Port selection is factored through configureDfuPortSource() so tests can
 // inject simulated ports (there is no Web Serial/WebUSB in Node).
@@ -48,9 +50,22 @@ export function configureDfuPortSource(source) {
 
 const BOOTLOADER_PIDS = new Set([USB_PID_BOOTLOADER, USB_PID_BOOTLOADER_SENSE]);
 const APP_PIDS = new Set([USB_PID_APPLICATION, USB_PID_APPLICATION_SENSE]);
+// Web Serial and WebUSB spell their filter keys differently.
+const LIPSYNC_USB_FILTERS = [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
+  usbVendorId: USB_VENDOR_ID,
+  usbProductId: pid,
+}));
+const LIPSYNC_WEBUSB_FILTERS = [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
+  vendorId: USB_VENDOR_ID,
+  productId: pid,
+}));
 
+// Silent reuse only for the bootloader identity: an app-mode grant is the
+// still-running LipSync, and silently flashing at it (instead of showing the
+// picker, whose pick then triggers the self-heal restart) skips the only
+// path that recovers the mispick on the WebUSB transport.
 const isBootloaderUsbDevice = (/** @type {any} */ d) =>
-  d.vendorId === USB_VENDOR_ID && (BOOTLOADER_PIDS.has(d.productId) || APP_PIDS.has(d.productId));
+  d.vendorId === USB_VENDOR_ID && BOOTLOADER_PIDS.has(d.productId);
 
 /**
  * True when the port is the LipSync bootloader's serial-DFU interface —
@@ -65,18 +80,21 @@ export function isBootloaderPort(port) {
 
 async function requestWebSerialDfuPort(serial) {
   for (const p of await serial.getPorts()) {
-    if (isBootloaderPort(p)) return p;
+    // getPorts() lists previously-granted ports INCLUDING departed ones,
+    // whose getInfo() still reports the cached VID/PID. Only a connected
+    // port can be flashed: a stale entry must fall through to the picker
+    // instead of dead-ending the flow in an open-reject loop. (Ports
+    // without the `connected` property — sims, shims — are never filtered.)
+    if (isBootloaderPort(p) && p.connected !== false) return p;
   }
   try {
-    return await serial.requestPort({
-      filters: [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
-        usbVendorId: USB_VENDOR_ID,
-        usbProductId: pid,
-      })),
-    });
+    return await serial.requestPort({ filters: LIPSYNC_USB_FILTERS });
   } catch (e) {
     if (e.name === 'NotFoundError') throw e;
-    return serial.requestPort();
+    // Retry, but keep the LipSync filter: an unfiltered picker would let the
+    // user select foreign hardware, and the probe below would push inert
+    // HCI frames into it. A second failure is surfaced, not widened.
+    return serial.requestPort({ filters: LIPSYNC_USB_FILTERS });
   }
 }
 
@@ -84,15 +102,11 @@ async function requestWebUsbDfuPort(usb) {
   for (const d of await usb.getDevices()) {
     if (isBootloaderUsbDevice(d)) return new UsbSerialPort(d);
   }
-  const filters = [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
-    vendorId: USB_VENDOR_ID,
-    productId: pid,
-  }));
   try {
-    return new UsbSerialPort(await usb.requestDevice({ filters }));
+    return new UsbSerialPort(await usb.requestDevice({ filters: LIPSYNC_WEBUSB_FILTERS }));
   } catch (e) {
     if (e.name === 'NotFoundError') throw e;
-    return new UsbSerialPort(await usb.requestDevice({ filters: [] }));
+    return new UsbSerialPort(await usb.requestDevice({ filters: LIPSYNC_WEBUSB_FILTERS }));
   }
 }
 
@@ -109,6 +123,17 @@ export async function requestDfuPort() {
   throw new Error('Neither Web Serial nor WebUSB is available in this browser.');
 }
 
+/**
+ * The serial port source's currently-known ports (or null when no Web
+ * Serial). Used by the wizard to verify that a 1200-baud restart actually
+ * landed: a previously-granted bootloader port with a live connection is
+ * the only bus-side proof of update mode.
+ */
+export async function getKnownSerialPorts() {
+  const { serial } = portSource();
+  return serial ? serial.getPorts() : null;
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -118,11 +143,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *
  * @param {{port: any, bin: Uint8Array, dat: Uint8Array,
  *          onProgress?: (p: {stage: string, percent?: number, message: string}) => void,
+ *          onStartAccepted?: () => void,
  *          signal?: AbortSignal, ackTimeoutMs?: number}} options
  */
 export async function flashSerialDfu(options) {
   const { port, bin, dat } = options;
   const onProgress = options.onProgress ?? (() => {});
+  const onStartAccepted = options.onStartAccepted ?? (() => {});
   const signal = options.signal;
   const ackTimeoutMs = options.ackTimeoutMs ?? DFU_ACK_TIMEOUT_MS;
   const throwIfAborted = () => {
@@ -135,8 +162,11 @@ export async function flashSerialDfu(options) {
   await openPortBounded(
     port,
     { baudRate: DFU_BAUD_RATE },
-    DFU_ACK_TIMEOUT_MS,
-    'The update loader\u2019s serial port did not respond. Unplug the LipSync, plug it back in, then click Continue and pick it again.',
+    {
+      timeoutMs: DFU_ACK_TIMEOUT_MS,
+      stallMessage:
+        'The update loader\u2019s serial port did not respond. Unplug the LipSync, plug it back in, then click Continue and pick it again.',
+    },
   );
   const reader = port.readable.getReader();
   const writer = port.writable.getWriter();
@@ -213,6 +243,11 @@ export async function flashSerialDfu(options) {
     }
     onProgress({ stage: 'erase', message: 'Preparing device flash memory…' });
     await send(startFrame(DFU_IMAGE.APPLICATION, { application: bin.length }, seq));
+    // The START exchange is the point of no return: once the bootloader has
+    // accepted it, the old application is (being) erased and only a complete
+    // flash repairs the device. The wizard uses this to keep its messaging
+    // honest about what an interruption leaves behind.
+    onStartAccepted();
     await sleep(eraseWaitMs(bin.length));
     onProgress({ stage: 'init', message: 'Sending firmware metadata…' });
     await send(initFrame(dat, seq));
@@ -235,8 +270,20 @@ export async function flashSerialDfu(options) {
     // STOP is the last protocol frame: on receiving it the bootloader
     // validates the image, activates it, saves its settings, and reboots into
     // the new firmware right after the ACK — give the settings write a beat
-    // before tearing the port down.
-    await send(stopFrame(seq));
+    // before tearing the port down. A link failure here is ambiguous: the
+    // device may already have accepted STOP and be rebooting, so the error
+    // is tagged for the wizard to hedge instead of declaring failure. A
+    // device that is still answering (pure ACK timeouts) or an abort is not
+    // tagged — those mean the flash genuinely did not finish.
+    try {
+      await send(stopFrame(seq));
+    } catch (e) {
+      if (signal?.aborted || /timed out|did not accept/i.test(e?.message ?? '')) throw e;
+      const tagged = new Error('The connection dropped while the update was finishing.');
+      tagged.name = 'StopWindowError';
+      tagged.cause = e;
+      throw tagged;
+    }
     await sleep(200);
     onProgress({ stage: 'done', message: 'Firmware installed. The device is restarting.' });
   } finally {

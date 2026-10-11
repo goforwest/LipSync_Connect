@@ -338,3 +338,31 @@ test('a close failure during disconnect is logged honestly', async () => {
   );
   testHooks.detach();
 });
+
+test('a wedged close cannot hang disconnect (bounded like every port operation)', async () => {
+  testHooks.attach(
+    {
+      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+      // The OS-level close never settles — the same macOS wedged-port
+      // pathology that stalls opens. disconnect must still finish (its
+      // finally owns the UI reset and waiter cleanup) instead of hanging.
+      close() {
+        return new Promise(() => {});
+      },
+    },
+    { write() {} },
+  );
+  const histStart = getLogHistoryLength();
+  const settled = await Promise.race([
+    app.disconnect({ quiet: true }).then(() => 'settled'),
+    sleep(15000).then(() => 'hung'),
+  ]);
+  assert.equal(settled, 'settled', 'disconnect completes despite the wedged close');
+  assert.equal(testHooks.pendingWaiters(), 0, 'waiters were cleaned up by the finally');
+  const newLines = getLogHistory().slice(histStart);
+  assert.ok(
+    newLines.some((l) => /did not close cleanly \(the close stalled\)/.test(l)),
+    'the stalled close is named with its remedy',
+  );
+  testHooks.detach();
+});

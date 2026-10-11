@@ -20,8 +20,9 @@ import { fmtApiFloat } from '../utils/format.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
+import { openPortBounded } from '../utils/port-open.js';
 import { parseDfuPackage } from '../serial/dfu/dfu-package.js';
-import { flashSerialDfu, isBootloaderPort, requestDfuPort } from '../serial/dfu/dfu-serial.js';
+import { flashSerialDfu, getKnownSerialPorts, isBootloaderPort, requestDfuPort } from '../serial/dfu/dfu-serial.js';
 import { USB_VENDOR_ID } from '../config/constants.js';
 import {
   FEEDBACK_MODES,
@@ -65,8 +66,14 @@ export function compareVersions(a, b) {
 
 // ---- Manifest fetching ----
 
-async function fetchJson(url, headers = {}) {
+/**
+ * @param {string} url
+ * @param {{ headers?: Record<string, string>, signal?: AbortSignal }} [options]
+ */
+async function fetchJson(url, { headers = {}, signal } = {}) {
   const ctrl = new AbortController();
+  const onOuterAbort = () => ctrl.abort();
+  signal?.addEventListener('abort', onOuterAbort);
   const timer = setTimeout(() => ctrl.abort(), FIRMWARE_FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, { headers, signal: ctrl.signal });
@@ -74,6 +81,7 @@ async function fetchJson(url, headers = {}) {
     return await res.json();
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', onOuterAbort);
   }
 }
 
@@ -119,7 +127,7 @@ export async function fetchLatestFirmware(options = {}) {
     if (cached && Date.now() - cached.checkedAt < FIRMWARE_CHECK_MIN_INTERVAL_MS) return cached;
   }
   const release = await fetchJson(releaseApiOverride || FIRMWARE_RELEASE_API, {
-    Accept: 'application/vnd.github+json',
+    headers: { Accept: 'application/vnd.github+json' },
   });
   const base = {
     tagName: release.tag_name ?? null,
@@ -127,14 +135,25 @@ export async function fetchLatestFirmware(options = {}) {
     checkedAt: Date.now(),
   };
   const repo = repoCoordsFromHtmlUrl(release.html_url);
-  if (!repo) return { ...base, manifest: null, repo: null };
+  const noManifest = { ...base, manifest: null, repo: null };
+  // Cache the "no firmware published" result too: without it, every
+  // connect's auto-check re-fetches the release + manifest (2 requests each)
+  // and burns GitHub's 60 req/h anonymous limit within ~30 reconnects —
+  // shared IPs (clinics, classrooms) would hit the wall in an hour.
+  if (!repo) {
+    writeCheckCache(noManifest);
+    return noManifest;
+  }
   // The release workflow publishes artifacts to the firmware-binaries
   // branch; the manifest rides there. Its absence (404) is the "not
   // published yet" state, not an error.
   const manifest = await fetchRepoJsonFile(repo, FIRMWARE_MANIFEST_PATH, {
     allowMissing: true,
   });
-  if (!manifest) return { ...base, manifest: null, repo: null };
+  if (!manifest) {
+    writeCheckCache(noManifest);
+    return noManifest;
+  }
   const entry = { ...base, manifest, repo };
   writeCheckCache(entry);
   return entry;
@@ -155,16 +174,24 @@ function base64ToBytes(b64) {
   return bytes;
 }
 
-/** Fetches a JSON document from the firmware-binaries branch (base64 contents API). */
-async function fetchRepoJsonFile(repo, path, { allowMissing = false } = {}) {
+/**
+ * Fetches a JSON document from the firmware-binaries branch (base64 contents API).
+ * @param {{owner: string, name: string}} repo
+ * @param {string} path
+ * @param {{ allowMissing?: boolean, signal?: AbortSignal }} [options]
+ */
+async function fetchRepoJsonFile(repo, path, { allowMissing = false, signal } = {}) {
   const url = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/contents/${path}?ref=${FIRMWARE_BINARIES_BRANCH}`;
   let res;
   const ctrl = new AbortController();
+  const onOuterAbort = () => ctrl.abort();
+  signal?.addEventListener('abort', onOuterAbort);
   const timer = setTimeout(() => ctrl.abort(), FIRMWARE_FETCH_TIMEOUT_MS);
   try {
     res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' }, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', onOuterAbort);
   }
   if (res.status === 404 && allowMissing) return null;
   if (res.status === 403) {
@@ -180,14 +207,17 @@ async function fetchRepoJsonFile(repo, path, { allowMissing = false } = {}) {
  * Downloads a binary from the firmware-binaries branch: tree lookup + git
  * blob (base64, single CORS-clean api.github.com responses; no size limit
  * surprises like the 1 MB contents-API cap).
+ * @param {{owner: string, name: string}} repo
+ * @param {string} fileName
+ * @param {AbortSignal} [signal]
  */
-export async function fetchRepoBinary(repo, fileName) {
+export async function fetchRepoBinary(repo, fileName, signal) {
   const treeUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/trees/${FIRMWARE_BINARIES_BRANCH}`;
-  const tree = await fetchJson(treeUrl);
+  const tree = await fetchJson(treeUrl, { signal });
   const blob = (tree.tree || []).find((/** @type {{path: string}} */ e) => e.path === fileName);
   if (!blob?.sha) throw new Error('The published firmware package is missing from the repository.');
   const blobUrl = `${FIRMWARE_API_BASE}/repos/${repo.owner}/${repo.name}/git/blobs/${blob.sha}`;
-  const payload = await fetchJson(blobUrl);
+  const payload = await fetchJson(blobUrl, { signal });
   if (payload.encoding !== 'base64' || !payload.content) {
     throw new Error('The published firmware package could not be read from GitHub.');
   }
@@ -303,7 +333,7 @@ export async function checkForFirmwareUpdate(options = {}) {
     setRow('fwLatestVersion', 'Unknown');
     setUpdateButton(null, deviceVersion);
     setCheckStatus('No published firmware information yet.', 'unknown');
-    if (!options.auto) announceStatus('No published firmware information yet.');
+    if (!options.auto) announceFirmwareNews('No published firmware information yet.');
     return;
   }
   const cmp = compareVersions(deviceVersion, manifest.firmwareVersion);
@@ -320,9 +350,9 @@ export async function checkForFirmwareUpdate(options = {}) {
   renderCheckResult(entry, deviceVersion, message, upToDate ? 'ok' : 'available');
   if (!upToDate) {
     log('Firmware update available: ' + manifest.firmwareVersion + ' (installed: ' + deviceVersion + ').', 'log-info');
-    announceStatus('Firmware update available: version ' + manifest.firmwareVersion + '.');
+    announceFirmwareNews('Firmware update available: version ' + manifest.firmwareVersion + '.');
   } else if (!options.auto) {
-    announceStatus('Firmware is up to date.');
+    announceFirmwareNews('Firmware is up to date.');
   }
 }
 
@@ -331,6 +361,19 @@ function setRowClass(id, cls, on) {
   if (!el) return;
   if (on) el.classList.add(cls);
   else el.classList.remove(cls);
+}
+
+/**
+ * #fwUpdateStatus and #fwWizardStep are role=status regions: while the
+ * Firmware card is open, their text changes ARE the screen-reader
+ * announcement. Mirroring the same news into #srStatus too double-voices
+ * every message — the mirror is reserved for when the card is collapsed
+ * (collapsed sections are aria-hidden and their live regions stay silent).
+ */
+function announceFirmwareNews(message) {
+  const section = $('sec-firmware');
+  if (section?.classList?.contains('open')) return;
+  announceStatus(message);
 }
 
 function renderCheckResult(entry, deviceVersion, message, state = 'ok') {
@@ -388,10 +431,27 @@ export function captureSettingsSnapshot() {
     }
     snapshot[ep] = v;
   }
-  const soundLabel = ($('soundModeVal')?.textContent || '').trim();
-  snapshot.SM = labelToValue(FEEDBACK_MODES, soundLabel);
-  const lightLabel = ($('lightModeVal')?.textContent || '').trim();
-  snapshot.LM = labelToValue(FEEDBACK_MODES, lightLabel);
+  // Sound and light feedback are writable settings the restore promises to
+  // write back: a failed load (ERR/unrecognized) must fail the snapshot —
+  // silently skipping them would lose the user's feedback configuration the
+  // moment the new firmware's defaults differ, while still reporting
+  // "settings restored".
+  for (const [ep, id, label] of [
+    ['SM', 'soundModeVal', 'Sound feedback'],
+    ['LM', 'lightModeVal', 'Light feedback'],
+  ]) {
+    const raw = ($(id)?.textContent || '').trim();
+    if (!raw || raw === '—' || raw === 'ERR' || raw === '…') {
+      missing.push(label);
+      continue;
+    }
+    const value = labelToValue(FEEDBACK_MODES, raw);
+    if (value === null) {
+      missing.push(label);
+      continue;
+    }
+    snapshot[ep] = value;
+  }
   snapshot.OM = labelToValue(OP_MODES, ($('opmode')?.textContent || '').trim());
   snapshot.CM = labelToValue(COM_MODES, ($('commode')?.textContent || '').trim());
   snapshot.CA = [$('neutralVal'), $('corner1'), $('corner2'), $('corner3'), $('corner4')]
@@ -618,6 +678,15 @@ const TOUCH_MAX_ATTEMPTS = 3;
 // enumerating (or for a wedged port to clear) on the slowest host.
 const TOUCH_RECHECK_SETTLE_MS = 2000;
 
+// The app-mode port stopped opening after a restart signal that never left:
+// the only bus-side proof that the device actually entered update mode is a
+// previously-granted bootloader port with a live connection. Departed
+// ports still list with cached identities, so liveness is the discriminator.
+async function liveBootloaderPortPresent() {
+  const ports = (await getKnownSerialPorts()) ?? [];
+  return ports.some((p) => isBootloaderPort(p) && p.connected !== false);
+}
+
 /**
  * One touch attempt: a wake pulse (an idle device may have suspended its USB
  * stack and drop the touch), then open at 1200 baud + DTR drop, then verify
@@ -666,12 +735,17 @@ async function attemptTouchOnce(appPort, cancelled, attempt) {
     await appPort.close();
   } catch (e) {
     if (!deviceGone(e)) return { result: 'app-live', error: e?.message };
-    // Gone-style error: either a previous attempt's touch landed, or the
-    // port is wedged with the device still running. The recheck tells them
-    // apart once the USB stack settles.
+    // Gone-style error from the 1200-baud open itself: the restart signal
+    // was never sent, so a bare 'touched' would be a guess. Either the
+    // device is unplugged, or it is already sitting in its update loader
+    // from an earlier restart — only a live bootloader port on the bus
+    // proves the second.
     const recheck = await reopenAfterSettle(appPort, cancelled);
     if (recheck === 'open') return { result: 'app-live', wedged: true };
-    if (recheck === 'gone') return { result: 'touched' };
+    if (recheck === 'gone') {
+      if (await liveBootloaderPortPresent()) return { result: 'touched' };
+      return { result: 'inconclusive', error: 'the LipSync is not responding on the bus — it may be unplugged' };
+    }
     return { result: 'inconclusive', error: e?.message };
   }
   await sleep(1200);
@@ -709,40 +783,25 @@ export function setTouchOpenTimeoutForTests(ms) {
   touchOpenTimeoutMs = ms;
 }
 
-const OPEN_STALLED = Symbol('open-stalled');
-
 /**
- * Opens the port with a stall bound. If the open is still pending when the
- * bound elapses, throws 'the serial port did not respond' — and attaches a
- * late handler so an open that eventually lands releases the port quietly
- * (a late 1200-baud close IS the restart signal: the device simply enters
- * update mode, which the next verify catches).
+ * The touch-phase bounded open: the shared openPortBounded with the touch's
+ * stall wording (its lowercase message is part of the attempt log contract)
+ * and the 1200-baud late-note — a late 1200-baud close IS the restart
+ * signal: the device simply enters update mode, which the next verify
+ * catches. The late release itself is generation-guarded inside
+ * openPortBounded, so a zombie touch open can never close a port a newer
+ * connect attempt has claimed.
  */
-async function openBounded(port, opts) {
-  let openError = null;
-  const opened = port.open(opts).then(
-    () => 'open',
-    (e) => {
-      openError = e;
-      return 'failed';
-    },
-  );
-  const winner = await Promise.race([opened, sleep(touchOpenTimeoutMs).then(() => OPEN_STALLED)]);
-  if (winner === OPEN_STALLED) {
-    opened.then(async (result) => {
-      if (result !== 'open') return;
-      try {
-        await port.close();
-      } catch {}
+function openBounded(port, opts) {
+  return openPortBounded(port, opts, {
+    timeoutMs: touchOpenTimeoutMs,
+    stallMessage: 'the serial port did not respond',
+    onLateOpen: () => {
       if (opts?.baudRate === 1200) {
         log('A stalled restart signal was sent late — the LipSync may enter update mode.', 'log-info');
       }
-    });
-    const e = new Error('the serial port did not respond');
-    e.name = 'PortStallError';
-    throw e;
-  }
-  if (openError) throw openError;
+    },
+  });
 }
 
 /** Did the port fail because the device behind it has departed? */
@@ -780,9 +839,10 @@ let activeTouchOp = null;
 
 async function tryTouchDevice(appPort, cancelled) {
   let stalled = false;
+  let unplugged = false;
   let lastError = null;
   for (let attempt = 1; attempt <= TOUCH_MAX_ATTEMPTS; attempt++) {
-    if (cancelled?.()) return { touched: false, stalled };
+    if (cancelled?.()) return { touched: false, stalled, unplugged };
     const op = attemptTouchOnce(appPort, cancelled, attempt);
     activeTouchOp = op;
     let r;
@@ -791,7 +851,7 @@ async function tryTouchDevice(appPort, cancelled) {
     } finally {
       activeTouchOp = null;
     }
-    if (r.result === 'cancelled') return { touched: false, stalled };
+    if (r.result === 'cancelled') return { touched: false, stalled, unplugged };
     if (r.result === 'touched') {
       if (wizard) wizard.touchLanded = true;
       log(
@@ -800,12 +860,13 @@ async function tryTouchDevice(appPort, cancelled) {
           : `Device restarted into update mode on retry (attempt ${attempt}).`,
         'log-info',
       );
-      return { touched: true, stalled: false };
+      return { touched: true, stalled: false, unplugged: false };
     }
     if (r.error) lastError = r.error;
     // The stall error can surface through either classification — the
     // 1200-open path reports non-gone failures as 'app-live' with the error.
     if (r.error?.includes('did not respond')) stalled = true;
+    if (r.error?.includes('unplugged')) unplugged = true;
     if (attempt < TOUCH_MAX_ATTEMPTS) {
       log(
         `Automatic restart attempt ${attempt} did not take${r.error ? ' (' + r.error + ')' : ''} — retrying…`,
@@ -815,10 +876,14 @@ async function tryTouchDevice(appPort, cancelled) {
   }
   log(
     `Automatic restart failed after ${TOUCH_MAX_ATTEMPTS} attempts${lastError ? ' (' + lastError + ')' : ''}.` +
-      (stalled ? ' Unplug the LipSync, plug it back in, and try the update again.' : ''),
+      (stalled
+        ? ' Unplug the LipSync, plug it back in, and try the update again.'
+        : unplugged
+          ? ' Check that the LipSync is plugged in securely (try another USB cable or port).'
+          : ''),
     'log-err',
   );
-  return { touched: false, stalled };
+  return { touched: false, stalled, unplugged };
 }
 
 /**
@@ -871,8 +936,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
     wizard.stage = 'enter-bootloader';
     let touched = false;
     let stalled = false;
+    let unplugged = false;
     try {
-      ({ touched, stalled } = await tryTouchDevice(appPort, cancelled));
+      ({ touched, stalled, unplugged } = await tryTouchDevice(appPort, cancelled));
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
     }
@@ -884,7 +950,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
         ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
         : stalled
           ? 'The serial port stopped responding. Unplug the LipSync, plug it back in, wait a few seconds — then click Continue and pick the update loader.'
-          : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+          : unplugged
+            ? 'The LipSync is not responding — check that it is plugged in securely (try another USB cable or port), then click Continue.'
+            : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
         hint: 'The Hub\u2019s screen stays dark and its lights go quiet while it is in update mode — that is normal. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
@@ -901,6 +969,12 @@ async function runFlashWizard({ pkg, targetVersion }) {
 
 async function continueWizard() {
   if (!wizard || wizard.stage !== 'await-bootloader-port') return;
+  // Latch the stage synchronously: while this invocation awaits the port
+  // picker (or the self-heal restart), a second Continue click must no-op at
+  // the entry check instead of racing a second picker/flash against this
+  // flow. Every await below re-verifies ownership before mutating state.
+  wizard.stage = 'picking';
+  const stillOurs = () => wizard?.stage === 'picking';
   setWizardStep('Waiting for the update port…', { showBackup: true });
   try {
     let port;
@@ -910,6 +984,8 @@ async function continueWizard() {
       if (e?.name !== 'NotFoundError') throw e;
       // The picker was dismissed. Stay on this step so Continue works again
       // instead of dumping the user into a failure panel.
+      if (!stillOurs()) return;
+      wizard.stage = 'await-bootloader-port';
       setWizardStep(
         'No update port was selected. Make sure the LipSync is in update mode — press the small reset button on the Hub twice, slowly — then click Continue again.',
         {
@@ -921,7 +997,7 @@ async function continueWizard() {
       );
       return;
     }
-    if (!wizard) return; // cancelled while the picker was open
+    if (!stillOurs()) return; // cancelled (or superseded) while the picker was open
     // Self-heal: when the picked port carries the LipSync's app-mode USB
     // identity, the automatic restart never took and the user just picked
     // the still-running LipSync. Retry the restart on this very port instead
@@ -940,7 +1016,7 @@ async function continueWizard() {
       } catch (e) {
         log('Could not restart the device automatically: ' + e.message, 'log-err');
       }
-      if (!wizard) return;
+      if (!stillOurs()) return;
       wizard.stage = 'await-bootloader-port';
       setWizardStatus('Firmware update — choose the update port');
       setWizardStep(
@@ -977,6 +1053,12 @@ async function continueWizard() {
       bin: pkg.bin,
       dat: pkg.dat,
       signal: abort.signal,
+      // Once the bootloader accepts START, the old application is being erased:
+      // an interruption from here on strands the device in its update loader.
+      // The failure and cancel copy must say so instead of promising normal boot.
+      onStartAccepted: () => {
+        if (wizard) wizard.postStart = true;
+      },
       onProgress: (p) => {
         let etaSec;
         if (p.stage === 'transfer') {
@@ -1031,14 +1113,44 @@ async function continueWizard() {
   } catch (e) {
     // A cancel already closed the wizard — do not reopen it as a failure.
     if (!wizard) return;
+    if (e?.name === 'StopWindowError') {
+      // The STOP packet itself triggers validate + activate + reboot, and the
+      // port vanishes within ~1s of its ACK. A link failure in that window
+      // usually means the device already accepted STOP and is rebooting with
+      // the new firmware — reporting "Update failed" here would be a lie.
+      // The pending flashStarted entry settles the truth on reconnect: the
+      // finisher restores settings if the version matches, or the Connect
+      // guard routes to Recover if the device is still in its update loader.
+      wizard.stage = 'await-reconnect';
+      wizard.stopWindowHedge = true;
+      setWizardStage('restore');
+      setWizardStatus('Firmware update — reconnect the LipSync');
+      log(
+        'The connection dropped while the update was finishing — it may have completed. Reconnect to verify.',
+        'log-info',
+      );
+      setWizardStep(
+        'The update was finishing when the connection dropped — it usually completes on its own. Wait ~30 seconds, then click Connect and pick the LipSync: your settings will be restored automatically if it finished, or the Firmware section will offer recovery if it did not.',
+        {
+          percent: 100,
+          showBackup: true,
+          hint: 'Unplug and replug the LipSync if it does not appear, then click Connect.',
+        },
+      );
+      return;
+    }
     if (deviceGone(e)) {
       // A previously-granted port whose device has since disconnected (e.g.
       // the bootloader left after a reboot) — reported as NotFoundError or
       // macOS Chrome's NetworkError "Failed to open serial port". Back to
-      // the picker, not a failure panel.
+      // the picker, not a failure panel. Past START an interruption strands
+      // the device in its update loader, so the copy must not promise a
+      // normally-running LipSync.
       wizard.stage = 'await-bootloader-port';
       setWizardStep(
-        'The update loader is no longer connected. If the LipSync is running normally, click Continue and try again; if not, press its reset button twice, slowly, first.',
+        wizard.postStart
+          ? 'The connection was lost during the update — the LipSync now starts in its update loader. Replug it, click Continue, and pick the update loader to finish the update (or use Recover).'
+          : 'The update loader is no longer connected. If the LipSync is running normally, click Continue and try again; if not, press its reset button twice, slowly, first.',
         { showContinue: true, showCancel: true, showBackup: true },
       );
       return;
@@ -1053,6 +1165,7 @@ async function continueWizard() {
 function failWizard(e) {
   const message = e?.message ?? String(e);
   const duringFlash = wizard?.stage === 'flashing' || wizard?.stage === 'await-reconnect';
+  const postStart = wizard?.postStart === true;
   log('Firmware update failed: ' + message, 'log-err');
   wizard = { ...wizard, stage: 'failed', failedDuringFlash: duringFlash };
   lockSessionButtons(false);
@@ -1061,15 +1174,23 @@ function failWizard(e) {
   setWizardStep('Update failed: ' + message, {
     showCancel: true,
     showBackup: true,
-    hint: duringFlash
-      ? 'The LipSync is not harmed — its recovery loader discards a partial update. Unplug and replug it (or press reset once) to get back to normal, then retry.'
-      : 'Your LipSync is not harmed — nothing was written, or the bootloader kept itself intact. You can retry.',
+    hint:
+      duringFlash && postStart
+        ? // START was accepted: the app region is erased/partial, so every reset
+          // and replug lands back in the update loader — only a complete flash
+          // repairs it. Never claim a normal boot here.
+          'The update was interrupted while the device\u2019s memory was being rewritten. The LipSync now starts in its update loader — open Firmware and use \u201cRecover a device stuck in update mode\u201d to repair it.'
+        : duringFlash
+          ? 'The LipSync is not harmed — the update stopped before anything was written to its memory. You can retry.'
+          : 'Your LipSync is not harmed — nothing was written, or the bootloader kept itself intact. You can retry.',
   });
 }
 
 async function cancelWizard(message) {
   const stage = wizard?.stage;
   const failedDuringFlash = !!wizard?.failedDuringFlash;
+  const postStart = wizard?.postStart === true;
+  const stopWindowHedge = wizard?.stopWindowHedge === true;
   const recovery = !!wizard?.recovery;
   try {
     wizard?.abort.abort();
@@ -1077,9 +1198,12 @@ async function cancelWizard(message) {
   // Settle any in-flight touch operation BEFORE tearing the wizard down:
   // its leftover open/close continuations must never outlive the cancel
   // (observed on hardware: a zombie close killed the next connection, and
-  // a still-pending open blocked it with "already in progress"). A hung
-  // open gives up after the race window; its late continuation checks the
-  // aborted signal itself and releases the port quietly.
+  // a still-pending open blocked it with "already in progress"). The settle
+  // window bounds how long Cancel waits for the panel to close — it does
+  // NOT bound the zombie: a touch open wedged past the window is made
+  // harmless by the port-generation guard (its late release is skipped
+  // once a newer connect attempt has started, and the attempt's
+  // cleanup-retry recovers the held port).
   if (activeTouchOp) {
     await Promise.race([activeTouchOp, sleep(2500)]);
   }
@@ -1092,24 +1216,32 @@ async function cancelWizard(message) {
   setWizardVisible(false);
   setWizardStep('', { percent: null });
   // Cancelling mid-flash leaves a partial image in the bootloader's hands:
-  // the recovery loader discards it and boots the old firmware after a
-  // power cycle — say so instead of pretending nothing was touched. The
-  // restore-retry panels are a different story: the flash already finished.
+  // past START the app region is erased, so the device starts in its update
+  // loader and only a complete flash repairs it — say exactly that. Before
+  // START nothing was touched and a normal boot is the honest claim.
+  // The restore-retry panels are a different story: the flash already finished.
   // A cancel during the restart itself is honest about its uncertainty:
   // only claim update mode when a touch demonstrably landed.
   const finalMessage =
     message ??
-    (recovery && (stage === 'await-bootloader-port' || stage === 'flashing' || stage === 'download')
+    (recovery &&
+    (stage === 'await-bootloader-port' || stage === 'picking' || stage === 'flashing' || stage === 'download')
       ? 'Recovery cancelled. The LipSync remains in update mode — its firmware stays incomplete until a full recovery finishes. Use Recover again to repair it.'
-      : stage === 'flashing' || failedDuringFlash
-        ? 'Update stopped partway. Unplug and replug the LipSync (or press reset once) and it starts normally again — its recovery loader keeps the current firmware.'
-        : stage === 'await-reconnect' || stage === 'mode-restored'
-          ? 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
-          : (stage === 'enter-bootloader' || stage === 'await-bootloader-port') && touchLanded
-            ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
-            : stage === 'enter-bootloader' || stage === 'await-bootloader-port'
-              ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen comes back, connect as usual; if it stays dark, unplug and replug it once, then connect.'
-              : 'Update cancelled. Nothing was changed.');
+      : stage === 'restore-pending'
+        ? 'Update cancelled. The firmware update itself finished — your settings were not restored automatically. Re-enter any missing settings from your downloaded backup file if needed.'
+        : stage === 'flashing' || failedDuringFlash
+          ? postStart
+            ? 'Update stopped partway — the LipSync is now in its update loader. Use \u201cRecover a device stuck in update mode\u201d in the Firmware section to repair it.'
+            : 'Update stopped before anything was written. Unplug and replug the LipSync (or press reset once) and it starts normally again, then retry.'
+          : stage === 'await-reconnect' || stage === 'mode-restored'
+            ? stopWindowHedge
+              ? 'Update dismissed. The update may or may not have completed — reconnect the LipSync to find out: if it starts normally the update finished; if it stays in update mode, use Recover to repair it.'
+              : 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
+            : (stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking') && touchLanded
+              ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
+              : stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking'
+                ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen comes back, connect as usual; if it stays dark, unplug and replug it once, then connect.'
+                : 'Update cancelled. Nothing was changed.');
   log(finalMessage, 'log-info');
   announceStatus(finalMessage);
 }
@@ -1137,13 +1269,25 @@ async function resolveLatestRelease() {
     // one is not one of ours and will not be installed.
     throw new Error('The latest release does not publish a checksum — refusing to install it.');
   }
+  // The manifest rides the firmware-binaries branch, which is force-updated
+  // per release — a failed or raced push can leave the branch disagreeing
+  // with the release the API reports as latest. A parsable tag that does
+  // not match the manifest's version means the published artifacts do not
+  // describe this release: refuse instead of flashing a version nothing
+  // vouches for. (Unparsable tags cannot be cross-checked and are allowed.)
+  const tagVsManifest = compareVersions(manifest.firmwareVersion, entry.tagName);
+  if (tagVsManifest !== null && tagVsManifest !== 0) {
+    throw new Error(
+      `The published firmware information does not match its release (release ${entry.tagName}, manifest ${manifest.firmwareVersion}) — try again in a little while.`,
+    );
+  }
   return { entry, target: manifest.firmwareVersion };
 }
 
 /** Downloads + checksum-verifies + parses the release's DFU package. */
-async function downloadReleasePackage(entry) {
+async function downloadReleasePackage(entry, signal) {
   const manifest = entry.manifest;
-  const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName);
+  const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName, signal);
   const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
   const sha256 = await sha256Hex(zipBuffer);
   if (sha256 !== manifest.files.dfu.sha256) {
@@ -1152,6 +1296,16 @@ async function downloadReleasePackage(entry) {
   const pkg = await parseDfuPackage(zipBuffer);
   log(`Firmware package ${manifest.files.dfu.fileName} verified (sha256 ${sha256.slice(0, 12)}…).`, 'log-info');
   return pkg;
+}
+
+/** Maps raw download-stage failures to honest user-facing copy. */
+function downloadFailureFor(e) {
+  // Chrome rejects an offline fetch with TypeError "Failed to fetch" — name
+  // the condition like the update check does instead of the raw browser error.
+  if (e instanceof TypeError) {
+    return new Error('Could not reach the update service — check your connection and retry the update.');
+  }
+  return e;
 }
 
 /** Release-update entry point (the “Update to X” button). */
@@ -1166,7 +1320,7 @@ export async function startFirmwareUpdate() {
       showCancel: true,
       hint: 'This can take a moment on slower connections.',
     });
-    const pkg = await downloadReleasePackage(entry);
+    const pkg = await downloadReleasePackage(entry, wizard.abort.signal);
     // A cancel or disconnect during the download must not resurrect the
     // wizard on completion.
     if (!wizard) return;
@@ -1178,7 +1332,7 @@ export async function startFirmwareUpdate() {
   } catch (e) {
     // A cancel already closed the wizard — don't reopen it with an error.
     if (!wizard) return;
-    failWizard(e);
+    failWizard(downloadFailureFor(e));
   }
 }
 
@@ -1190,8 +1344,23 @@ export async function startFirmwareUpdate() {
  * flash the latest release straight through the bootloader port. Settings
  * survive in the device's separate storage and reappear when it reboots.
  */
+/**
+ * A restore-pending sentinel panel (the post-reload verify/restore panels)
+ * must never block an explicit new firmware action: a user who starts
+ * recovery or a local flash has superseded the abandoned restore, and its
+ * pending entry is moot (the recovery re-establishes the truth).
+ */
+function yieldRestorePendingPanel() {
+  if (wizard?.stage === 'restore-pending') {
+    wizard = null;
+    writePending(null);
+    setWizardVisible(false);
+  }
+}
+
 export async function recoverFromBootloader() {
-  if (wizard) throw new Error('An update is already in progress.');
+  if (wizard && wizard.stage !== 'restore-pending') throw new Error('An update is already in progress.');
+  yieldRestorePendingPanel();
   const { entry, target } = await resolveLatestRelease();
   wizard = { stage: 'download', target, abort: new AbortController(), recovery: true };
   setWizardVisible(true);
@@ -1203,7 +1372,7 @@ export async function recoverFromBootloader() {
       showCancel: true,
       hint: 'This can take a moment on slower connections.',
     });
-    const pkg = await downloadReleasePackage(entry);
+    const pkg = await downloadReleasePackage(entry, wizard.abort.signal);
     if (!wizard) return;
     wizard.pkg = pkg;
     wizard.stage = 'await-bootloader-port';
@@ -1218,14 +1387,15 @@ export async function recoverFromBootloader() {
     );
   } catch (e) {
     if (!wizard) return;
-    failWizard(e);
+    failWizard(downloadFailureFor(e));
   }
 }
 
 /** Local-file entry point (the “Flash local file…” button + file picker). */
 export async function flashLocalFile(file) {
   if (!file) return;
-  if (wizard) throw new Error('An update is already in progress.');
+  if (wizard && wizard.stage !== 'restore-pending') throw new Error('An update is already in progress.');
+  yieldRestorePendingPanel();
   if (!serialSession.port) throw new Error('Connect the LipSync before flashing it.');
   if (!/\.zip$/i.test(file.name)) {
     throw new Error(
@@ -1273,6 +1443,18 @@ export async function afterDeviceLoad() {
     await finishPendingUpdate({ ...pending, installed: true });
     return;
   }
+  // A local-file flash whose name carried no version triple targets
+  // 'unknown version' — the version equality check above can never match,
+  // but the bootloader still finished the flash on its own. Restore the
+  // settings for whatever firmware is running, with honest copy that the
+  // installed version could not be checked against the package name.
+  const interruptedUnversionedFlash =
+    pending && !pending.installed && pending.flashStarted && pending.target === 'unknown version' && !preFlashStage;
+  if (interruptedUnversionedFlash) {
+    log('An interrupted local-file update (no version in its name) appears to have completed on its own.', 'log-info');
+    await finishPendingUpdate({ ...pending, installed: true });
+    return;
+  }
   // A completed update whose operating-mode restore rebooted the device once
   // more: that reconnect is the final step — close the wizard cleanly.
   if (wizard?.stage === 'mode-restored') {
@@ -1283,35 +1465,52 @@ export async function afterDeviceLoad() {
     // below report what is actually latest instead of fabricating rows.
     setRow('fwCurrentVersion', ($('version')?.textContent || '').trim() || '—');
     log('Firmware update complete.', 'log-info');
-    announceStatus('Firmware update complete.');
+    announceFirmwareNews('Firmware update complete.');
   }
   void checkForFirmwareUpdate({ auto: true });
 }
 
 async function finishPendingUpdate(pending) {
   const installedVersion = ($('version')?.textContent || '').trim();
+  // The post-reconnect panels below run with no wizard in memory (page was
+  // reloaded, or the wizard already finished). Cancel from them must not fall
+  // through to "Nothing was changed" — the firmware HAS been changed and the
+  // settings were NOT restored. A lightweight sentinel wizard gives the
+  // cancel path an honest stage to key on (a live await-reconnect wizard
+  // already has one). Cancel also clears the pending entry, so the message
+  // must own up to losing the automatic restore.
+  const armPendingPanel = () => {
+    if (!wizard) wizard = { stage: 'restore-pending', snapshot: pending.snapshot, abort: new AbortController() };
+    setWizardVisible(true);
+  };
   // A load that failed against a dead/stale port must not read as a version
   // mismatch — the update itself is fine; the connection isn't.
   if (!installedVersion || installedVersion === '—' || installedVersion === 'ERR' || installedVersion === '…') {
     const message =
       'Settings did not load from the device. Unplug and replug the LipSync, wait ~30 seconds, and reconnect to finish verifying the update.';
     log(message, 'log-err');
-    announceStatus('Reconnect the LipSync to finish the update.');
-    setWizardVisible(true);
+    announceFirmwareNews('Reconnect the LipSync to finish the update.');
+    armPendingPanel();
     setWizardStep(message, { showCancel: true, showBackup: true });
     return;
   }
-  if (installedVersion !== pending.target) {
+  if (installedVersion !== pending.target && pending.target !== 'unknown version') {
     const message = `Expected firmware ${pending.target} but the device reports ${installedVersion || 'an unknown version'}. Your settings backup is kept — retry the update if this is unexpected.`;
     log(message, 'log-err');
-    announceStatus('Firmware version does not match the update.');
-    setWizardVisible(true);
+    announceFirmwareNews('Firmware version does not match the update.');
+    armPendingPanel();
     setWizardStep(message, { showCancel: true, showBackup: true });
     return;
   }
+  const unverifiableVersion = pending.target === 'unknown version';
   setWizardVisible(true);
   setWizardStage('restore');
-  setWizardStep('New firmware verified. Restoring your settings…', { showBackup: true });
+  setWizardStep(
+    unverifiableVersion
+      ? 'The package name carried no version to check against — restoring your settings for the firmware now running…'
+      : 'New firmware verified. Restoring your settings…',
+    { showBackup: true },
+  );
   lockSessionButtons(true);
   let failures = [];
   try {
@@ -1327,7 +1526,7 @@ async function finishPendingUpdate(pending) {
     // failing pass falls through and reports honestly.
     writePending({ ...pending, installed: true, restoreRetried: true });
     log('Some settings could not be written — they will be retried automatically on the next connect.', 'log-err');
-    setWizardVisible(true);
+    armPendingPanel();
     setWizardStep(
       serialSession.port
         ? 'Some settings could not be written. Reconnect — they will be retried automatically.'
@@ -1384,7 +1583,7 @@ async function finishPendingUpdate(pending) {
           showBackup: true,
         },
       );
-      announceStatus('Firmware update complete. Reconnect once more to finish.');
+      announceFirmwareNews('Firmware update complete. Reconnect once more to finish.');
       await disconnect({ quiet: true });
       return;
     } catch (e) {

@@ -13,11 +13,14 @@
 //    validate + activate + reboot — but ONLY if the init packet was stored
 //    and the received bytes equal the announced image size
 //  * PROBE(2) and any other op are transport-ACKed and ignored by the queue
+//  * staleAckOnce makes the FIRST ACK carry a stale number (expected-1) —
+//    like a delayed duplicate ACK from the previous frame crossing the
+//    wire — so the host's retry-on-wrong-ACK contract is testable
 import { crc16, slipDecode, slipEncode } from '../../app/js/serial/dfu/dfu-protocol.js';
 
 const OP_NAMES = { 1: 'INIT', 2: 'PROBE', 3: 'START', 4: 'DATA', 5: 'STOP' };
 
-export function createBootloaderSim({ ackDelayMs = 2, respond = true, onActivated } = {}) {
+export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOnce = false, onActivated } = {}) {
   const state = {
     opened: false,
     closed: false,
@@ -31,6 +34,10 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, onActivate
     lastError: null,
     // The transport's expected-sequence counter — 1 at session start.
     expectedSeq: 1,
+    // When set, the next ACK carries a stale number (expected-1, like a
+    // delayed duplicate ACK from the previous frame crossing the wire) —
+    // the host must retry the frame unchanged, never treat it as success.
+    staleAckPending: staleAckOnce,
   };
 
   const readQueue = [];
@@ -44,7 +51,10 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, onActivate
 
   function ackFrame() {
     // The device ACKs with the sequence number it expects NEXT.
-    const b0 = (1 << 7) | (1 << 6) | ((state.expectedSeq & 0x07) << 3);
+    const stale = state.staleAckPending;
+    state.staleAckPending = false;
+    const ackNumber = stale ? (state.expectedSeq + 7) & 0x07 : state.expectedSeq;
+    const b0 = (1 << 7) | (1 << 6) | ((ackNumber & 0x07) << 3);
     const b1 = 14;
     const b2 = 0;
     const b3 = (~(b0 + b1 + b2) + 1) & 0xff;
@@ -142,7 +152,9 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, onActivate
     readable: {
       getReader: () => ({
         read: () =>
-          readQueue.length ? Promise.resolve({ value: readQueue.shift(), done: false }) : new Promise((res) => readWaiters.push(res)),
+          readQueue.length
+            ? Promise.resolve({ value: readQueue.shift(), done: false })
+            : new Promise((res) => readWaiters.push(res)),
         async cancel() {},
         releaseLock() {},
       }),

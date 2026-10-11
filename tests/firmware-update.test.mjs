@@ -124,7 +124,10 @@ test('check finds a newer release and offers the update', async () => {
   assert.equal(updateBtnHidden(), false);
   assert.equal(document.getElementById('fwTargetVersion').textContent, '4.2.0');
   assert.equal(document.getElementById('fwNotesLink').hidden, false);
-  assert.equal(document.getElementById('fwNotesLink').getAttribute('href'), 'https://github.com/makersmakingchange/LipSync/releases/tag/V4.2.0');
+  assert.equal(
+    document.getElementById('fwNotesLink').getAttribute('href'),
+    'https://github.com/makersmakingchange/LipSync/releases/tag/V4.2.0',
+  );
   assert.equal(document.getElementById('fwNotesLink').textContent, 'What\u2019s new in 4.2.0');
   assert.equal(statusState(), 'available');
   assert.equal(document.getElementById('fwLatestVersion').classList.contains('fw-new'), true);
@@ -166,6 +169,17 @@ test('a release without a manifest asset reads as unknown, not an error', async 
   assert.match(status(), /No published firmware information yet/);
   assert.equal(statusState(), 'unknown');
   assert.equal(updateBtnHidden(), true);
+  // The "no firmware published" result is cached too: without it, every
+  // reconnect's auto-check re-fetches and burns GitHub's anonymous limit.
+  fetchCalls = [];
+  await checkForFirmwareUpdate({ auto: true });
+  await flush();
+  assert.equal(fetchCalls.length, 0, 'the no-firmware state is served from cache');
+  assert.match(status(), /No published firmware information yet/);
+  // A manual (forced) check still re-verifies against the source.
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.equal(fetchCalls.length, 2, 'forced checks bypass the negative cache');
 });
 
 test('offline failures surface a readable status without throwing', async () => {
@@ -297,11 +311,41 @@ test('an unparsable device version reports a comparison problem, not a false upd
   fetchImpl = async (url) =>
     url.includes('/contents/firmware-manifest.json')
       ? contentsPayload(MANIFEST('4.2.0'))
-      : { ok: true, json: async () => releaseWithManifest('4.2.0') };
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.2.0') };
   setDeviceVersion('ERR');
   await checkForFirmwareUpdate();
   await flush();
   assert.equal(latest(), '4.2.0');
   assert.match(status(), /Could not compare versions/);
   assert.equal(updateBtnHidden(), true);
+});
+
+// ---- Pending-update persistence (sessionStorage round-trip) ---------------
+
+test('the pending entry round-trips through sessionStorage and corrupt storage reads as none', async () => {
+  // This file never touched writePending, so the module's in-memory cache is
+  // empty — readPending must fall back to the (now real) sessionStorage.
+  assert.equal(fw.readPending(), null, 'nothing pending to start');
+  fw.writePending({ target: '4.2.0', installed: true, snapshot: { SS: '5' } });
+  const read = fw.readPending();
+  assert.equal(read?.target, '4.2.0');
+  assert.deepEqual(read?.snapshot, { SS: '5' });
+  assert.equal(sessionStorage.getItem('lipsync-fw-pending')?.includes('"target":"4.2.0"'), true, 'persisted as JSON');
+  fw.writePending(null);
+  assert.equal(sessionStorage.getItem('lipsync-fw-pending'), null, 'cleared on completion');
+
+  // A corrupt stored entry must read as "no pending update", never crash.
+  sessionStorage.setItem('lipsync-fw-pending', '{"target": broken json!!');
+  assert.equal(fw.readPending(), null, 'corrupt pending JSON degrades to none');
+
+  // A hostile-but-valid entry: restore must skip non-scalar garbage rather
+  // than inject it into the serial stream (the snapshot values are the only
+  // write path; strings and numbers only ever reach the wire).
+  sessionStorage.setItem(
+    'lipsync-fw-pending',
+    JSON.stringify({ target: '4.2.0', installed: true, snapshot: { SS: { toString: 1 }, SL: [1, 2] } }),
+  );
+  const poisoned = fw.readPending();
+  assert.equal(poisoned?.snapshot?.SS?.toString, 1, 'the poisoned shape is what it is');
+  fw.writePending(null);
 });

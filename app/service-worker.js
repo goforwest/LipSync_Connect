@@ -1,4 +1,4 @@
-const CACHE = 'lipsync-connect-v11';
+const CACHE = 'lipsync-connect-v12';
 const ASSETS = [
   './',
   './index.html',
