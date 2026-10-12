@@ -1648,7 +1648,10 @@ async function cancelWizard(message) {
                   'Update cancelled. The LipSync may still restart on its own if the restart signal had already been sent — wait a few seconds before reconnecting.'
               : (stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking') &&
                   touchLanded
-                ? 'Update cancelled. The LipSync is now in update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
+                ? // "was", not "is": the touch landed at restart time, but the user
+                  // may have replugged since (the picker hint tells them to when
+                  // the device does not appear) — the claim must survive that.
+                  'Update cancelled. The LipSync was restarted into update mode — unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
                 : stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking'
                   ? 'Update cancelled while the LipSync was restarting — its state is uncertain. Wait a few seconds: if the screen shows its normal menu again, connect as usual; if it shows nothing or a frozen message, unplug and replug it once, then connect.'
                   : 'Update cancelled. Nothing was changed.');

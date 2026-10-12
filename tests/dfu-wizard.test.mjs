@@ -2481,7 +2481,7 @@ test('wizard: cancelling at the port picker says the device is in update mode', 
 
   assert.equal(byId('fwWizard').hidden, true, 'the wizard closes');
   const history = logMod.getLogHistory().slice(histStart).join('\n');
-  assert.match(history, /now in update mode/, 'the cancel message says the device is in update mode');
+  assert.match(history, /was restarted into update mode/, 'the cancel message keys on the restart that demonstrably landed');
   assert.match(history, /unplug and replug/, 'recovery guidance is present');
   assert.doesNotMatch(history, /Nothing was changed/, 'the lying message is gone for this stage');
   await app.disconnect({ quiet: true });
@@ -3025,7 +3025,7 @@ test('wizard: cancelling a hung restart settles cleanly and cannot kill the next
 
   const history = logMod.getLogHistory().slice(histStart).join('\n');
   assert.match(history, /state is uncertain/, 'the cancel message is honest about the unknown device state');
-  assert.doesNotMatch(history, /now in update mode/, 'it does not claim update mode it cannot prove');
+  assert.doesNotMatch(history, /was restarted into update mode/, 'it does not claim update mode it cannot prove');
   assert.equal(byId('fwWizard').hidden, true);
 
   // The zombie continuation must have closed the port (hygiene) and exited
