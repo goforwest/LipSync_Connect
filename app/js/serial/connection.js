@@ -8,6 +8,7 @@ import { resetReadTimer } from './commands.js';
 import { requestSerialPort } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
 import { closePortBounded, closePortWithOutcome, openPortBounded, getPortCloseTimeoutMs } from '../utils/port-open.js';
+import { sleep } from '../utils/timers.js';
 import { handleLine } from './device.js';
 import { log } from '../services/log.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -63,8 +64,6 @@ async function openSerialPortWithRecovery() {
     await openPortBounded(serialSession.port, { baudRate: BAUD });
   }
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function connect() {
   if (serialSession.port) return;

@@ -54,6 +54,13 @@ Recover reappears. Persisting a "device likely stranded" flag in
 sessionStorage — cleared on the next successful settings load — would keep
 Recover reachable immediately after a reload.
 
+> Round-2 note (2026-10-12): Recover (and Flash local file) now live
+> outside `#fwActionsRow`, so the button is clickable while a wizard panel —
+> including a restore-pending sentinel — is on screen whenever the marker
+> is set (e.g. a Connect that picked the update loader while the panel was
+> up). The marker itself still dies with the page reload — this item
+> remains open.
+
 ### 4. Quiet the 30 s idle watchdog while the wizard is showing
 
 "No data received for 30s… this is normal when the device is idle" fires
@@ -70,6 +77,12 @@ real picker, which self-heals — but a single probe re-send before declaring
 failure would smooth the first-ever-update experience. With SR-first now
 handling the common path, this only affects recovery / manual-double-reset
 flows.
+
+> Round-2 note (2026-10-12): silent reuse of a granted bootloader port is
+> now gated on a bounded liveness probe (`serialDfuPortIsLive` — an extra
+> open/close at 115200 per Continue on repeat updates), so a stale grant
+> can no longer masquerade as the live loader. A live-but-flaky first
+> probe still benefits from the one-shot retry this item proposes.
 
 ### 6. Android/OTG hardware validation
 
@@ -94,3 +107,10 @@ microsoft/uf2 revision the app repo vendored byte-identical
 (`90e9741…`). If either side is ever refreshed, refresh both in the same
 change (the workflow comment says so; this note is the reminder with
 teeth).
+
+> Round-2 verification (2026-10-12): both vendored files were hashed
+> against the pinned revision — byte-identical. The race guard in the same
+> workflow was hardened to fail closed on an unparsable/unreadable branch
+> manifest (a malformed `firmwareVersion` previously skipped publishing
+> silently); its residual read-then-push TOCTOU is documented in the
+> workflow and covered on the app side by the tag↔manifest cross-check.

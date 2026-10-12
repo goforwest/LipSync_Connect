@@ -701,11 +701,17 @@
           <button type="button" class="cmd" id="btnStartUpdate" hidden>
             Update to <span id="fwTargetVersion"></span>
           </button>
+        </div>
+        <!-- Outside #fwActionsRow on purpose: that row hides while a wizard
+             panel is up, but a restore-pending panel must never block an
+             explicit new action — Recover and a local flash supersede an
+             abandoned restore (the wizard hands off to them). Not
+             class="cmd": both must stay reachable while disconnected —
+             which is exactly when a device is stuck in update mode. -->
+        <div class="row">
           <button type="button" class="cmd secondary" id="btnFlashLocalFile" disabled hidden>
             Flash local file&hellip;
           </button>
-          <!-- Not class="cmd": recovery must be reachable while disconnected —
-              which is exactly when a device is stuck in update mode. -->
           <button type="button" class="secondary" id="btnRecoverDevice" hidden>
             Recover a device stuck in update mode&hellip;
           </button>
@@ -784,8 +790,11 @@
             and try again. Use a data cable connected directly to the computer.
           </p>
           <p class="hint">
-            <strong>Nothing is harmed if an update fails.</strong> The update only ever replaces the main firmware; the
-            device&#8217;s recovery loader stays intact. You can simply retry, or press reset twice and try again.
+            <strong>When an update fails, what was harmed depends on when it stopped.</strong> If it stopped before the
+            write began, nothing was changed — retry the update. If it was interrupted while writing, the LipSync waits
+            in its update mode (the device&#8217;s recovery loader always stays intact) and
+            <em>Recover a device stuck in update mode</em> in the Firmware section repairs it. Your settings survive the
+            repair.
           </p>
           <p class="hint">
             <strong>Your settings.</strong> The app backs them up before the update and restores them afterwards (you

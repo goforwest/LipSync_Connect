@@ -819,8 +819,8 @@ test('wizard: after a probe failure, Continue shows the picker instead of reusin
   assert.equal(goodSim.state.activated, true, 'the flash completed on the freshly picked port');
   assert.equal(
     badOpens.filter((e) => e === 'open').length,
-    1,
-    'the failed port was never opened again after its failure',
+    2,
+    'the failed port was opened twice on the first attempt only (liveness probe + flash) — never again after its failure',
   );
   click('btnFwCancel');
   await flush();
@@ -1146,12 +1146,14 @@ test('wizard: a stale granted bootloader port is skipped for the live picker', a
         };
   const sim = createBootloaderSim();
   // Yesterday's granted bootloader port: still listed by getPorts() with its
-  // cached identity, but the device behind it left (connected: false). It
-  // must never be silently picked over the live port behind the picker.
+  // cached identity, but the device behind it left. Native SerialPort
+  // objects expose no liveness property (this stub deliberately models that:
+  // no `connected` field), so only the requestDfuPort liveness probe can
+  // tell it apart from a live port — the dead grant must never be silently
+  // picked over the live port behind the picker.
   const deadOpens = [];
   const deadBootPort = {
     getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
-    connected: false,
     async open() {
       deadOpens.push('open');
       const e = new Error('The port requested does not exist or is no longer available.');
@@ -1176,13 +1178,17 @@ test('wizard: a stale granted bootloader port is skipped for the live picker', a
   await flush();
   click('confirmOk');
   await wizardDone;
-  click('btnFwContinue'); // skips the dead grant, asks the picker, gets the live sim
+  click('btnFwContinue'); // the probe rejects the dead grant, so the picker hands back the live sim
   await waitFor(() => /installed|finishing when the connection dropped/.test(byId('fwWizardStep').textContent), {
     what: 'the flash step to settle',
   });
 
   assert.equal(sim.state.activated, true, 'the flash ran against the live port from the picker');
-  assert.deepEqual(deadOpens, [], 'the departed grant was never opened');
+  assert.deepEqual(
+    deadOpens,
+    ['open'],
+    'the departed grant was probed exactly once (the liveness probe) and never flashed',
+  );
   const history = logMod.getLogHistory().slice(histStart).join('\n');
   assert.doesNotMatch(history, /no longer connected/, 'the open-reject loop never happened');
   assert.equal(byId('fwWizardStep').textContent.includes('installed'), true);
@@ -3049,6 +3055,7 @@ test('wizard: a stalled serial open fails fast with replug guidance, not a froze
   sessionStoreSet('lipsync-fw-pending', null);
   fw.setTouchOpenTimeoutForTests(250);
   try {
+    try {
     localStorage.setItem(
       'lipsync-fw-check',
       JSON.stringify({
@@ -3107,8 +3114,12 @@ test('wizard: a stalled serial open fails fast with replug guidance, not a froze
   click('btnFwCancel');
   await flush();
   assert.equal(byId('fwWizard').hidden, true);
-  fw.setTouchOpenTimeoutForTests(8000);
-  await app.disconnect({ quiet: true });
+  } finally {
+    // The seam must be restored on every path — a failed assertion here must
+    // not leak a 250 ms touch bound into every later test in this module.
+    fw.setTouchOpenTimeoutForTests(8000);
+    await app.disconnect({ quiet: true });
+  }
 });
 
 // ---- Restore re-arm: a silent device retries instead of declaring defeat --
@@ -3294,7 +3305,7 @@ test('completion: a local-file downgrade re-flags the newer release automaticall
 
 // ---- Audit round 3: flash-open bound, vendor gate, rows, manifest override -
 
-test('wizard: a stalled bootloader-port open fails the flash honestly', async () => {
+test('wizard: a stalled bootloader-port open routes back to the picker step, not a dead-end failure', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
   try {
     localStorage.setItem(
@@ -3325,15 +3336,21 @@ test('wizard: a stalled bootloader-port open fails the flash honestly', async ()
         };
   const logMod = await import('../app/js/services/log.js');
   const histStart = logMod.getLogHistory().length;
+  const probeOpens = [];
 
   // The bootloader port's open() hangs forever (the wedged-port pathology,
-  // now reached via the flash instead of the touch or Connect).
+  // reached via the silent-reuse probe and then the flash). The probe must
+  // give up on it (bounded) and show the picker; the flash's open then
+  // stalls against the picked port too — and because nothing was written,
+  // the honest step is the picker with its Continue button, matching the
+  // stall message's own guidance ("click Continue and pick it again").
   const stalledBootPort = {
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
     open() {
+      probeOpens.push('open');
       return new Promise(() => {});
     },
     async close() {},
-    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
     readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
     writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
   };
@@ -3350,25 +3367,33 @@ test('wizard: a stalled bootloader-port open fails the flash honestly', async ()
   click('confirmOk');
   await wizardDone;
   click('btnFwContinue');
-  await sleep(1000); // the flash's bounded open (10 s)… too long — shrink via seam?
-  // NOTE: the flash open uses PORT_OPEN_TIMEOUT_MS (10 s) — the test uses
-  // the wizard's flash timing. To keep the suite fast, this scenario relies
-  // on the open never resolving and the 10 s bound — assert after a partial
-  // window that the wizard is STILL in the flashing step (not hung forever at
-  // 'Contacting…' with no bound, it would never produce a failure at all).
-  // With the bound, the failure lands at ~10 s; assert the eventual state.
-  await sleep(9500);
+  // The liveness probe stalls ~3 s (falls to the picker), then the flash
+  // open stalls the full 10 s bound (PORT_OPEN_TIMEOUT_MS) before the
+  // honest routing appears.
+  await waitFor(() => /did not respond/.test(byId('fwWizardStep').textContent), {
+    timeoutMs: 20000,
+    what: 'the bounded stall to surface as picker-step guidance',
+  });
+
   const history = logMod.getLogHistory().slice(histStart).join('\n');
   assert.match(
     history,
-    /Firmware update failed: .*did not respond/,
-    'the stalled flash open surfaces as a failure with guidance',
+    /did not respond/,
+    'the stall message with its replug + Continue guidance is on the record',
   );
-  assert.match(byId('fwWizardStep').textContent, /Update failed: /);
-  assert.equal(byId('fwWizard').getAttribute('data-state'), 'failed');
+  assert.doesNotMatch(history, /Firmware update failed:/, 'a pre-START stall is not a failure');
+  assert.equal(
+    byId('btnFwContinue').hidden,
+    false,
+    'the step names a Continue button that actually exists on the panel — the guidance is followable',
+  );
+  assert.equal(
+    byId('fwWizard').getAttribute('data-state'),
+    'active',
+    'the wizard is still on its picker step, not a failure panel',
+  );
   click('btnFwCancel');
   await flush();
-  fw.setTouchOpenTimeoutForTests(8000);
   await app.disconnect({ quiet: true });
 });
 
@@ -3443,7 +3468,13 @@ test('wizard: a foreign serial device is never touched with the restart signal',
     'only the probe open ever touched the foreign device — no 1200-baud restart signal was sent',
   );
   click('btnFwCancel');
-  await flush();
+  // Cancel settles the in-flight flash's wind-down before closing the panel
+  // (the probe ACK wait unwinds through its abort checkpoint) — wait for the
+  // close, not a fixed microtask flush.
+  await waitFor(() => byId('fwWizard').hidden === true, {
+    timeoutMs: 4000,
+    what: 'the cancelled attempt to close cleanly',
+  });
   const afterHistory = logMod.getLogHistory().slice(histStart).join('\n');
   assert.match(
     afterHistory,
@@ -3451,5 +3482,1089 @@ test('wizard: a foreign serial device is never touched with the restart signal',
     'the attempt closes cleanly',
   );
   assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
+});
+
+// ---- Round-2 remediation: probe-based liveness, SR cancel windows, STOP truth --
+
+test('wizard: an unplugged device with a stale bootloader grant is not reported as restarted', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // A repeat updater's bus: yesterday's bootloader grant still lists in
+  // getPorts() with its cached identity (native SerialPort objects expose no
+  // liveness property — this stub deliberately models that), but every open
+  // on it fails gone-style because the device behind it left. The app port
+  // is equally gone (the cable was knocked out during the restart).
+  const goneError = () => {
+    const e = new Error('The port requested does not exist or is no longer available.');
+    e.name = 'NotFoundError';
+    return e;
+  };
+  const departedBootGrant = {
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
+    async open() {
+      throw goneError();
+    },
+    async close() {},
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const appPort = {
+    async open() {
+      throw goneError();
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  configureDfuPortSource({
+    serial: { getPorts: async () => [departedBootGrant], requestPort: async () => appPort },
+  });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.doesNotMatch(
+    history,
+    /Device restarted into update mode/,
+    'a departed grant proves nothing — the unplug is never claimed as a restart',
+  );
+  assert.match(history, /not responding on the bus/, 'the honest unplug diagnosis is logged');
+  assert.match(
+    byId('fwWizardStep').textContent,
+    /plugged in securely/,
+    'the step points at the USB connection, not a fictional update mode',
+  );
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: cancelling while the SR ack is pending stops the update without a false claim', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The device acks SR,1:1 only after 300 ms — slow, but within the (shrunk
+  // to 400 ms) reset timeout. The cancel lands at ~60 ms, after the SR bytes
+  // were written but before the ack: the device WILL reboot, so the cancel
+  // message must hedge instead of promising nothing happens.
+  const sent = [];
+  const appPort = {
+    async open(opts) {
+      sent.push('open:' + (opts?.baudRate ?? '?'));
+      if (sent.filter((s) => s.startsWith('open:')).length >= 3) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: {
+      getWriter: () => ({
+        write(bytes) {
+          const text = Buffer.from(bytes).toString('utf8');
+          sent.push(text);
+          if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+          else if (text === 'SR,1:1') setTimeout(() => app.handleLine('SUCCESS,0:SR,1:1'), 300);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach(appPort, appPort.writable.getWriter());
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await sleep(60); // inside the SR command: bytes written, ack pending
+  click('btnFwCancel');
+  await wizardDone;
+  await sleep(400); // let the zombie SR continuation finish (ack + teardown)
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.ok(
+    sent.includes('SR,1:1'),
+    'sanity: the SR write really happened before the cancel (the honest hard case)',
+  );
+  assert.match(
+    history,
+    /may still restart on its own|restarts on its own/,
+    'the cancel message hedges about the in-flight reboot',
+  );
+  assert.doesNotMatch(history, /Nothing was changed\./, 'the flat nothing-changed claim is not used');
+  assert.doesNotMatch(history, /Update failed:/, 'the cancel is not reopened as a failure');
+  assert.equal(byId('fwWizard').hidden, true);
+  assert.equal(serialSession.port, null, 'the session was torn down quietly by the zombie continuation');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: cancelling after the SR ack says plainly that the device restarts', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  const appPort = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: {
+      getWriter: () => ({
+        write(bytes) {
+          const text = Buffer.from(bytes).toString('utf8');
+          if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+          else if (text === 'SR,1:1') setTimeout(() => app.handleLine('SUCCESS,0:SR,1:1'), 2);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => appPort } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach(appPort, appPort.writable.getWriter());
+  setLoadedValues();
+
+  // The reboot settle is observable: shrink it, wait past the SR ack, and
+  // cancel INSIDE the settle window — the ack was already seen, so the
+  // message may state the restart as fact.
+  fw.setSrRebootSettleForTests(400);
+  try {
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await sleep(120); // the SR ack resolves in ~4 ms; the settle has ~300 ms left
+    click('btnFwCancel');
+    await wizardDone;
+
+    const history = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(
+      history,
+      /Update cancelled\. The restart signal was already sent — the LipSync restarts on its own/,
+      'the message states the certain reboot as fact',
+    );
+    assert.equal(byId('fwWizard').hidden, true);
+    assert.equal(serialSession.port, null);
+  } finally {
+    fw.setSrRebootSettleForTests(20);
+    await app.disconnect({ quiet: true });
+    testHooks.detach();
+  }
+});
+
+test('wizard: a cancel during the SR handshake leaves the session intact and never sends SR', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The device is slow to even ack the SETTINGS handshake (300 ms): the
+  // cancel lands inside it, and the abort wiring must stop the SR write from
+  // ever happening — the session is left alive and untouched.
+  const sent = [];
+  const appPort = {
+    async open() {},
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: {
+      getWriter: () => ({
+        write(bytes) {
+          const text = Buffer.from(bytes).toString('utf8');
+          sent.push(text);
+          if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 300);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => appPort } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach(appPort, appPort.writable.getWriter());
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await sleep(60); // inside the pending SETTINGS handshake, SR not yet written
+  click('btnFwCancel');
+  await wizardDone;
+  await sleep(350); // the handshake ack lands here — the zombie must not act on it
+
+  assert.ok(sent.includes('SETTINGS'), 'sanity: the cancel landed during the handshake');
+  assert.ok(!sent.includes('SR,1:1'), 'the soft-reset command was never written after the cancel');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /Update cancelled/, 'the cancel is logged');
+  assert.doesNotMatch(history, /Update failed:/, 'no failure panel was raised');
+  assert.notEqual(serialSession.port, null, 'the session survives untouched — no zombie teardown ran');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: a cancel inside the final STOP window preserves the maybe-finished update', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The STOP frame's ACK is delayed (500 ms): the cancel lands after the
+  // STOP bytes were written but before the ACK, exactly the window where the
+  // bootloader finishes the update on its own. The device DID receive STOP
+  // (the sim activates), so "stopped partway — use Recover" would be a lie:
+  // the pending entry must keep the flashStarted truth for the reconnect.
+  const sim = createBootloaderSim({ stopAckDelayMs: 500 });
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await waitFor(() => /Finishing write/.test(byId('fwWizardStep').textContent), {
+    what: 'the flash to reach the STOP exchange',
+  });
+  click('btnFwCancel');
+  await waitFor(() => byId('fwWizard').hidden === true, {
+    timeoutMs: 4000,
+    what: 'the cancel to settle the STOP window',
+  });
+  await sleep(300); // the delayed ACK fires inside the now-cancelled flash
+
+  assert.equal(sim.state.activated, true, 'the bootloader completed the update on its own');
+  const pending = fw.readPending();
+  assert.ok(pending, 'the pending entry survives the cancel');
+  assert.equal(pending.installed, false, 'the completion is not asserted — only the reconnect can verify it');
+  assert.equal(pending.flashStarted, true, 'the flashStarted truth is preserved for the finisher');
+  assert.equal(pending.target, '4.2.0');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /may or may not have completed/, 'the hedge wording is used for the raced STOP');
+  assert.doesNotMatch(history, /Update failed:/, 'no failure panel was raised');
+  assert.doesNotMatch(history, /now in its update loader/, 'the stranded claim is not made for a completed update');
+
+  // The reconnect settles the truth: the device runs the target version, so
+  // the finisher verifies and restores.
+  const sentVerify = [];
+  const writerVerify = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentVerify.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerVerify);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.deepEqual(
+    sentVerify.filter((t) => /,1:/.test(t)),
+    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    'the reconnect verified the completed update and restored the settings',
+  );
+  assert.equal(fw.readPending(), null, 'the pending entry completes and clears');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: a STOP whose ACK is lost at the detach hedges instead of declaring an interruption', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // Hardware-shaped departure, host's worst case: the device accepted the
+  // STOP (it activates and reboots) but the ACK never crosses the wire —
+  // and the departing port RESOLVES every write into a dying buffer, so
+  // the host's retransmits all "succeed" and nothing is ever acked. The
+  // pure ACK timeout that results is NOT proof the flash failed: the
+  // honest answer is the hedge, never "interrupted while memory was
+  // rewritten".
+  const sim = createBootloaderSim({ loseStopAck: true, departedWritesResolve: true });
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await waitFor(() => /finishing when the connection dropped/.test(byId('fwWizardStep').textContent), {
+    timeoutMs: 25000,
+    what: 'the STOP window to resolve as the hedge (every retransmit "succeeds" into the dead buffer, so all three ACK waits — ~15 s — burn first)',
+  });
+
+  assert.equal(sim.state.activated, true, 'the update actually completed on the device');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.doesNotMatch(history, /Firmware update failed:/, 'the completed update is not declared a failure');
+  assert.doesNotMatch(history, /interrupted while the device.s memory was being rewritten/, 'the stranded claim is never made');
+  assert.match(history, /may have completed/, 'the hedge is logged honestly');
+  assert.equal(fw.readPending()?.flashStarted, true, 'the flashStarted truth is kept for the reconnect');
+  click('btnFwCancel');
+  await flush();
+  assert.match(
+    logMod.getLogHistory().slice(histStart).join('\n'),
+    /may or may not have completed/,
+    'the hedge cancel keeps its wording',
+  );
+  assert.equal(fw.readPending()?.flashStarted, true, 'the hedge cancel preserves the pending entry');
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: a cancel after the STOP ack still arms the finished update for the reconnect', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The other half of the STOP window: the cancel lands AFTER the ACK (the
+  // device accepted and is rebooting into the new firmware) but before the
+  // flash's wrap-up returns. The flash RESOLVES despite the abort — the
+  // update unambiguously finished — so the pending entry must be armed as
+  // installed, the message must say so, and the reconnect must verify and
+  // restore rather than silently dropping the snapshot.
+  const sim = createBootloaderSim({ stopAckDelayMs: 300 });
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await waitFor(() => /Finishing write/.test(byId('fwWizardStep').textContent), {
+    what: 'the flash to reach the STOP exchange',
+  });
+  await sleep(420); // the ACK lands ~300 ms in; the wrap-up runs until ~505 ms
+  click('btnFwCancel');
+  await waitFor(() => byId('fwWizard').hidden === true, {
+    timeoutMs: 4000,
+    what: 'the cancel to settle the wrapping-up flash',
+  });
+  await sleep(200);
+
+  assert.equal(sim.state.activated, true, 'the update completed on the device');
+  const pending = fw.readPending();
+  assert.ok(pending, 'the pending entry survives the cancel');
+  assert.equal(pending.installed, true, 'a flash that resolved despite the cancel is armed as installed');
+  assert.equal(pending.target, '4.2.0');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /finished just as it was cancelled/, 'the honest completed-anyway log is present');
+  assert.match(
+    history,
+    /Update cancelled — the firmware update finished anyway/,
+    'the cancel message owns the completion',
+  );
+  assert.doesNotMatch(history, /now in its update loader/, 'no stranded claim for a finished update');
+  assert.doesNotMatch(history, /Update failed:/, 'no failure panel was raised');
+
+  // The reconnect verifies and restores.
+  const sentVerify2 = [];
+  const writerVerify2 = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentVerify2.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerVerify2);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.equal(fw.readPending(), null);
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: a cancelled erase-wait flash is settled before a new flash claims the port', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // A big-ish image stretches the erase dwell; the cancel lands inside it.
+  // The user immediately starts a new attempt: the interrupted device re-
+  // enumerates into its bootloader (a replug — a fresh bootloader with a
+  // fresh transport counter; the cancelled one keeps its counter and would
+  // reject a re-started probe), and the new flash opens the fresh port. The
+  // first flash's teardown close must be settled BEFORE that open, or the
+  // zombie close kills the new flash's link.
+  const sim = createBootloaderSim();
+  const portEvents = [];
+  const instrument = (targetPort, tag) => {
+    const baseOpen = targetPort.open.bind(targetPort);
+    targetPort.open = async (opts) => {
+      portEvents.push(`${tag}:open`);
+      return baseOpen(opts);
+    };
+    const baseClose = targetPort.close.bind(targetPort);
+    targetPort.close = async () => {
+      portEvents.push(`${tag}:close:start`);
+      await sleep(80); // a slow-but-healthy teardown close
+      portEvents.push(`${tag}:close:done`);
+      return baseClose();
+    };
+  };
+  instrument(sim.port, 'A');
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const firstDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await firstDone;
+  click('btnFwContinue');
+  await waitFor(() => /Preparing device flash memory/.test(byId('fwWizardStep').textContent), {
+    what: 'the flash to enter its erase dwell',
+  });
+  click('btnFwCancel');
+  await waitFor(() => byId('fwWizard').hidden === true, {
+    timeoutMs: 4000,
+    what: 'the cancel to settle the winding-down flash',
+  });
+
+  // The replug: the device re-enumerates into a fresh bootloader. Its port
+  // is the one the next Continue flashes — the cancelled flash's teardown
+  // close is still racing on the OLD port object.
+  const sim2 = createBootloaderSim();
+  instrument(sim2.port, 'B');
+  configureDfuPortSource({ serial: { getPorts: async () => [sim2.port], requestPort: async () => sim2.port } });
+  serialSession.port = makeTouchedAppPort();
+  setLoadedValues();
+  const secondDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await secondDone;
+  click('btnFwContinue');
+  await waitFor(() => /installed|finishing when the connection dropped/.test(byId('fwWizardStep').textContent), {
+    what: 'the second flash to complete on the settled port',
+  });
+  assert.equal(sim2.state.activated, true, 'the second flash completed');
+
+  // The ordering proof: no port open may ever interleave an in-flight close
+  // — the zombie teardown from flash A must be fully settled before the
+  // probe/flash opens of session B touch anything.
+  let sawCloseStart = false;
+  for (const ev of portEvents) {
+    if (ev.endsWith(':close:start')) sawCloseStart = true;
+    else if (ev.endsWith(':close:done')) sawCloseStart = false;
+    else if (ev.endsWith(':open'))
+      assert.equal(sawCloseStart, false, `no flash open ever raced an in-flight teardown close (${ev})`);
+  }
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.doesNotMatch(history, /did not respond as an update loader/, 'the zombie close never killed the new flash');
+  assert.doesNotMatch(history, /Firmware update failed:/, 'no failure panel was raised');
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: the SR reboot departure never trips the read loop recovery chatter', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The full production stack for once: the REAL connect() opens the port
+  // and starts the REAL read loop; the device then acks SR,1:1 and its USB
+  // departure rejects the read loop's parked read — exactly the instant the
+  // wizard's `disconnecting` mute exists for. Without the mute the loop
+  // would announce "Connection lost — attempting to recover…" and try to
+  // re-open the port mid-wizard; with it, the departure is silent and the
+  // wizard proceeds to the touch.
+  const { connect, configureConnection } = await import('../app/js/serial/connection.js');
+  const { configureSerialPortSource } = await import('../app/js/serial/transport.js');
+  configureConnection({ loadDeviceInfo: async () => {}, clearHealthResults: () => {} });
+
+  let sawSr = false;
+  let rejectParkedRead = null;
+  const openLog = [];
+  const sharedReader = {
+    read() {
+      // A read parked before the departure must REJECT when the device
+      // leaves (hardware: the OS fails the pending read at detach) — a stub
+      // that only rejects future calls never exercises the read loop's
+      // departure handling at all.
+      if (sawSr) return Promise.reject(new Error('Failed to execute "read": The device was disconnected.'));
+      return new Promise((_res, rej) => {
+        rejectParkedRead = rej;
+      });
+    },
+    async cancel() {},
+    releaseLock() {},
+  };
+  const appPort = {
+    async open(opts) {
+      openLog.push(opts?.baudRate ?? '?');
+      if (openLog.length >= 3) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => sharedReader },
+    writable: {
+      getWriter: () => ({
+        write(bytes) {
+          const text = Buffer.from(bytes).toString('utf8');
+          if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+          else if (text === 'SR,1:1') {
+            sawSr = true;
+            rejectParkedRead?.(new Error('Failed to execute "read": The device was disconnected.'));
+            setTimeout(() => app.handleLine('SUCCESS,0:SR,1:1'), 2);
+          }
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  configureSerialPortSource({ requestPort: async () => appPort });
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => appPort } });
+  const { serialSession } = await import('../app/js/serial/session.js');
+  await connect();
+  assert.notEqual(serialSession.port, null, 'sanity: the real connect() opened the session');
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /rebooting \(soft reset\)/, 'the SR restart ran over the live session');
+  assert.doesNotMatch(history, /Connection lost/, 'the departure never announces a lost connection');
+  assert.doesNotMatch(history, /attempting to recover/, 'the read loop never tries to recover mid-wizard');
+  assert.doesNotMatch(history, /Recovery failed/, 'no bogus recovery failure is logged');
+  assert.match(
+    byId('fwWizardStep').textContent,
+    /Select the update port/,
+    'the wizard proceeded to the picker step through the silent departure',
+  );
+  assert.equal(serialSession.port, null, 'the session was torn down by the soft-reset path');
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
+test('the SR reboot settle is pinned at its production value and actually observed', async () => {
+  // The constant: the settle must cover the device's 1–2 s re-enumeration
+  // (ground truth) with margin — pinned so nobody tightens it silently.
+  assert.equal(fw.SR_REBOOT_SETTLE_MS, 3000, 'the production SR reboot settle stays generous');
+  assert.equal(fw.TOUCH_AFTER_CLOSE_SETTLE_MS, 2000, 'the production post-close settle stays generous');
+
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  // The behavior: the first touch open must wait out the settle after the
+  // SR teardown, exactly like the close-then-touch settle is observed.
+  const times = [];
+  let openCount = 0;
+  const appPort = {
+    async open(opts) {
+      openCount++;
+      // Open #1: the 1200-baud signal (succeeds). Open #2: the verify probe
+      // (the device has left app mode — fails gone, unrecorded).
+      if (openCount >= 2) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+      times.push(['open', Date.now(), opts?.baudRate ?? null]);
+    },
+    async close() {
+      times.push(['close', Date.now(), null]);
+    },
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: {
+      getWriter: () => ({
+        write(bytes) {
+          const text = Buffer.from(bytes).toString('utf8');
+          if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+          else if (text === 'SR,1:1') setTimeout(() => app.handleLine('SUCCESS,0:SR,1:1'), 2);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [], requestPort: async () => appPort } });
+  testHooks.attach(appPort, appPort.writable.getWriter());
+  setLoadedValues();
+
+  fw.setSrRebootSettleForTests(1500);
+  try {
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await wizardDone;
+
+    const close = times.find(([k]) => k === 'close');
+    const touch = times.find(([k, , b]) => k === 'open' && b === 1200);
+    assert.ok(close && touch, 'the SR teardown closed the port and the touch then opened it at 1200 baud');
+    assert.ok(
+      touch[1] - close[1] >= 1400,
+      `the 1200-baud signal waits out the reboot settle (gap ${touch[1] - close[1]}ms)`,
+    );
+    assert.deepEqual(
+      times.filter(([k]) => k === 'open').map((t) => t[2]),
+      [1200],
+      'the only pre-verify open is the 1200-baud signal — no wake pulse after SR',
+    );
+    click('btnFwCancel');
+    await flush();
+  } finally {
+    fw.setSrRebootSettleForTests(20);
+    await app.disconnect({ quiet: true });
+    testHooks.detach();
+  }
+});
+
+test('reload: a real interrupted flash seeds the production flashStarted entry and recovers', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // A REAL flash is interrupted past START (a write failure mid-DATA): the
+  // production path writes the flashStarted pending entry. Then the page is
+  // "reloaded" (in-memory cache dropped, sessionStorage alive) and the user
+  // reconnects to a device the bootloader finished on its own — the full
+  // producer → storage → reload → finisher chain must hold.
+  const sim = createBootloaderSim();
+  const baseWriter = sim.port.writable.getWriter();
+  let writes = 0;
+  sim.port.writable = {
+    getWriter: () => ({
+      async write(bytes) {
+        writes++;
+        if (writes >= 5) throw new Error('The link died mid-transfer');
+        return baseWriter.write(bytes);
+      },
+      releaseLock() {},
+    }),
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  click('btnFwContinue');
+  await waitFor(() => /Update failed/.test(byId('fwWizardStep').textContent), {
+    what: 'the interrupted flash failure panel',
+  });
+  const stored = JSON.parse(sessionStorage.getItem('lipsync-fw-pending') ?? 'null');
+  assert.equal(stored?.flashStarted, true, 'the production path stored flashStarted on disk');
+  assert.equal(stored?.installed, false);
+  assert.equal(stored?.target, '4.2.0');
+  // NB: the failure panel is NOT dismissed — the modeled reload is the page
+  // dying with the panel up (a Cancel would wipe the pending entry by
+  // design; the user who reloads instead keeps it).
+
+  // The "reload": the in-memory cache dies, the storage lives.
+  fw.resetPendingMemoryForTests();
+  assert.equal(fw.readPending()?.flashStarted, true, 'the reloaded page reads the pending entry from storage');
+
+  // The reconnect: the bootloader finished the update on its own.
+  const sentReload = [];
+  const writerReload = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sentReload.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writerReload);
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await sleep(120);
+
+  assert.match(
+    logMod.getLogHistory().slice(histStart).join('\n'),
+    /appears to have completed on its own/,
+    'the reload-recovery branch recognized the self-finished update',
+  );
+  assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
+  assert.equal(fw.readPending(), null, 'the pending update completes and clears');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('pending panel: Recover stays reachable from a sentinel panel and takes over cleanly', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  // The sentinel panel (a post-reload verify panel with no live wizard):
+  // when the stranded marker is set (the connect guard sets it when the
+  // user picks the update loader), Recover must be clickable WHILE the
+  // panel is up — before the DOM fix the button lived inside #fwActionsRow,
+  // which the panel hides, so the wizard's yield-to-Recover machinery was
+  // unreachable from the UI.
+  const { serialSession } = await import('../app/js/serial/session.js');
+  testHooks.attach({ simulated: true }, { write() {} });
+  serialSession.port = { simulated: true };
+  fw.writePending({ target: '4.2.0', installed: true, snapshot: { SS: '5' } });
+  byId('version').textContent = '—';
+  await fw.afterDeviceLoad();
+  await sleep(60);
+
+  assert.equal(byId('fwWizard').hidden, false, 'the pending panel is showing');
+  fw.setBootloaderStranded(); // what the connect guard does on a bootloader pick
+  assert.equal(
+    byId('btnRecoverDevice').hidden,
+    false,
+    'Recover is clickable while the sentinel panel is up (it lives outside fwActionsRow)',
+  );
+
+  byId('btnRecoverDevice').dispatch('click');
+  await waitFor(() => /in update mode/.test(byId('fwWizardStep').textContent), {
+    what: 'the recovery wizard to take over from the sentinel',
+  });
+  assert.equal(fw.readPending(), null, 'the abandoned restore entry was yielded cleanly');
+  assert.match(byId('fwWizardStep').textContent, /Click Continue and pick the update loader/);
+  fw.clearBootloaderStranded();
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: the session buttons stay locked through a dismissed picker', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  // The wizard owns the flow for its lifetime: a Connect click mid-flow
+  // would derail the choreography, so the buttons must stay locked through
+  // the picker step — a dismissed picker returns to the same locked step,
+  // and only the reconnect/cancel/failure transitions hand them back.
+  configureDfuPortSource({
+    serial: {
+      getPorts: async () => [],
+      requestPort: async () => {
+        const e = new Error('The user did not select a port.');
+        e.name = 'NotFoundError';
+        throw e;
+      },
+    },
+  });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+  assert.equal(byId('btnConnect').disabled, true, 'Connect is locked while the wizard owns the flow');
+  click('btnFwContinue'); // picker dismissed
+  await flush();
+  assert.match(byId('fwWizardStep').textContent, /No update port was selected/);
+  assert.equal(
+    byId('btnConnect').disabled,
+    true,
+    'a dismissed picker does not unlock Connect — the wizard still owns the flow',
+  );
+  click('btnFwCancel');
+  await flush();
+  assert.equal(byId('fwWizard').hidden, true);
+  assert.equal(byId('btnConnect').disabled, false, 'the cancel hands the buttons back to the session state');
   await app.disconnect({ quiet: true });
 });

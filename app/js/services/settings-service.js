@@ -22,6 +22,7 @@ export function configureSettingsListeners(svc) {
   if (svc?.clearHealth) clearHealth = svc.clearHealth;
 }
 
+/** The per-endpoint load plan: wire command + its render function. @returns {[string, (r: any) => void][]} */
 export function getDeviceLoadTasks() {
   return [
     ['MN,0:0', (r) => ENDPOINT_RENDERERS.MN(r.value)],

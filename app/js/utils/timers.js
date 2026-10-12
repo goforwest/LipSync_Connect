@@ -5,3 +5,6 @@ export const timers = {
   afterFrame: (fn) =>
     typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(() => fn(Date.now()), 16),
 };
+
+/** The one shared promise sleep (the four serial-layer copies were drift bait). */
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

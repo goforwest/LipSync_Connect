@@ -142,6 +142,85 @@ test('requestDfuPort falls back to the picker for an unknown bootloader device',
   ]);
 });
 
+test('WebUSB: a failed port is avoided by device identity — the avoid-mark survives re-wrapping', async () => {
+  // The wizard hands requestDfuPort the UsbSerialPort WRAPPER it failed on,
+  // but getDevices() hands back raw USBDevices that get wrapped fresh on
+  // every call. The avoid-mark must therefore key on the underlying device —
+  // wrapper identity could never match, and the failed device would be
+  // silently retried while the guidance promises a picker.
+  const badSim = createBootloaderSim();
+  const bad = createFakeBootloaderUsbDevice(badSim);
+  const badTransfers = [];
+  bad.device.transferOut = async (_ep, _chunk) => {
+    badTransfers.push('write');
+    throw new Error('The device is not responding on this port.');
+  };
+  const goodSim = createBootloaderSim();
+  const good = createFakeBootloaderUsbDevice(goodSim);
+  let pickerCalls = 0;
+  configureDfuPortSource({
+    usb: {
+      getDevices: async () => [bad.device],
+      requestDevice: async () => {
+        pickerCalls++;
+        return good.device;
+      },
+    },
+  });
+
+  const bin = new Uint8Array(700).fill(0x5a);
+  const dat = new Uint8Array(14).fill(0x11);
+
+  // First attempt: the granted bootloader answers its liveness probe (the
+  // open works) but its bulk writes are dead — the flash fails on the probe.
+  const firstPort = await requestDfuPort();
+  assert.equal(firstPort.device, bad.device, 'sanity: the granted device was silently reused');
+  await assert.rejects(
+    () => flashSerialDfu({ port: firstPort, bin, dat }),
+    /did not respond as an update loader/,
+  );
+
+  // Second attempt with the failed wrapper as the avoid-mark: the fresh
+  // wrapper over the same device must NOT be silently returned.
+  const secondPort = await requestDfuPort({ avoidPort: firstPort });
+  assert.equal(secondPort.device, good.device, 'the failed device was skipped by identity');
+  assert.equal(pickerCalls, 1, 'the picker actually appeared — the guidance is followable');
+  assert.equal(badTransfers.length, 1, 'the failed device was never written to again');
+
+  await flashSerialDfu({ port: secondPort, bin, dat });
+  assert.equal(goodSim.state.activated, true, 'the flash completed on the freshly picked device');
+});
+
+test('WebUSB: a stale granted device is not silently reused without a live probe', async () => {
+  // getDevices() can list authorized-but-departed devices: only a probe-proven
+  // live bootloader is silently reused, exactly like the Web Serial path.
+  const liveSim = createBootloaderSim();
+  const live = createFakeBootloaderUsbDevice(liveSim);
+  const stale = {
+    vendorId: BOOT_VID,
+    productId: BOOT_PID,
+    async open() {
+      const e = new Error('The device was disconnected.');
+      e.name = 'NetworkError';
+      throw e;
+    },
+    async close() {},
+  };
+  let pickerCalls = 0;
+  configureDfuPortSource({
+    usb: {
+      getDevices: async () => [stale],
+      requestDevice: async () => {
+        pickerCalls++;
+        return live.device;
+      },
+    },
+  });
+  const port = await requestDfuPort();
+  assert.equal(port.device, live.device, 'the stale grant fell through to the picker');
+  assert.equal(pickerCalls, 1);
+});
+
 test('WebUSB: shim opens serialize per device and a stalled open cannot race a newer one', async () => {
   // WebUSB (unlike Chrome Web Serial) does not serialize opens per device:
   // two wrappers around one USBDevice used to interleave their open/close

@@ -138,11 +138,14 @@ export const FIRMWARE_FETCH_TIMEOUT_MS = 15000;
 
 // ---- LipSync USB identity (Seeed XIAO nRF52840) ----
 // Application firmware (CDC settings + HID) vs. the stock bootloader's
-// serial-DFU interface. Both variants exist in the wild: units built with
-// the plain XIAO nRF52840 enumerate with 0x8044/0x0044, and units with the
-// Sense variant of the module with 0x8045/0x0045 — both observed on real
-// hardware, where app and bootloader even share the same product string
-// ("XIAO nRF52840 Sense"), so filters must rely on the PIDs alone.
+// serial-DFU interface. Authoritative source: the Seeed nRF52 Arduino core
+// the release pipeline compiles with (Seeeduino:nrf52@1.1.13, boards.txt —
+// xiaonRF52840.pid.0=0x8044 / bootloader 0x0044; xiaonRF52840Sense.pid.0=
+// 0x8045 / bootloader 0x0045), corroborated live on hardware (2026-10-11: a
+// plain unit enumerated 0x2886:0x8044, "XIAO nRF52840"). App and bootloader
+// share product strings — only PIDs distinguish them — so every filter and
+// identity check relies on the PIDs alone. If the core is ever bumped,
+// re-check these against its boards.txt in the same change.
 export const USB_VENDOR_ID = 0x2886; // Seeed Technology Co., Ltd.
 export const USB_PID_APPLICATION = 0x8044;
 export const USB_PID_APPLICATION_SENSE = 0x8045;

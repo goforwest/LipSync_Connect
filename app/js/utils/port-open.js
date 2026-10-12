@@ -10,6 +10,7 @@
 // newer attempt may have claimed, and the newer attempt's cleanup-retry
 // recovers the held port safely.
 import { portGeneration } from '../serial/session.js';
+import { sleep } from './timers.js';
 
 export const PORT_OPEN_TIMEOUT_MS = 10000;
 // Real macOS closes can be slow, not just wedged: hardware sessions show a
@@ -31,7 +32,27 @@ export function getPortCloseTimeoutMs() {
   return closeTimeoutMs;
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// True while an open() on a port is believed stuck at the OS level (the macOS
+// wedged-port pathology: the open never settles within the page session —
+// hardware showed it still pending after 16+ s, blocking every later attempt
+// with "A call to open() is already in progress" for minutes). While set,
+// in-progress errors are not waited out again — the wait proved futile.
+// The flag lives here (not in the wizard) so it clears on EVERY settled open
+// anywhere in the app — Connect's session open included — not only on the
+// next touch-phase open: after the device re-enumerates (SR reboot, reset,
+// replug), the stuck open is force-failed by the OS and any port operation
+// settles again, proving the wedge gone. A stalled open (PortStallError)
+// proves nothing either way and leaves the flag untouched.
+let portOpenWedged = false;
+
+/** @returns {boolean} */
+export const isPortOpenWedged = () => portOpenWedged;
+
+/** Flags the current port as OS-wedged (set after one legitimate wait on a
+ *  stuck "already in progress" open; see the wizard's touch recovery). */
+export const markPortOpenWedged = () => {
+  portOpenWedged = true;
+};
 
 /**
  * @param {any} port
@@ -69,7 +90,17 @@ export async function openPortBounded(port, options, bounds = {}) {
     e.name = 'PortStallError';
     throw e;
   }
-  if (openError) throw openError;
+  // Any settled outcome proves the port responds: success, or a real error
+  // (NotFoundError and friends) — the wedge (if one was flagged) is gone.
+  // Two exceptions leave the flag as it was: a stall took the early return
+  // above, and "A call to open() is already in progress" is not a settled
+  // answer about the port's health at all — it means an earlier open is
+  // still pending, which IS the wedged state.
+  if (openError) {
+    if (!/already in progress/i.test(openError.message ?? '')) portOpenWedged = false;
+    throw openError;
+  }
+  portOpenWedged = false;
 }
 
 /** Best-effort close with a bound: a wedged close never hangs the caller. */

@@ -16,11 +16,29 @@
 //  * staleAckOnce makes the FIRST ACK carry a stale number (expected-1) —
 //    like a delayed duplicate ACK from the previous frame crossing the
 //    wire — so the host's retry-on-wrong-ACK contract is testable
+//  * departOnActivate: after STOP activates the image, the USB port actually
+//    departs like real hardware (pending reads reject, buffered bytes are
+//    lost, open() throws gone-style, close() rejects fast) — the stock
+//    bootloader reboots within ~1 s of the STOP ACK
+//  * loseStopAck: the STOP frame's ACK is never delivered (it was lost in
+//    the detach) — the host cannot know whether STOP was accepted, the
+//    ambiguity the wizard's STOP-window hedge exists for
+//  * stopAckDelayMs: extra delay before the STOP frame's ACK only — lets
+//    tests land cancels inside the final ACK wait
 import { crc16, slipDecode, slipEncode } from '../../app/js/serial/dfu/dfu-protocol.js';
 
 const OP_NAMES = { 1: 'INIT', 2: 'PROBE', 3: 'START', 4: 'DATA', 5: 'STOP' };
 
-export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOnce = false, onActivated } = {}) {
+export function createBootloaderSim({
+  ackDelayMs = 2,
+  respond = true,
+  staleAckOnce = false,
+  departOnActivate = false,
+  loseStopAck = false,
+  departedWritesResolve = false,
+  stopAckDelayMs = 0,
+  onActivated,
+} = {}) {
   const state = {
     opened: false,
     closed: false,
@@ -29,23 +47,43 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
     dataBytes: new Uint8Array(0),
     initPacket: new Uint8Array(0),
     activated: false,
+    departed: false,
     startSizes: null,
     rejectedFrames: 0,
     lastError: null,
     // The transport's expected-sequence counter — 1 at session start.
     expectedSeq: 1,
     // When set, the next ACK carries a stale number (expected-1, like a
-    // delayed duplicate ACK from the previous frame crossing the wire) —
-    // the host must retry the frame unchanged, never treat it as success.
+    // delayed duplicate ACK from the previous frame crossing the wire) — the
+    // host must retry the frame unchanged, never treat it as success.
     staleAckPending: staleAckOnce,
   };
 
   const readQueue = [];
   const readWaiters = [];
 
+  const departedError = () => {
+    const e = new Error('Failed to execute "open" on "SerialPort": Failed to open serial port.');
+    e.name = 'NetworkError';
+    e.simDeparted = true;
+    return e;
+  };
+
+  // Real detach semantics: the pending read rejects (buffered bytes are lost),
+  // the queued bytes die with the connection, and every later open/close on
+  // the port fails fast.
+  function depart() {
+    if (state.departed) return;
+    state.departed = true;
+    const waiters = readWaiters.splice(0);
+    for (const w of waiters) w.rej(departedError());
+    readQueue.length = 0;
+  }
+
   function enqueue(bytes) {
+    if (state.departed) return;
     const waiter = readWaiters.shift();
-    if (waiter) waiter({ value: bytes, done: false });
+    if (waiter) waiter.res({ value: bytes, done: false });
     else readQueue.push(bytes);
   }
 
@@ -109,6 +147,7 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
       if (complete) {
         state.activated = true;
         onActivated?.();
+        if (departOnActivate || loseStopAck) setTimeout(() => depart(), 0);
         return false; // device reboots — no more transport
       }
       state.lastError = 'sim: STOP arrived without a complete image; update aborted';
@@ -132,7 +171,10 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
       // packet (hci_transport.c acks in rx_vendor_specific_pkt_type_handle,
       // the queue runs afterwards from the scheduler). So even the STOP that
       // ends the update gets its ACK first; the "reboot" follows.
-      if (respond) setTimeout(() => enqueue(ackFrame()), ackDelayMs);
+      if (respond && !(op === 5 && loseStopAck)) {
+        const delay = op === 5 ? ackDelayMs + stopAckDelayMs : ackDelayMs;
+        setTimeout(() => enqueue(ackFrame()), delay);
+      }
       processOp(op, rest);
     } catch (e) {
       state.lastError = e.message;
@@ -142,26 +184,30 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
   const port = {
     getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
     async open(options = {}) {
+      if (state.departed) throw departedError();
       state.opened = true;
       state.openedBaud = options.baudRate ?? null;
     },
     async close() {
+      if (state.departed) throw departedError();
       state.closed = true;
     },
     async setSignals() {},
     readable: {
       getReader: () => ({
-        read: () =>
-          readQueue.length
+        read: () => {
+          if (state.departed) return Promise.reject(departedError());
+          return readQueue.length
             ? Promise.resolve({ value: readQueue.shift(), done: false })
-            : new Promise((res) => readWaiters.push(res)),
+            : new Promise((res, rej) => readWaiters.push({ res, rej }));
+        },
         async cancel() {
           // A parked read holds no timer — if the host's event loop drains
           // while a read is parked, everything after it dead-locks (flaky
           // suite-wide cancellations). flashSerialDfu cancels its reader in
           // the finally; the parked pump must be released, not parked forever.
           const waiters = readWaiters.splice(0);
-          for (const w of waiters) w({ value: undefined, done: true });
+          for (const w of waiters) w.res({ value: undefined, done: true });
         },
         releaseLock() {},
       }),
@@ -169,6 +215,15 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
     writable: {
       getWriter: () => ({
         async write(bytes) {
+          if (state.departed) {
+            // Two real detach behaviors: the OS fails the write outright, or
+            // the write resolves into a buffer whose bytes die with the
+            // connection (departedWritesResolve) — the second is the host's
+            // WORST case: every retransmit "succeeds" and nothing is ever
+            // acked, a pure ACK timeout.
+            if (!departedWritesResolve) throw departedError();
+            return;
+          }
           onData(bytes);
         },
         releaseLock() {},
@@ -176,5 +231,5 @@ export function createBootloaderSim({ ackDelayMs = 2, respond = true, staleAckOn
     },
   };
 
-  return { port, state };
+  return { port, state, depart };
 }

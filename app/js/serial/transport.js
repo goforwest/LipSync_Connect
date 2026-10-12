@@ -88,13 +88,42 @@ export class UsbSerialPort {
       this.ctrlIndex = ctrlIndex;
       await this.setLineCoding(baudRate);
       await this.setControlLineState(true);
-      this.readable = new ReadableStream({
-        pull: async (controller) => {
-          const result = await d.transferIn(epIn, 64);
-          if (result.data && result.data.byteLength)
-            controller.enqueue(new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength));
+      // A fresh open supersedes any readable a previous open created. The
+      // old stream's construction-time pull may still have a bulk transfer
+      // in flight — its bytes belong to nobody now, and letting that pull
+      // resolve into the orphaned queue would STEAL the first response of
+      // the new session (observed in the simulator: the flash's first ACK
+      // vanished into the discarded stream, the host timed out and retried,
+      // and the duplicate frame was transport-rejected). Cancel the old
+      // stream; the pull-side enqueue guard below discards whatever its
+      // in-flight transfer brings back.
+      if (this.readable) {
+        try {
+          this.readable.cancel();
+        } catch {}
+      }
+      // highWaterMark 0: pulls are strictly on-demand (one bulk transfer per
+      // read). The default HWM of 1 makes the stream START a transfer the
+      // moment it is constructed — an open whose session never reads (the
+      // liveness probe, a superseded connect) parks a transfer whose result
+      // no one will ever collect, and the first real response of the NEXT
+      // session gets consumed by that orphan instead of its reader.
+      this.readable = new ReadableStream(
+        {
+          pull: async (controller) => {
+            const result = await d.transferIn(epIn, 64);
+            if (result.data && result.data.byteLength) {
+              try {
+                controller.enqueue(new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength));
+              } catch {
+                // The stream was cancelled while this transfer was in flight —
+                // its bytes belong to a session that no longer exists.
+              }
+            }
+          },
         },
-      });
+        { highWaterMark: 0 },
+      );
       this.writable = new WritableStream({ write: (chunk) => d.transferOut(epOut, chunk) });
     });
   }

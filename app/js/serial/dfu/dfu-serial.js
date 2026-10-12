@@ -27,7 +27,14 @@ import {
   startFrame,
   stopFrame,
 } from './dfu-protocol.js';
-import { closePortBounded, openPortBounded } from '../../utils/port-open.js';
+import {
+  closePortBounded,
+  openPortBounded,
+  closePortWithOutcome,
+  PORT_OPEN_TIMEOUT_MS,
+  isPortOpenWedged,
+} from '../../utils/port-open.js';
+import { sleep } from '../../utils/timers.js';
 import {
   USB_PID_APPLICATION,
   USB_PID_APPLICATION_SENSE,
@@ -60,6 +67,36 @@ const LIPSYNC_WEBUSB_FILTERS = [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
   productId: pid,
 }));
 
+// Liveness probes against a granted bootloader port must not stall a wizard
+// step for long: a live bootloader's open settles in milliseconds, so a short
+// bound is plenty; a wedged/stalled probe falls through to the picker (the
+// safe direction) instead of grinding the user.
+const DFU_LIVENESS_PROBE_MS = 3000;
+
+/**
+ * Proves the device behind a granted bootloader port is actually present by
+ * opening the port at the DFU baud rate and closing it again (harmless to the
+ * bootloader — only the 1200-baud touch signals anything). Native SerialPort
+ * objects expose NO connected/liveness property (the Web Serial API only
+ * offers connect/disconnect events, which say nothing about ports already
+ * departed when the page loaded), and WebUSB's getDevices() is no better —
+ * so the only honest liveness test is to touch the port.
+ * @param {any} port a SerialPort or UsbSerialPort shim
+ * @returns {Promise<boolean>} true only when the probe open settled cleanly
+ */
+export async function serialDfuPortIsLive(port) {
+  if (!port) return false;
+  try {
+    await openPortBounded(port, { baudRate: DFU_BAUD_RATE }, { timeoutMs: DFU_LIVENESS_PROBE_MS });
+  } catch {
+    // Gone-style error, OS wedge, or any other settled failure: not provably
+    // live. The open's own late-release path frees a stall that lands later.
+    return false;
+  }
+  await closePortBounded(port);
+  return true;
+}
+
 // Silent reuse only for the bootloader identity: an app-mode grant is the
 // still-running LipSync, and silently flashing at it (instead of showing the
 // picker, whose pick then triggers the self-heal restart) skips the only
@@ -89,11 +126,13 @@ async function requestWebSerialDfuPort(serial, options = {}) {
   const { avoidPort } = options;
   for (const p of await serial.getPorts()) {
     // getPorts() lists previously-granted ports INCLUDING departed ones,
-    // whose getInfo() still reports the cached VID/PID. Only a connected
-    // port can be flashed: a stale entry must fall through to the picker
-    // instead of dead-ending the flow in an open-reject loop. (Ports
-    // without the `connected` property — sims, shims — are never filtered.)
-    if (isBootloaderPort(p) && p.connected !== false && p !== avoidPort) return p;
+    // whose getInfo() still reports the cached VID/PID — and native
+    // SerialPort objects expose no liveness property to tell them apart.
+    // Only a probe-proven-live port may be reused silently; a stale entry
+    // must fall through to the picker instead of dead-ending the flow in
+    // an open-reject loop. The avoid-mark is checked first so the port the
+    // last flash failed on is never even probed.
+    if (isBootloaderPort(p) && p !== avoidPort && (await serialDfuPortIsLive(p))) return p;
   }
   try {
     return await serial.requestPort({ filters: LIPSYNC_USB_FILTERS });
@@ -112,14 +151,18 @@ async function requestWebSerialDfuPort(serial, options = {}) {
  */
 async function requestWebUsbDfuPort(usb, options = {}) {
   const { avoidPort } = options;
+  // WebUSB wrappers are created fresh per call, so avoid-marks must key on the
+  // underlying USBDevice — comparing wrapper identities could never match a
+  // previous call's wrapper, and the failed device would be silently retried.
+  const avoidDevice = avoidPort?.device ?? null;
   for (const d of await usb.getDevices()) {
-    if (isBootloaderUsbDevice(d)) {
-      const wrapped = new UsbSerialPort(d);
-      // WebUSB wrappers are created fresh per call, so identity comparison
-      // only helps when the caller passes the very wrapper it failed on —
-      // best-effort, matching the Web Serial path's contract.
-      if (wrapped !== avoidPort) return wrapped;
-    }
+    // getDevices() can list authorized-but-departed devices: only a
+    // probe-proven-live bootloader is silently reused, exactly like the Web
+    // Serial path above.
+    if (!isBootloaderUsbDevice(d)) continue;
+    if (avoidDevice && d === avoidDevice) continue;
+    const wrapped = new UsbSerialPort(d);
+    if (await serialDfuPortIsLive(wrapped)) return wrapped;
   }
   try {
     return new UsbSerialPort(await usb.requestDevice({ filters: LIPSYNC_WEBUSB_FILTERS }));
@@ -155,8 +198,6 @@ export async function getKnownSerialPorts() {
   return serial ? serial.getPorts() : null;
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 /**
  * Flashes `bin` (with `dat` as the init packet) to an already-selected
  * bootloader port. Resolves when the ACTIVATE frame has been sent and the
@@ -178,17 +219,36 @@ export async function flashSerialDfu(options) {
   };
 
   // The flash's open is as exposed to the wedged-port hang as the touch and
-  // Connect opens are (observed on hardware) — bound it the same way, with
-  // flash-appropriate guidance.
-  await openPortBounded(
-    port,
-    { baudRate: DFU_BAUD_RATE },
-    {
-      timeoutMs: DFU_ACK_TIMEOUT_MS,
+  // Connect opens are (observed on hardware) — bound the same way (10 s, the
+  // same bound Connect uses), with flash-appropriate guidance, and recover
+  // from the two leftover-state failures the same way Connect does: a port a
+  // stalled close left "already open", and an earlier open still "in
+  // progress" (fast-failing when the OS-level wedge was already proven —
+  // the wait would be futile).
+  const openDfuPortWithRecovery = async () => {
+    const bounds = {
+      timeoutMs: PORT_OPEN_TIMEOUT_MS,
       stallMessage:
         'The update loader\u2019s serial port did not respond. Unplug the LipSync, plug it back in, then click Continue and pick it again.',
-    },
-  );
+    };
+    try {
+      await openPortBounded(port, { baudRate: DFU_BAUD_RATE }, bounds);
+    } catch (e) {
+      const msg = e?.message ?? '';
+      if (/already in progress/i.test(msg)) {
+        if (isPortOpenWedged()) throw e;
+        await sleep(PORT_OPEN_TIMEOUT_MS + 500);
+        await openPortBounded(port, { baudRate: DFU_BAUD_RATE }, bounds);
+        return;
+      }
+      if (!/already open/i.test(msg)) throw e;
+      const close = await closePortWithOutcome(port, 3000);
+      if (close.outcome !== 'closed') throw e;
+      await sleep(300);
+      await openPortBounded(port, { baudRate: DFU_BAUD_RATE }, bounds);
+    }
+  };
+  await openDfuPortWithRecovery();
   const reader = port.readable.getReader();
   const writer = port.writable.getWriter();
   let rx = new Uint8Array(0);
@@ -219,6 +279,12 @@ export async function flashSerialDfu(options) {
   const waitForAck = async (timeoutMs) => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      // Observe a cancel the moment it lands, not at the next frame exchange:
+      // a cancelled wizard must not sit on a silent device for a full ACK
+      // window while its teardown is being settled. The STOP exchange
+      // classifies this throw through the same retry loop (an abort after the
+      // STOP was written still lands in the ambiguous hedge).
+      if (signal?.aborted) throw new Error('Firmware update cancelled.');
       let ends = 0;
       for (const b of rx) if (b === 0xc0) ends++;
       if (ends >= 2) return ackFromResponse(rx);
@@ -227,12 +293,29 @@ export async function flashSerialDfu(options) {
     throw new Error('Timed out waiting for the device to acknowledge a packet.');
   };
 
-  const send = async (frame, { expectAck = true, timeoutMs = ackTimeoutMs } = {}) => {
+  /**
+   * Writes one frame and waits for its ACK, retrying unchanged while the
+   * device re-ACKs a wrong number (it keeps expecting the same sequence).
+   * `onWritten` fires the moment the frame's bytes are handed to the port —
+   * the STOP exchange uses it to separate "was never sent" from "was sent
+   * and then the link went quiet". A write that itself fails tags the error
+   * with frameWriteFailed: delivery is indeterminate (the bytes may already
+   * be buffered in a departing port), which is exactly the STOP window's
+   * ambiguity.
+   * @param {Uint8Array} frame
+   * @param {{ timeoutMs?: number, onWritten?: () => void }} [options]
+   */
+  const send = async (frame, { timeoutMs = ackTimeoutMs, onWritten } = {}) => {
     for (let attempt = 1; attempt <= DFU_MAX_TX_ATTEMPTS; attempt++) {
       throwIfAborted();
       rx = new Uint8Array(0);
-      await writer.write(frame);
-      if (!expectAck) return;
+      try {
+        await writer.write(frame);
+      } catch (e) {
+        e.frameWriteFailed = true;
+        throw e;
+      }
+      onWritten?.();
       const wantAck = (seq + 1) % 8;
       try {
         const ack = await waitForAck(timeoutMs);
@@ -270,6 +353,11 @@ export async function flashSerialDfu(options) {
     // honest about what an interruption leaves behind.
     onStartAccepted();
     await sleep(eraseWaitMs(bin.length));
+    // The erase dwell is the longest un-interactive window in the transfer —
+    // observe a cancel the moment it is over instead of at the next frame
+    // exchange, so the wizard's wind-down settle is never raced by a zombie
+    // that still believes it is mid-erase.
+    throwIfAborted();
     onProgress({ stage: 'init', message: 'Sending firmware metadata…' });
     await send(initFrame(dat, seq));
 
@@ -290,16 +378,28 @@ export async function flashSerialDfu(options) {
     onProgress({ stage: 'finalize', message: 'Finishing write…' });
     // STOP is the last protocol frame: on receiving it the bootloader
     // validates the image, activates it, saves its settings, and reboots into
-    // the new firmware right after the ACK — give the settings write a beat
-    // before tearing the port down. A link failure here is ambiguous: the
-    // device may already have accepted STOP and be rebooting, so the error
-    // is tagged for the wizard to hedge instead of declaring failure. A
-    // device that is still answering (pure ACK timeouts) or an abort is not
-    // tagged — those mean the flash genuinely did not finish.
+    // the new firmware right after its ACK — the port departs within ~1 s of
+    // that ACK (hardware). The exchange needs its own failure semantics:
+    //  - the device still ANSWERING (re-ACKing a wrong number after all
+    //    attempts) genuinely did not accept the STOP — the flash did not
+    //    finish;
+    //  - a cancel that lands BEFORE the STOP bytes were written stopped a
+    //    flash that certainly did not finish;
+    //  - everything else once the bytes left the host is ambiguous: a
+    //    pending read that the detach rejects can drop the already-delivered
+    //    ACK bytes, so even a pure ACK timeout is NOT proof of failure — the
+    //    device may have accepted STOP and be rebooting with the new
+    //    firmware. Timeouts, link drops, and aborts in that window are
+    //    tagged for the wizard to hedge ("may have completed — reconnect to
+    //    verify") instead of declaring an interruption that may not have
+    //    happened.
+    let stopWritten = false;
     try {
-      await send(stopFrame(seq));
+      await send(stopFrame(seq), { onWritten: () => (stopWritten = true) });
     } catch (e) {
-      if (signal?.aborted || /timed out|did not accept/i.test(e?.message ?? '')) throw e;
+      const deviceStillAnswering = /did not accept/i.test(e?.message ?? '');
+      const stopNeverAttempted = !stopWritten && !e?.frameWriteFailed;
+      if (deviceStillAnswering || stopNeverAttempted) throw e;
       const tagged = new Error('The connection dropped while the update was finishing.');
       tagged.name = 'StopWindowError';
       tagged.cause = e;
