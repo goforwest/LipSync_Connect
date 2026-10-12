@@ -100,6 +100,41 @@ scratch fork: run `workflow_dispatch` once end-to-end, then push two rapid
 `V*` tags to exercise the new firmware-binaries race guard (an older build
 finishing last must leave the newer artifacts intact).
 
+> **Validated (2026-10-12)** on a disposable repo
+> (`goforwest/LipSync-ci-scratch`), seven runs, all against the hardened
+> workflow:
+>
+> - The dry run earned its keep before any release existed: the hardened
+>   guard's shape-checking python was a multiline single-quoted string
+>   whose continuation lines start at column 1 — that ends the step's
+>   `run: |` block scalar, invalidating the whole workflow (every run
+>   failed in 0 s with "workflow file issue"). A local stub harness had
+>   validated the bash but never the YAML wrapper. Fixed as a one-liner;
+>   YAML parse + all eight stub cases re-verified.
+> - workflow_dispatch end-to-end: green (compile + staged artifacts).
+> - First release (V4.1.9): branch born through the `git ls-remote`
+>   first-release path, manifest stamped, release with all four assets.
+> - Guard discrimination: V4.2.1 published first, then the older V4.2.0
+>   build read the branch and logged "already holds 4.2.1 — newer than
+>   this build (4.2.0); leaving it untouched" — green, branch preserved.
+> - Near-simultaneous tags (V4.3.0 + V4.3.1 in one push): the two publish
+>   steps ran ~16 s apart, so the guard discriminated again (branch =
+>   4.3.1, the newer). The RELEASE side, which has no guard, raced the
+>   other way: `releases/latest` = V4.3.0 while the branch holds 4.3.1 —
+>   and the app's tag↔manifest cross-check was verified live against that
+>   exact state (it refuses with the "does not match its release" error).
+>   The backstop is load-bearing, not theoretical.
+> - Fail-closed: a planted unparsable branch manifest ("4.2.0-beta") made
+>   the V4.2.2 build FAIL with "refusing to publish… over it", branch
+>   untouched — the pre-hardening behavior was a silent exit-0 skip with
+>   no branch artifacts.
+>
+> The read-then-push TOCTOU residual stands as documented (it needs both
+> publish steps inside a few seconds of each other); with the branch
+> guarded and the app refusing mismatches, its worst case remains a clear
+> error until the next release. The release-side ordering (which
+> `releases/latest` wins a same-minute double-tag) is unguarded by design.
+
 ### 8. uf2conv pin maintenance
 
 The workflow fetches `uf2conv.py`/`uf2families.json` at the exact
