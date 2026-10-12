@@ -114,3 +114,21 @@ teeth).
 > manifest (a malformed `firmwareVersion` previously skipped publishing
 > silently); its residual read-then-push TOCTOU is documented in the
 > workflow and covered on the app side by the tag↔manifest cross-check.
+
+## Hardware-round finding (2026-10-12): the loader's stale session
+
+An interrupted post-START flash leaves the bootloader RUNNING with its
+transport sequence counter mid-session. A second flash started without
+re-enumerating the device is answered by fast wrong-number re-ACKs
+(hardware: ~370 ms per attempt, three re-ACKs — a live, answering loader,
+not silence) and can never re-sync: the loader's DFU queue state is
+unknown to a new session (the erase may have been accepted and may even
+still be running), so re-using it risks a second erase. The probe failure
+is now classified as a stale loader with the one working remedy — unplug
+and replug (or double-press reset), then Continue — instead of the
+"pick the update loader again" loop that cannot work until the loader
+re-enumerates. An in-app transport re-sync (adopting the re-ACKed
+expected number and replaying START) was considered and rejected: the
+real bootloader's behavior on a duplicate START mid-session is
+unverifiable offline and the payoff is only one saved replug on a
+failure path that already ends with the user at the device.

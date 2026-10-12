@@ -1450,6 +1450,18 @@ async function continueWizard() {
       );
       return;
     }
+    if (e?.staleLoaderSession) {
+      // A live bootloader rejected the probe because it is still holding the
+      // interrupted attempt's transport state (hardware-observed: a recovery
+      // started immediately after a cancelled post-START flash). Only a
+      // fresh enumeration clears it; the message names that remedy, and the
+      // wizard stays on its picker step for the Continue after it.
+      wizard.stage = 'await-bootloader-port';
+      setWizardStatus('Firmware update — choose the update port');
+      log(e.message, 'log-err');
+      setWizardStep(e.message, { showContinue: true, showCancel: true, showBackup: true });
+      return;
+    }
     if (e?.name === 'PortStallError') {
       // The update loader's port did not answer its open — the wedged-open
       // pathology. Nothing was written (the exchange never began), so the

@@ -3305,6 +3305,113 @@ test('completion: a local-file downgrade re-flags the newer release automaticall
 
 // ---- Audit round 3: flash-open bound, vendor gate, rows, manifest override -
 
+test('recovery: a bootloader holding the interrupted attempt demands a fresh start, honestly', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+
+  // The H4 hardware scenario, exactly: a flash is interrupted past START,
+  // and the recovery is started IMMEDIATELY — without the replug. The
+  // bootloader never re-enumerated, so it is still holding the interrupted
+  // session's sequence counter: it is alive and ANSWERING (fast re-ACKs of
+  // a wrong number, ~370 ms per attempt on hardware — not a silence), but no
+  // new session can talk to it. The probe failure must be classified as a
+  // stale loader with the replug remedy — the generic "pick it again" loop
+  // the old message sent the user into cannot work until it is re-enumerated.
+  const simA = createBootloaderSim();
+  const origWritable = simA.port.writable;
+  const baseWriter = simA.port.writable.getWriter();
+  let writes = 0;
+  simA.port.writable = {
+    getWriter: () => ({
+      async write(bytes) {
+        writes++;
+        if (writes >= 5) throw new Error('The link died mid-transfer');
+        return baseWriter.write(bytes);
+      },
+      releaseLock() {},
+    }),
+  };
+  configureDfuPortSource({ serial: { getPorts: async () => [simA.port], requestPort: async () => simA.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  // The interrupted flash: PROBE, START (accepted — the loader's counter
+  // advances past it), then the link dies mid-DATA.
+  const firstDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await firstDone;
+  click('btnFwContinue');
+  await waitFor(() => /Update failed/.test(byId('fwWizardStep').textContent), {
+    what: 'the interrupted flash failure panel',
+  });
+  click('btnFwCancel');
+  await flush();
+
+  // The loader survives the interruption untouched: its writes work again
+  // (only the link died) — it is alive and answering, but its sequence
+  // counter is stuck mid-session.
+  simA.port.writable = origWritable;
+
+  // Immediate recovery, no replug: the same loader answers with fast
+  // wrong-number re-ACKs and must be diagnosed as stale.
+  const recoveryDone = fw.recoverFromBootloader();
+  await flush();
+  await recoveryDone;
+  click('btnFwContinue');
+  await waitFor(() => /needs a fresh start/.test(byId('fwWizardStep').textContent), {
+    what: 'the stale-loader diagnosis',
+  });
+  const stepText = byId('fwWizardStep').textContent;
+  assert.match(stepText, /still holding the interrupted attempt/, 'the cause is named');
+  assert.match(stepText, /Unplug the LipSync and plug it back in/, 'the working remedy leads');
+  assert.doesNotMatch(stepText, /did not respond as an update loader/, 'the generic loop-message is not used');
+  assert.equal(byId('btnFwContinue').hidden, false, 'Continue is there for after the replug');
+  const history = logMod.getLogHistory().slice(histStart).join('\n');
+  assert.match(history, /still holding the interrupted attempt/, 'the diagnosis is on the log record');
+  assert.doesNotMatch(history, /Update failed: .*needs a fresh start/, 'it is not a dead-end failure panel');
+
+  // The replug: the loader re-enumerates fresh (a new sim — its sequence
+  // counter starts at 1 again), and the same Continue now completes.
+  const simB = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [simB.port], requestPort: async () => simB.port } });
+  click('btnFwContinue');
+  await waitFor(() => /installed|finishing when the connection dropped/.test(byId('fwWizardStep').textContent), {
+    what: 'the post-replug recovery flash to complete',
+  });
+  assert.equal(simB.state.activated, true, 'the fresh loader accepted the recovery flash');
+  assert.equal(
+    simA.state.ops.length,
+    4,
+    'sanity: the stale loader never accepted a second session (PROBE/START/INIT/DATA from the interrupted flash only)',
+  );
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
 test('wizard: a stalled bootloader-port open routes back to the picker step, not a dead-end failure', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
   try {

@@ -337,10 +337,31 @@ export async function flashSerialDfu(options) {
     onProgress({ stage: 'connect', message: 'Contacting the device bootloader…' });
     try {
       await send(probeFrame(seq));
-    } catch {
-      // The port opened but nothing spoke the bootloader protocol: almost
-      // always the still-running application was picked instead of the
-      // update loader.
+    } catch (e) {
+      // Two very different failures collapse at the probe, and only one of
+      // them can be fixed by picking the port again:
+      //  - the port is silent (the still-running app was picked, a dead
+      //    link): a re-pick can fix it;
+      //  - the device ANSWERED but re-ACKed a wrong number until the
+      //    attempts ran out: a live bootloader still holding the sequence
+      //    counter of an interrupted attempt (observed on hardware: a
+      //    recovery started right after a cancelled post-START flash is
+      //    rejected in ~370 ms — three fast re-ACKs, not a 15 s silence).
+      //    No frame a new session sends can re-sync it: its DFU queue state
+      //    is unknown (START may have been accepted, the erase may be mid-
+      //    flight), so re-using that loader risks a second erase or worse.
+      //    Only a fresh enumeration (replug, or double reset) clears it —
+      //    say exactly that instead of the "pick again" loop that cannot
+      //    work while the loader is stale.
+      if (/did not accept a packet after/i.test(e?.message ?? '')) {
+        const stale = /** @type {Error & { staleLoaderSession?: boolean }} */ (
+          new Error(
+            'The update loader is still holding the interrupted attempt — it needs a fresh start before a new update can begin. Unplug the LipSync and plug it back in (or press its reset button twice, slowly), then click Continue and pick the update loader again.',
+          )
+        );
+        stale.staleLoaderSession = true;
+        throw stale;
+      }
       throw new Error(
         'The selected device did not respond as an update loader. Press the small reset button on the Hub twice (slowly), then click Continue and pick the update loader again.',
       );
