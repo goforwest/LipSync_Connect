@@ -244,7 +244,10 @@
           <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
           ><span id="loadProgressLabel">Loading device settings…</span>
         </div>
-        <p class="hint">Full refresh takes ~30 seconds. Values appear as they load.</p>
+        <p class="hint">
+          Full refresh takes ~2 seconds on firmware 4.1.1+ (up to ~30 seconds on older firmware). Values appear as they
+          load.
+        </p>
       </section>
 
       <section class="section-card" id="sec-cursor" aria-label="Cursor">
@@ -746,7 +749,8 @@
         <h2>Help &amp; troubleshooting</h2>
         <div class="notice">
           Connect via USB, click <strong>Connect</strong>, select your LipSync from the browser dialog, and wait for all
-          values to load (~30 seconds). Change one setting at a time and wait for confirmation in the log.
+          values to load (~2 seconds on firmware 4.1.1+, up to ~30 seconds on older firmware). Change one setting at a
+          time and wait for confirmation in the log.
         </div>
 
         <details>
@@ -764,7 +768,7 @@
             Android works with a USB-C / OTG cable. <strong>iOS, Firefox, and Safari are not supported.</strong>
           </p>
           <p class="hint">
-            <strong>Device needs a reboot.</strong> After a mode change or reset, wait ~30 seconds for the LipSync to
+            <strong>Device needs a reboot.</strong> After a mode change or reset, wait ~10 seconds for the LipSync to
             finish restarting before trying to connect.
           </p>
           <p class="hint">
@@ -823,7 +827,8 @@
         <details>
           <summary>Settings won&rsquo;t load &mdash; values show ERR or stay stuck on &hellip;</summary>
           <p class="hint">
-            Values load one at a time in sequence (17 total, ~30 seconds). If one command times out, it shows
+            Values load one at a time in sequence (17 total, ~2 seconds on firmware 4.1.1+). If one command times out,
+            it shows
             <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to retry only the
             failed items.
           </p>
