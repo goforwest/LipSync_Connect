@@ -7,6 +7,9 @@ import assert from 'node:assert/strict';
 import {
   DFU_IMAGE,
   DFU_OP,
+  DFU_PACKET_MAX_SIZE,
+  FLASH_PAGE_SIZE,
+  FLASH_PAGE_WRITE_TIME_MS,
   ackFromResponse,
   crc16,
   dataFrame,
@@ -14,6 +17,7 @@ import {
   hciFrame,
   hciHeader,
   initFrame,
+  pageWriteDwellMs,
   probeFrame,
   slipDecode,
   slipEncode,
@@ -178,4 +182,68 @@ test('transport: a stale ACK forces an unchanged re-send, never a silent advance
   );
   assert.deepEqual([...sim.state.dataBytes], [...bin], 'no image byte was lost or doubled');
   assert.ok(stages[stages.length - 1] === 'done');
+});
+
+test('transfer: every flash page (8×512B frames) pauses for the page-write dwell', async () => {
+  // The only flash tests before this used ≤700 B images (2 chunks), so the
+  // every-8-frames page-write dwell branch — the pacing that models the
+  // nRF52 blocking to erase/write a 4 KB page — had never fired in any
+  // test, while every real image is ~256 KB. Flash a 4-page image and prove
+  // the dwell is actually observed at each page boundary.
+  const { createBootloaderSim } = await import('./harness/bootloader-sim.mjs');
+  const { flashSerialDfu } = await import('../app/js/serial/dfu/dfu-serial.js');
+
+  // Production-value pins: these four together are what make "every 8
+  // frames" exactly one 4096-byte flash page paced by the write time.
+  assert.equal(DFU_PACKET_MAX_SIZE, 512, 'the DFU chunk size stays 512 B');
+  assert.equal(FLASH_PAGE_SIZE, 4096, '8 chunks × 512 B = one nRF52 flash page');
+  assert.equal(FLASH_PAGE_WRITE_TIME_MS, 102.4, 'the modeled page-write time stays 102.4 ms');
+  assert.equal(pageWriteDwellMs(), FLASH_PAGE_WRITE_TIME_MS);
+
+  const sim = createBootloaderSim();
+  const bin = new Uint8Array(4 * FLASH_PAGE_SIZE); // 16 KB — 32 chunks, 4 pages
+  for (let i = 0; i < bin.length; i++) bin[i] = i & 0xff; // position-unique pattern
+  const marks = [];
+  await flashSerialDfu({
+    port: sim.port,
+    bin,
+    dat: new Uint8Array(14).fill(0x11),
+    ackTimeoutMs: 300,
+    onProgress: (p) => marks.push({ stage: p.stage, at: Date.now() }),
+  });
+
+  assert.equal(sim.state.activated, true, 'the 4-page image completed');
+  assert.deepEqual([...sim.state.dataBytes], [...bin], 'no image byte was lost, doubled, or reordered');
+  assert.equal(sim.state.rejectedFrames, 0);
+
+  const transfer = marks.filter((m) => m.stage === 'transfer');
+  assert.equal(transfer.length, 32, 'one progress mark per 512 B chunk');
+  assert.equal(marks[marks.length - 1].stage, 'done');
+
+  // The erase dwell between the START and INIT exchanges: a >= bound is
+  // false-fail-proof (real timers never fire early) while still proving the
+  // size-scaled wait was taken (a skipped dwell would land ~10 ms later).
+  const eraseAt = marks.find((m) => m.stage === 'erase').at;
+  const initAt = marks.find((m) => m.stage === 'init').at;
+  assert.ok(
+    initAt - eraseAt >= eraseWaitMs(bin.length),
+    `erase dwell observed (${initAt - eraseAt} ms >= ${eraseWaitMs(bin.length)} ms)`,
+  );
+
+  // Page-write dwells: the gap after chunks 8/16/24 (indices 7/15/23 →
+  // 8/16/24) must include the 102.4 ms dwell. Normal chunk gaps are
+  // ~10-12 ms of ACK pacing; 90 ms sits far above that yet absorbs any
+  // clock truncation on the dwell side, so a removed dwell branch fails
+  // this clearly while a live one can never false-fail.
+  for (const i of [7, 15, 23]) {
+    const gap = transfer[i + 1].at - transfer[i].at;
+    assert.ok(
+      gap >= 90,
+      `page-write dwell observed after chunk ${i + 1} (${gap} ms; a normal chunk gap is ~12 ms)`,
+    );
+  }
+  // The final page's dwell lands between the last chunk and finalize.
+  const finalizeAt = marks.find((m) => m.stage === 'finalize').at;
+  const tailGap = finalizeAt - transfer[31].at;
+  assert.ok(tailGap >= 90, `page-write dwell observed after the final chunk (${tailGap} ms)`);
 });

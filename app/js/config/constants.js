@@ -136,6 +136,24 @@ export const FIRMWARE_CHECK_STORAGE_KEY = 'lipsync-fw-check';
 export const FIRMWARE_CHECK_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const FIRMWARE_FETCH_TIMEOUT_MS = 15000;
 
+// ---- Firmware manifest signatures ----
+// The manifest sha256 guards the download pipe; a signature guards the
+// SOURCE: the release pipeline signs the manifest with an Ed25519 private
+// key kept only in the lipsync repo's CI secrets, and the app verifies it
+// against this pinned public key — key material that travels with the app,
+// not with the repo it vouches for, so a compromised repo cannot forge a
+// release the app will accept. Staged rollout: manifests that carry a
+// signature are verified and enforced today; flip the require flag (an app
+// release) once the pipeline signs every release — unsigned manifests are
+// then refused too, and stripping a signature becomes an attack that
+// refuses itself. The signed payload is the canonical string built by
+// manifestSignaturePayload(): prefix + firmwareVersion + dfu.fileName +
+// dfu.size + dfu.sha256, one per line, all UTF-8.
+export const FW_MANIFEST_SIGNATURE_ALGORITHM = 'ed25519';
+export const FW_MANIFEST_SIGNATURE_PREFIX = 'lipsync-firmware-manifest-v1';
+export const FW_MANIFEST_SIGNING_PUBLIC_KEY_B64 = 'MCowBQYDK2VwAyEASLJlCYflMQHA6xYU+tWwkW2uHrds0PT/josDYi118Xs=';
+export const FW_REQUIRE_SIGNED_MANIFEST = false;
+
 // ---- LipSync USB identity (Seeed XIAO nRF52840) ----
 // Application firmware (CDC settings + HID) vs. the stock bootloader's
 // serial-DFU interface. Authoritative source: the Seeed nRF52 Arduino core

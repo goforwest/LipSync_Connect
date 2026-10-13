@@ -23,6 +23,7 @@ import { disconnect } from '../serial/connection.js';
 import { openPortBounded, closePortWithOutcome, isPortOpenWedged, markPortOpenWedged } from '../utils/port-open.js';
 import { sleep } from '../utils/timers.js';
 import { parseDfuPackage } from '../serial/dfu/dfu-package.js';
+import { verifyManifestSignature } from './firmware-signature.js';
 import {
   flashSerialDfu,
   getKnownSerialPorts,
@@ -1732,6 +1733,15 @@ async function resolveLatestRelease() {
     // one is not one of ours and will not be installed.
     throw new Error('The latest release does not publish a checksum — refusing to install it.');
   }
+  // Source-trust layer above the checksum: the sha256 below proves the
+  // bytes match the manifest; the signature proves the manifest is ours
+  // (the manifest rides the repo it would otherwise vouch for). Signed
+  // manifests are verified against the app-pinned key and fail closed;
+  // unsigned ones stay installable only while the staged require flag is
+  // false — see services/firmware-signature.js.
+  const signature = await verifyManifestSignature(manifest);
+  if (!signature.ok) throw new Error(signature.message);
+  if (signature.signed) log(`Firmware manifest signature verified (${manifest.firmwareVersion}).`, 'log-info');
   // The manifest rides the firmware-binaries branch, which is force-updated
   // per release — a failed or raced push can leave the branch disagreeing
   // with the release the API reports as latest. A parsable tag that does

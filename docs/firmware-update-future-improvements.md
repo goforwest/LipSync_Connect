@@ -155,6 +155,50 @@ teeth).
 > silently); its residual read-then-push TOCTOU is documented in the
 > workflow and covered on the app side by the tag↔manifest cross-check.
 
+### 9. Make the release pipeline sign manifests, then flip the app's require flag
+
+**Status.** The app-side rail shipped (2026-10-12): manifests carrying a
+`signature` are verified against the Ed25519 public key pinned in
+`app/js/config/constants.js` and enforced fail-closed (invalid, unparsable,
+or unverifiable signatures all refuse the install — see
+`app/js/services/firmware-signature.js` and `tests/firmware-signature.test.mjs`;
+the local twin is the optional signing block in
+`dev/firmware/build-firmware.sh`). Unsigned manifests still install because
+`FW_REQUIRE_SIGNED_MANIFEST` is `false`; in that staged state stripping a
+signature defeats the check, so the security only materializes once both
+remaining halves land:
+
+1. **Sign in CI (lipsync repo).** Add the Ed25519 private key as a secret
+   (e.g. `FW_MANIFEST_SIGNING_KEY`) and, after the existing manifest-stamp
+   step, sign and embed the canonical line-oriented payload
+   (`lipsync-firmware-manifest-v1`, `firmwareVersion`, dfu `fileName`,
+   `size`, `sha256` — one per line, trailing newline):
+
+   ```sh
+   printf 'lipsync-firmware-manifest-v1\n%s\n%s\n%s\n%s\n' \
+     "$version" "$dfu_name" "$dfu_size" "$dfu_sha" > payload
+   # -rawin: Ed25519 signs the raw message; OpenSSL 3.5 defaults to raw for
+   # Ed25519 but 3.0 runners require the flag for non-digest-size input.
+   openssl pkeyutl -sign -rawin -inkey "$FW_MANIFEST_SIGNING_KEY_PEM" \
+     -in payload -out sig
+   # embed base64(sig) as manifest.signature = { "algorithm": "ed25519",
+   # "value": … } before the firmware-binaries push
+   ```
+
+2. **Flip the flag (app repo).** Set `FW_REQUIRE_SIGNED_MANIFEST` to
+   `true`, and update the staged-state pin in
+   `tests/firmware-signature.test.mjs` plus the README security note in
+   the same change. Once every published release carries a valid
+   signature, unsigned manifests are refused too.
+
+The private key was generated (2026-10-12) with
+`openssl genpkey -algorithm ED25519` and handed to the maintainer out of
+band; it must never be committed to either repo. Rotating means generating
+a new pair, shipping an app release with the new pinned public key, and
+retiring the old key on the next pipeline sign — single-key simplicity by
+design; key IDs were deemed not worth the manifest complexity until a
+rotation is actually needed.
+
 ## Hardware-round finding (2026-10-12): the loader's stale session
 
 An interrupted post-START flash leaves the bootloader RUNNING with its
