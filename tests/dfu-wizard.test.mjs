@@ -844,6 +844,11 @@ test('pending panel: cancelling the failed-load panel never claims nothing chang
   await sleep(60);
 
   assert.equal(byId('fwWizard').hidden, false, 'the pending panel is showing');
+  assert.equal(
+    byId('fwStepRestore').classList.contains('active'),
+    true,
+    'the tracker names the stage the flow is actually in — not four gray steps',
+  );
   assert.equal(byId('btnFwCancel').hidden, false, 'Cancel is offered');
   click('btnFwCancel');
   await flush();
@@ -4613,6 +4618,204 @@ test('pending panel: Recover stays reachable from a sentinel panel and takes ove
   assert.equal(byId('fwWizard').hidden, true);
   await app.disconnect({ quiet: true });
   testHooks.detach();
+});
+
+// ---- UI/UX polish: focus management, liveness hints, flow voice ----------
+
+test('wizard: the panel takes focus on open, hands it to Continue, and returns it on close', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+
+  // Opening the wizard hides the actions row — including the button that was
+  // just clicked. Keyboard and screen-reader users must land IN the panel,
+  // the picker step's Continue must claim focus when it appears (the confirm
+  // dialog returns focus to an already-hidden button), and closing the panel
+  // must return focus to the opener. The download is held open so the panel
+  // is observably up before any later flow steals the focus assertions.
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const appPort = makeTouchedAppPort();
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+  // The stub auto-creates #fwWizard visible; production markup ships it
+  // hidden — the panel's open transition must see the real starting state.
+  byId('fwWizard').hidden = true;
+  doc.activeElement = byId('btnStartUpdate'); // the user's click origin
+
+  let releaseDownload = null;
+  globalThis.fetch = (url) => {
+    if (!String(url).includes('/git/trees/')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+      });
+    }
+    return new Promise((resolve) => {
+      releaseDownload = () =>
+        resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        });
+    });
+  };
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  assert.equal(doc.activeElement, byId('fwWizard'), 'the panel takes focus the moment it opens');
+
+  releaseDownload();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  assert.equal(
+    doc.activeElement,
+    byId('btnFwContinue'),
+    'the picker step hands focus to its newly-appeared primary action',
+  );
+  click('btnFwCancel');
+  await flush();
+  assert.equal(doc.activeElement, byId('btnStartUpdate'), 'closing the panel returns focus to the opener');
+  assert.equal(byId('fwWizard').hidden, true);
+  await app.disconnect({ quiet: true });
+});
+
+test('wizard: restart retries keep the step visibly alive (hint only, never the live region)', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  seedFirmwareCache(
+    {
+      firmwareVersion: '4.2.0',
+      files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+    },
+    'V4.2.0',
+  );
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+        }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  // A flaky first touch (the verify open succeeds — device "didn't leave")
+  // followed by a taking second one. The retries must show liveness in the
+  // HINT region while the step text (role=status) stays untouched — screen
+  // readers hear one instruction, sighted users see motion.
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+  const logMod = await import('../app/js/services/log.js');
+  const histStart = logMod.getLogHistory().length;
+  let opens = 0;
+  const appPort = {
+    async open(opts) {
+      opens++;
+      void opts;
+      // Attempt 1: wake (#1), 1200 (#2), verify (#3) all succeed -> app-live.
+      // Attempt 2: wake (#4), 1200 (#5) succeed, verify (#6) sees it gone.
+      if (opens > 5) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+    },
+    async close() {},
+    async setSignals() {},
+    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues();
+
+  const stepBefore = byId('fwWizardStep').textContent;
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  // Mid-flow sampling: the expectation hint appears at the restart step,
+  // the retry hint replaces it when attempt 2 starts, and the live step
+  // region stays untouched by all of it.
+  await waitFor(() => /few seconds — the wizard retries automatically/.test(byId('fwWizardHint').textContent), {
+    what: 'the restart step expectation hint',
+  });
+  assert.equal(stepBefore, '', 'sanity: the step region starts quiet');
+  await waitFor(() => /automatic retry 2 of 3/.test(byId('fwWizardHint').textContent), {
+    what: 'the retry liveness hint',
+  });
+  assert.doesNotMatch(
+    byId('fwWizardStep').textContent,
+    /retry 2 of 3/,
+    'the live region never carries the retry chatter',
+  );
+  await wizardDone;
+  assert.match(
+    logMod.getLogHistory().slice(histStart).join('\n'),
+    /retry \(attempt 2\)/,
+    'sanity: the retry actually ran',
+  );
+  assert.match(byId('fwWizardStep').textContent, /Select the update port/, 'the flow reached the picker');
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+});
+
+test('watchdog: the 30 s idle advisory stays silent while a wizard panel is up', async () => {
+  const commands = await import('../app/js/serial/commands.js');
+  const { READ_TIMEOUT } = await import('../app/js/config/constants.js');
+  const logMod = await import('../app/js/services/log.js');
+  const { serialSession, readWatchdog } = await import('../app/js/serial/session.js');
+  const section = byId('sec-firmware');
+
+  section.removeAttribute('data-wizard');
+  assert.equal(commands.firmwareWizardPanelActive(), false, 'no panel, no mute');
+  section.setAttribute('data-wizard', 'active');
+  assert.equal(commands.firmwareWizardPanelActive(), true, 'any wizard panel (incl. sentinels) mutes the advisory');
+  section.setAttribute('data-wizard', 'failed');
+  assert.equal(commands.firmwareWizardPanelActive(), true, 'failed panels too — the user is still mid-flow');
+  section.removeAttribute('data-wizard');
+  assert.equal(commands.firmwareWizardPanelActive(), false);
+
+  // The caller, not just the predicate: a live session that goes quiet must
+  // NOT hear the advisory while a panel is up — and must hear it otherwise.
+  commands.setReadTimeoutForTests(60);
+  const hist = () => logMod.getLogHistory().filter((l) => /No data received for/.test(l)).length;
+  try {
+    serialSession.port = { watchdogProbe: true };
+    serialSession.disconnecting = false;
+    // Explicit generation: earlier tests bump readerGeneration via their
+    // own disconnects, and the timer's stale-generation guard would eat the
+    // fire before the mute under test could even be evaluated.
+    section.setAttribute('data-wizard', 'active');
+    commands.resetReadTimer(serialSession.readerGeneration);
+    await sleep(220);
+    assert.equal(hist(), 0, 'the advisory is muted while the wizard panel is up');
+
+    section.removeAttribute('data-wizard');
+    commands.resetReadTimer(serialSession.readerGeneration);
+    await sleep(220);
+    assert.equal(hist(), 1, 'the advisory speaks again once no panel is up');
+  } finally {
+    commands.setReadTimeoutForTests(READ_TIMEOUT);
+    clearTimeout(readWatchdog.timer);
+    readWatchdog.timer = null;
+    serialSession.port = null;
+    serialSession.disconnecting = false;
+    section.removeAttribute('data-wizard');
+  }
 });
 
 test('wizard: the session buttons stay locked through a dismissed picker', async () => {

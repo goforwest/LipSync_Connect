@@ -597,13 +597,31 @@ function resetStatusIfDisconnected() {
  * Shows/hides the wizard panel. state: 'active' | 'done' | 'failed' drives
  * the panel's accent; showing the wizard also hides the normal check/update
  * actions so the user's eye lands on the wizard alone.
+ * Focus: opening the panel hides the row holding the button that was just
+ * clicked — keyboard and screen-reader users would be dropped on the page
+ * body. The panel takes focus on open (its step region then speaks), and the
+ * opener is restored when the panel closes (the showConfirm pattern).
  */
+let wizardFocusOpener = null;
 function setWizardVisible(show, state = 'active') {
   const el = $('fwWizard');
   if (el) {
+    const wasHidden = el.hidden;
     el.hidden = !show;
-    if (show) el.setAttribute('data-state', state);
-    else el.removeAttribute('data-state');
+    if (show) {
+      el.setAttribute('data-state', state);
+      if (wasHidden) {
+        wizardFocusOpener = document.activeElement;
+        el.focus?.();
+      }
+    } else {
+      el.removeAttribute('data-state');
+      if (!wasHidden) {
+        const opener = wizardFocusOpener;
+        wizardFocusOpener = null;
+        if (opener && typeof opener.focus === 'function') opener.focus();
+      }
+    }
   }
   const actions = $('fwActionsRow');
   if (actions) actions.hidden = !!show;
@@ -680,6 +698,16 @@ function setWizardStep(
   }
   const backup = $('btnDownloadBackup');
   if (backup) backup.hidden = !showBackup;
+  // When a step's Continue button appears, keyboard users are often standing
+  // nowhere: the control they clicked was hidden by the transition (or never
+  // existed — the confirm dialog returns focus to an already-hidden button).
+  // Hand focus to the new primary action, but never steal it from someone
+  // already inside the panel (a Cancel that persists across steps keeps it).
+  if (showContinue && cont && !cont.hidden) {
+    const panel = $('fwWizard');
+    const focused = document.activeElement;
+    if (panel && !panel.hidden && focused !== cont && focused !== cancel && focused !== backup) cont.focus?.();
+  }
 }
 
 async function sha256Hex(buffer) {
@@ -1037,12 +1065,21 @@ let activeTouchOp = null;
 // checkpoints make the normal unwind prompt.
 let activeFlashOp = null;
 
+/** Hint-only update: the step text (live region) stays untouched — retry
+ *  liveness is visual information, not worth a re-announcement. */
+function setWizardHint(text) {
+  const el = $('fwWizardHint');
+  if (el) el.textContent = text ?? '';
+}
+
 /**
  * Runs the touch up to TOUCH_MAX_ATTEMPTS times, logging every outcome so
  * hardware sessions are diagnosable from the exported log. Returns whether
  * the device ended up in update mode.
  * @param {() => boolean} [cancelled]
- * @param {{ skipWake?: boolean }} [options]
+ * @param {{ skipWake?: boolean, onAttempt?: (attempt: number) => void }} [options]
+ *  `onAttempt` fires when a retry is about to start (attempt numbers count
+ *  from 2) — the wizard uses it to keep the restart step visibly alive.
  */
 async function tryTouchDevice(appPort, cancelled, options = {}) {
   let stalled = false;
@@ -1079,6 +1116,7 @@ async function tryTouchDevice(appPort, cancelled, options = {}) {
         `Automatic restart attempt ${attempt} did not take${r.error ? ' (' + r.error + ')' : ''} — retrying…`,
         'log-info',
       );
+      options.onAttempt?.(attempt + 1);
     }
   }
   log(
@@ -1138,7 +1176,10 @@ async function runFlashWizard({ pkg, targetVersion }) {
     // settle, 'restart' is the honest key (the device may or may not have
     // gotten the signal), not the stale 'snapshot' default.
     wizard.stage = 'restart';
-    setWizardStep('Restarting the LipSync into update mode…', { showCancel: true });
+    setWizardStep('Restarting the LipSync into update mode…', {
+      showCancel: true,
+      hint: 'This usually takes a few seconds — the wizard retries automatically if the first try does not take.',
+    });
     const appPort = serialSession.port;
     if (!appPort) {
       throw new Error('The connection was lost before the update could start. Reconnect and retry.');
@@ -1169,6 +1210,9 @@ async function runFlashWizard({ pkg, targetVersion }) {
     try {
       ({ touched, stalled, unplugged, wedged } = await tryTouchDevice(appPort, cancelled, {
         skipWake: softReset === 'sent',
+        // Visible liveness on retries (hint region only — the step text is a
+        // live region and must not re-announce every attempt).
+        onAttempt: (n) => setWizardHint(`Still restarting — automatic retry ${n} of ${TOUCH_MAX_ATTEMPTS}…`),
       }));
     } catch (e) {
       log('Could not restart the device automatically: ' + e.message, 'log-err');
@@ -1247,7 +1291,10 @@ async function continueWizard() {
     if (pickedIsLipSyncApp) {
       log('The selected port is the running LipSync, not its update loader — restarting the device again.', 'log-err');
       setWizardStatus('Firmware update — restarting the device again');
-      setWizardStep('Restarting the LipSync into update mode again…', { showCancel: true });
+      setWizardStep('Restarting the LipSync into update mode again…', {
+        showCancel: true,
+        hint: 'This usually takes a few seconds — the wizard retries automatically if the first try does not take.',
+      });
       let touched = false;
       let stalled = false;
       let unplugged = false;
@@ -1256,6 +1303,9 @@ async function continueWizard() {
         ({ touched, stalled, unplugged, wedged } = await tryTouchDevice(
           port,
           () => !wizard || wizard.abort.signal.aborted,
+          {
+            onAttempt: (n) => setWizardHint(`Still restarting — automatic retry ${n} of ${TOUCH_MAX_ATTEMPTS}…`),
+          },
         ));
       } catch (e) {
         log('Could not restart the device automatically: ' + e.message, 'log-err');
@@ -1895,6 +1945,9 @@ async function finishPendingUpdate(pending) {
   const armPendingPanel = () => {
     if (!wizard) wizard = { stage: 'restore-pending', snapshot: pending.snapshot, abort: new AbortController() };
     setWizardVisible(true);
+    // The tracker must say where the flow stands — a pending panel IS the
+    // verify-&-restore stage, not four gray steps with no active one.
+    setWizardStage('restore');
   };
   // A load that failed against a dead/stale port must not read as a version
   // mismatch — the update itself is fine; the connection isn't.

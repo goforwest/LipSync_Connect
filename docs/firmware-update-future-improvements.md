@@ -68,6 +68,11 @@ while the user is reading the update prompt mid-wizard. Harmless, but it
 interrupts the flow's own messaging. Suppress the advisory while a firmware
 wizard panel is active.
 
+> **Done (2026-10-12, UI/UX polish round):** the advisory now stays silent
+> while any wizard panel (including sentinels and failed panels) is on
+> screen — `firmwareWizardPanelActive()` in serial/commands.js, pinned by a
+> caller-level test with a shrinkable watchdog seam.
+
 ### 5. One-shot probe retry in the picker path
 
 Rare (pre-SR-flow logs): the first DFU probe against a freshly entered

@@ -118,6 +118,11 @@ function makeText(text) {
 }
 
 // ---- Gating-test stub: stateful elements with classes/attrs/listeners ----
+
+// The stub document currently holding focus (set by each installer); makeEl's
+// focus() records into it so tests can assert focus behavior — the popups,
+// confirm dialogs, and wizard panels all move focus on purpose.
+let currentStubDocument = null;
 export function makeEl(tag) {
   const classes = new Set();
   const attrs = {};
@@ -251,7 +256,9 @@ export function makeEl(tag) {
     textContent: '',
     hidden: false,
     offsetHeight: 10,
-    focus() {},
+    focus() {
+      if (currentStubDocument) currentStubDocument.activeElement = this;
+    },
     click() {},
     select() {},
     remove() {},
@@ -370,6 +377,7 @@ export function installGatingDom(existingEls = null) {
       return true;
     },
   };
+  currentStubDocument = documentStub;
 
   const windowListeners = {};
   const storage = createStorage();

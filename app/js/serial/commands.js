@@ -16,6 +16,25 @@ export function commandAbortError() {
   return e;
 }
 
+/**
+ * True while a firmware wizard panel is on screen (the section carries the
+ * data-wizard marker). Used to mute the idle watchdog below — exported for
+ * the test that pins the mute contract (the same DOM check connection.js
+ * uses for its guard message; no service import, to keep this layer clean).
+ */
+export function firmwareWizardPanelActive() {
+  return !!document.getElementById('sec-firmware')?.getAttribute('data-wizard');
+}
+
+// The watchdog window is 30 s in production; the test seam shrinks it so the
+// mute (and the advisory itself) can be exercised without wall-clock waits.
+let readTimeoutMs = READ_TIMEOUT;
+
+/** Test seam: shrink the idle-watchdog window. */
+export function setReadTimeoutForTests(ms) {
+  readTimeoutMs = ms;
+}
+
 export function resetReadTimer(gen) {
   if (gen === undefined) gen = readWatchdog.gen;
   if (!serialSession.port) return;
@@ -24,13 +43,18 @@ export function resetReadTimer(gen) {
   readWatchdog.timer = setTimeout(() => {
     if (gen !== serialSession.readerGeneration && serialSession.readerGeneration !== 0) return;
     if (serialSession.disconnecting || !serialSession.port) return;
+    // The advisory is session-truthful, but mid-wizard it interrupts the
+    // flow's own voice — the one live window (session open, user reading
+    // the update prompt) is exactly when a "30 s idle" aside is noise. The
+    // wizard's step region is the only voice that matters while it is up.
+    if (firmwareWizardPanelActive()) return;
     const message =
       'No data received for ' +
-      READ_TIMEOUT / 1000 +
+      readTimeoutMs / 1000 +
       's. The connection is still open — this is normal when the device is idle. If a setting was in progress, it may have stalled.';
     announceStatus(message);
     log(message, 'log-info');
-  }, READ_TIMEOUT);
+  }, readTimeoutMs);
 }
 
 /**
