@@ -63,7 +63,7 @@ trap 'rm -rf "$build_dir"' EXIT
 arduino-cli compile \
   --fqbn "$FQBN" \
   --build-path "$build_dir" \
-  --build-cache-path "$cache_dir" \
+  --libraries "$FIRMWARE_REPO/Build_Files/Firmware_Files/Libraries" \
   "$SKETCH_DIR"
 
 dfu_zip="$OUT_DIR/LipSync_Firmware_${version}_dfu.zip"
