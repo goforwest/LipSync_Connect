@@ -1,17 +1,90 @@
-# Firmware 4.2.0 serial & robustness work — future improvements
+# LipSync improvement roadmap — upstream issue map
 
-Follow-ups identified during the serial-latency fix and the flaky-I2C-bus
-hunt it turned into (2026-10-13). None are required for correctness today —
-firmware 4.2.0 survives every failure mode below and the app stays
-compatible with stock 4.1 devices in the field. Ordered by value.
+Grew out of the 4.2.0 serial & robustness work (2026-10-13). On
+2026-10-13 all 70 issues of
+[makersmakingchange/LipSync](https://github.com/makersmakingchange/LipSync/issues)
+were scanned; every open issue now maps to a disposition below — fixed in
+firmware 4.2.0, a numbered roadmap item, or an explicit backlog. This is
+the working plan for closing the upstream list.
 
 Context in one line: the original "~30 s settings load" was a 1000 ms
 idle-framing timeout (fixed at the Wire/parser level, now ~92 ms full load);
 the follow-on "everything times out" chaos was a reversed interface cable
 dragging the shared I2C bus (upstream #73's failure class), which the
-firmnow now self-defends against on every consumer.
+firmware now self-defends against on every consumer.
 
-## Firmware (lipsync repo)
+## Upstream issue map — open issues (42)
+
+| # | Title (short) | Disposition |
+|---|---|---|
+| 87 | Easier mouthpiece replacement | docs backlog |
+| 86 | Cursor acceleration | **item 9** |
+| 85 | ESP32 feasibility evaluation | research |
+| 84 | Screw clearance hole diameter | mechanical |
+| 83 | Static shock killed hub | **item 10** |
+| 82 | Update error codes in User Guide | docs backlog |
+| 80 | Clean up unused branches | docs backlog (chore) |
+| 79 | Maker Guide: programming issues | docs backlog |
+| 78 | Space in file path breaks compile | docs backlog (upstream Seeed core limit; CI unaffected) |
+| 77 | Sip-and-puff menu lockout | **item 11** |
+| 76 | Mouthpiece cleaning/replacement docs | docs backlog |
+| 75 | Watchdog activates after factory reset | ✅ fixed in 4.2.0 (see community notes) |
+| 74 | LipSync changing mode by itself | **item 12** |
+| 73 | Wrong/reversed interface cable → error lights, stuck boot | ✅ 4.2.0 survives it; **item 7** fixes at source |
+| 72 | Mouse flipped — joystick orientation docs | docs backlog |
+| 71 | Sip/puff swapped — host left-handed note | docs backlog |
+| 70 | Print issues on middle-housing threads | mechanical |
+| 69 | Mounting-part filename length | mechanical |
+| 68 | Lock out unwanted mode changes | **item 11** |
+| 67 | Easy way to share device settings | **item 13** |
+| 65 | Magnetometer orientation in Maker Guide | docs backlog |
+| 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with **item 3**) |
+| 63 | USB error message persists after reboot | ✅ amplifier fixed in 4.2.0; residual → **item 14** |
+| 62 | Adjustable input time thresholds | **item 15** |
+| 61 | Audio cue for scroll/drag mode | **item 16** |
+| 59 | Reversed RJ11 interface cable wiring | **item 10** (cable hardening) |
+| 58 | Hard sip / hard puff inputs | **item 15** |
+| 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
+| 54 | Mechanical drift / center hysteresis | **item 17** |
+| 44 | Toggle cursor movement during sip/puff | **item 11** |
+| 43 | LED feedback keyed to input state, not action | **item 16** |
+| 37 | TLV493D library deprecated | **items 1–2** |
+| 36 | Menu stays open after serial-API calibration | **item 14** |
+| 33 | Debug mode documentation incomplete | docs backlog |
+| 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
+| 24 | Sled component print failure | mechanical |
+| 22 | Sip/puff threshold levels UX | **item 15** |
+| 21 | Ability to disable sip and puff | **item 11** |
+| 20 | Switches as independent inputs | **item 11** |
+| 19 | Unreliable STEMMA-Dupont connection | **item 10** |
+| 16 | Switch between multiple Bluetooth devices | research |
+| 15 | Hub slides around (feet/velcro) | mechanical |
+| 9 | Very long sips/puffs impossible for some users | **item 15** |
+
+### Closed issues — verified history
+
+The remaining 28 are closed; spot-checks against the release history hold
+up: #46 (deadzone output jump) and #34 (calibration confirm page + error
+checking) shipped in the 4.1.0 deadzone/calibration rework; #45 (scroll
+level) is the 4.1.0 hub-menu scroll setting; #23 (unintended auto-Bluetooth)
+was the 4.1.0 "no USB auto mode switch" fix; #40 is the LSTimer offset fix;
+#35 (menu access API) is the `CH,1:n` endpoint the app's Hub-menu remote
+uses; #41 is the both-hub-buttons-at-boot safe mode (note: 4.2.0 arms the
+watchdog in safe mode too, but bootloader-based uploads are unaffected —
+the WDT only starts at the end of app setup). #28's "detect joystick sensor
+connection issues + meaningful error on screen" is effectively completed by
+4.2.0's sensor-health gating and safe-mode pages. #13/#17/#18 (compiler
+warnings) predate the pinned core; the build compiles clean but with the
+core's warnings suppressed — a zero-warning pass with `-Wall` would be
+cheap hygiene if ever desired.
+
+## Roadmap items
+
+Items 1–8 are the follow-ups from the 4.2.0 work itself; items 9–17 come
+from the upstream scan. Ordered roughly by user-visible value within each
+origin.
+
+### Firmware & libraries (lipsync repo)
 
 ### 1. Vendor a bounded TLV493D library
 
@@ -30,16 +103,14 @@ watchdog catches it).
 `Build_Files/Firmware_Files/Libraries/`, bound the delay/waits (or make
 `updateData()` return an error instead of blocking), pin it in the CI and
 local builds via `--libraries`, and document the fork against the core
-version as the Wire README does. The bounds in `Wire_nRF52.cpp` already
-cap each underlying transaction; this item is about the library-level
-sequencing on top.
+version as the Wire README does.
 
 ### 2. Migrate to Infineon's XENSIV TLx493D library (upstream #37)
 
 The maintained replacement for the deprecated library above. If undertaken,
-it subsumes item 1: port `LSJoystick` to the XENSIV API and gain maintained
-upstream, then evaluate whether its read path is non-blocking by
-construction (if not, vendoring rules from item 1 still apply).
+it subsumes item 1: port `LSJoystick` to the XENSIV API and evaluate
+whether its read path is non-blocking by construction (if not, the
+vendoring rules from item 1 still apply).
 
 ### 3. Expose I2C bus health over the settings API
 
@@ -53,18 +124,18 @@ serial timing probes.
 count, per-device health, last recovery age) or extend the existing
 pressure DEBUG stream with a bus-health mode. Mirror it in LipSync
 Connect's Health check ("✗/✓ I2C bus"), which would have turned "screen is
-black, is it the USB?" into a one-line answer.
+black, is it the USB?" into a one-line answer. Pairs naturally with the
+#64 Maker Guide troubleshooting item (see docs backlog).
 
 ### 4. Restore `TwoWire::begin()`-style pin config after bus recovery
 
 `wireRecoverBus()` reconfigures the SDA/SCL pins as GPIO for the NXP
 9-clock bus-clear and re-attaches the TWIM, but leaves the SCL `PIN_CNF`
-as GPIO-output rather than restoring the `begin()` configuration
-(input, pull-up, open-drain). PSEL re-attachment gives the peripheral
-ownership so this is functionally benign today, but restoring the
-`begin()`-equivalent pin configuration after recovery is proper hygiene
-and removes a dependence on undocumented pin-mux precedence. Small,
-bounded change in the vendored Wire.
+as GPIO-output rather than restoring the `begin()` configuration (input,
+pull-up, open-drain). PSEL re-attachment gives the peripheral ownership so
+this is functionally benign today, but restoring the `begin()`-equivalent
+pin configuration after recovery is proper hygiene. Small, bounded change
+in the vendored Wire.
 
 ### 5. Explicit API forward declarations in the headers
 
@@ -86,22 +157,127 @@ the auto-prototype dependency entirely; until then, the working rule is:
 **no `static` locals in `.ino` functions — class members or plain locals
 only.**
 
-## App (LipSync_Connect)
+### 9. Implement cursor acceleration (upstream #86)
+
+**Problem.** Requested by multiple users: time- and/or deflection-based
+cursor acceleration to manage the precision-vs-large-movement tradeoff —
+host-side acceleration varies per device and affects other mice when
+tuned for the LipSync.
+
+**Fix.** The firmware already has the attachment points: the `AV,0`/`AV,1`
+API endpoints exist as stubs (`getJoystickAcceleration` /
+`setJoystickAcceleration` in `LSAPI.ino`, `initAcceleration()` commented
+out in setup with "TODO Implement acceleration"). Implement a
+deflection-or-time curve in the joystick output path, add a level setting
+(hub menu + serial API + app card), and validate the feel with users.
+
+### 12. Verify spontaneous mode changes are gone (upstream #74)
+
+**Problem.** Two users reported hubs switching to gamepad mode by
+themselves. Likely mechanism: phantom sip/puff actions from a flaky
+pressure sensor navigating the hub menu (long puff opens the menu, further
+phantoms move/select it).
+
+**Fix/verify.** 4.2.0's sensor-health gating already prevents phantom
+sip/puff from an unhealthy sensor (stale data can never fire actions), so
+this may already be fixed in the field — but it should be verified
+deliberately: reproduce with a flaky sensor against 4.2.0, and if it
+recurs, add input diagnostics (log the sap buffer around mode changes —
+item 3's telemetry makes this cheap). The item-11 restrictions feature
+also mitigates the user impact directly.
+
+### 14. Screen-state correctness after asynchronous flows (upstream #36, #63 residual)
+
+**Problem.** Two UX state bugs of the same shape — the screen showing
+something stale after an async flow: (a) after a serial-API-triggered full
+calibration the hub menu stays open and cannot time out or be navigated
+(#36); (b) after a USB reconnect the "No USB" error page lingers even
+though the device works normally (#63 — 4.2.0 already fixed the amplifier,
+the every-2-s full framebuffer redraw, but the page still isn't cleared on
+recovery).
+
+**Fix.** (a) App-triggered calibration should deactivate the menu when
+the calibration flow finishes (the 4.2.0 scheduled-transition machinery
+in `LSScreen` is the natural place). (b) The `usbCheckConnection` healthy
+branch should redraw the default screen once when the latch resets
+(`screen.resetUsbErrorPage()` already exists — add the redraw next to it).
+
+### 15. Input timing & accessibility cluster (upstream #9, #22, #58, #62)
+
+The biggest user-value cluster: input timing is hardcoded and rigid.
+
+- **Adjustable time thresholds** (#62): short/long/very-long input windows
+  live as constants in `LSConfig.h` — make them settings (serial API +
+  hub menu + app), e.g. a user wants drag mode at 500 ms instead of 1000 ms.
+- **Hard sip / hard puff** (#58): additional short, sharp inputs — separate
+  thresholds plus sap state-machine changes — giving users who cannot
+  sustain 3 s sips (#9) an alternative route to the menu and actions.
+- **Threshold levels UX** (#22): the hPa thresholds are adjustable in fine
+  increments today; a coarse level scale (e.g. 10 levels) would make the
+  hub-menu path practical.
+
+### 16. Feedback cues keyed to input state (upstream #43, #61)
+
+- **LED**: indicate input-state transitions (long → very long) rather
+  than the mapped output action, since actions are not one-to-one with
+  inputs (#43).
+- **Audio**: optional sounds when scroll mode / drag mode engage (#61) —
+  the 4.2.0 non-blocking buzzer note queue makes this a small, safe
+  addition.
+
+### 17. Mechanical drift investigation (upstream #54)
+
+One-directional drift after small mouthpiece deflections with large
+center-position hysteresis, not fixed by calibration or deadzone increases.
+Primarily a mechanical inspection (gimbal, bearings, magnet seating —
+see the issue's analysis), but firmware can mitigate: median-of-N center
+sampling and a hysteresis-aware center acceptance during center reset
+and full calibration. Needs a affected unit to iterate against.
+
+### App (LipSync_Connect)
 
 ### 6. Protocol v2 — send newline-terminated commands (deferred deliberately)
 
 Firmware 4.2.0+ frames newline-terminated messages instantly; legacy bare
-writes keep the 50 ms idle-gap frame. The app deliberately still sends
-bare writes so a single app build works against old LipSyncs in the field
-(stock 4.1 rejects trailing newlines on every comparison). When a "protocol
-v2" release is opportune: append `'\n'` in `sendRaw()` (one line,
+writes keep the 50 ms idle-gap frame. The app deliberately still sends bare
+writes so a single app build works against old LipSyncs in the field (stock
+4.1 rejects trailing newlines on every comparison). When a "protocol v2"
+release is opportune: append `'\n'` in `sendRaw()` (one line,
 `app/js/serial/commands.js`), update the README's "hand-tuned against v4.1"
 note, and exchanges drop from ~50 ms to ~2 ms (a full load lands under
-200 ms). Backward compatibility can be preserved by feature-detecting
-(negotiate once, or accept the mixed population during a transition
-window) — or shipped version-gated, as the DFU protocol already is.
+200 ms). Backward compatibility can be preserved by feature-detecting —
+or shipped version-gated, as the DFU protocol already is.
 
-## Hardware (hub redesign backlog)
+### 13. Settings snapshot export (upstream #67)
+
+**Problem.** Sharing a device's configuration for troubleshooting today
+means walking the Serial API endpoint by endpoint.
+
+**Fix.** The app already loads all 17 settings on connect — add an
+"Export settings" action (JSON or the app's share sheet) next to the
+existing log export. Far simpler than the issue's USB-keyboard-output
+idea, and it lands in the tool users already have open during support.
+Optionally pair with a serial `EXPORT`-style dump command for
+non-app contexts.
+
+### 11. Input & mode restriction settings (upstream #21, #44, #68, #77, #20)
+
+**Problem.** Several users need the same thing from different angles:
+guardrails against accidental input. Disabling sip-and-puff entirely (#21),
+locking menu access to hub buttons only (#77), locking the operating mode
+(#68 — accidental mode changes make the device "appear broken"), freezing
+the cursor during sip/puff (#44), and independently mappable external
+switches (#20).
+
+**Fix.** One coherent settings family, exposed in all three surfaces
+(hub menu, serial API, app cards): a "restrictions" block — sip/puff
+enable, menu-access mode (all inputs / buttons only), mode lock,
+cursor-during-sap toggle — plus a separate switch-mapping table for #20.
+Firmware-side these are gates on the input evaluation path (the 4.2.0
+health gating occupies the same seam), so one PR can carry the
+plumbing and each toggle can land incrementally.
+
+### Hardware (hub redesign / PCB backlog)
 
 ### 7. Polarized/keyed interface connector
 
@@ -111,6 +287,55 @@ the screen and confusing sensor detection (upstream #73 documents the
 class). A connector that cannot be reversed (keyed housing, different
 connector families per end, or a silkscreen + asymmetric key) eliminates
 the failure class at the source.
+
+### 10. Interconnect & ESD hardening (upstream #19, #59, #83 + extends item 7)
+
+The field data clusters around the physical link between hub and joystick:
+reversed RJ11/6P*C wiring shipped or assembled backwards (#59, #73), the
+STEMMA-Dupont junction failing and behaving intermittently (#19; #25's fix
+recommendation was to solder the wires directly to the RJ11 breakout), and
+a static shock bricking a hub outright (#83 — blank display, LEDs on,
+power cycling useless). Consolidate into one hardware hardening pass:
+soldered (not Dupont) sensor connections, the keyed connector from item 7,
+and ESD protection (TVS diodes) on the interface lines plus a grounding
+review for low-humidity environments.
+
+### Research (need a feasibility call before scheduling)
+
+- **ESP32 hub** (upstream #85): platform migration evaluation; would
+  revisit the Wire/Bluefruit assumptions 4.2.0 was built against.
+- **Multi-device Bluetooth switching** (upstream #16): Bluefruit HID is
+  single-connection; switching paired hosts from the hub needs a
+  connection-management design above stock BLE HID.
+
+## Documentation backlog (docs items — no firmware change)
+
+One pass over the guides closes eleven upstream issues; the highest-value
+entries first:
+
+- **#64** faulty-sensor troubleshooting using the debug modes — write it
+  against firmware 4.2.0's diagnostics (and item 3's health endpoint when
+  it lands): how to read the pressure/joystick debug streams, what
+  "sensor unhealthy" means, and what the safe-mode pages tell you. This
+  issue would have answered this entire flaky-bus saga for a maker.
+- **#79 + #56 + #78**: Maker Guide programming/troubleshooting — the
+  python→python3 platform.txt workaround, the space-in-path Seeed core
+  limitation, and the adafruit-nrfutil chmod fix (all three already have
+  known solutions documented only in issues).
+- **#71** sip/puff swapped → host left-handed-mode note; **#72** mouse
+  flipped → joystick orientation; **#65** magnetometer orientation —
+  three orientation troubleshooting notes.
+- **#82** correct the error-code table in the User Guide; **#33** fix the
+  debug-mode packet description (raw, filtered *and* output values).
+- **#76 + #87** mouthpiece cleaning/replacement and filter sourcing.
+- **#26** PCB labels for the RJ11 jack, microcontroller pads and I2C
+  header (next PCB rev, pairs with item 10); **#80** branch cleanup.
+
+## Mechanical / 3D-print backlog (no firmware change)
+
+**#84** screw clearance holes → 6.4–6.5 mm; **#70** middle-housing thread
+printing; **#69** mounting-part filename length; **#24** sled failure near
+the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
 
 ## Community / upstream
 
@@ -127,7 +352,7 @@ the failure class at the source.
 - **#63** (USB connection error message persists after computer reboot):
   the retry loop's full-framebuffer redraw per 2 s tick was the amplifier;
   4.2.0 draws the page at most once per episode and only on an answerable
-  bus.
+  bus (residual stale-page cleanup is item 14).
 - **#37** (TLV493D library deprecated): tracked as items 1–2 above.
 
 ## Deliberately not "fixed" (recorded so nobody "fixes" them by accident)
