@@ -32,6 +32,7 @@ export function getDeviceLoadTasks() {
     ['CM,0:0', (r) => ENDPOINT_RENDERERS.CM(r.value)],
     ['SS,0:0', (r) => ENDPOINT_RENDERERS.SS(r.value)],
     ['SL,0:0', (r) => ENDPOINT_RENDERERS.SL(r.value)],
+    ['AV,0:0', (r) => ENDPOINT_RENDERERS.AV(r.value)],
     ['ST,0:0', (r) => ENDPOINT_RENDERERS.ST(r.value)],
     ['PT,0:0', (r) => ENDPOINT_RENDERERS.PT(r.value)],
     ['IZ,0:0', (r) => ENDPOINT_RENDERERS.IZ(r.value)],

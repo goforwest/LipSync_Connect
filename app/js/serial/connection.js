@@ -2,9 +2,9 @@
 // reconnect/recovery. The device-services callbacks (settings load, health
 // clear) are injected via configureConnection() in main.js so this module
 // does not import service-layer code and the graph stays acyclic.
-import { BAUD } from '../config/constants.js';
+import { BAUD, FIRMWARE_STRANDED_STORAGE_KEY } from '../config/constants.js';
 import { serialSession, serialBus, readWatchdog, loadDoneTimerRef, portGeneration } from './session.js';
-import { resetReadTimer } from './commands.js';
+import { resetReadTimer, resetWireNewlineFraming } from './commands.js';
 import { requestSerialPort } from './transport.js';
 import { isBootloaderPort } from './dfu/dfu-serial.js';
 import { closePortBounded, closePortWithOutcome, openPortBounded, getPortCloseTimeoutMs } from '../utils/port-open.js';
@@ -76,6 +76,7 @@ export async function connect() {
   setConnectStage('requesting');
   try {
     serialSession.disconnecting = false;
+    resetWireNewlineFraming(); // unknown device → legacy bare writes until VN identifies it (commands.js)
     resetPlotState();
     serialSession.port = await requestSerialPort();
     hideGuide();
@@ -102,10 +103,18 @@ export async function connect() {
       // Keep the Firmware card openable and its Recover button reachable
       // while disconnected — when the app firmware is incomplete, recovery
       // is the only way out (reset and replug both land back in update mode).
+      // The sessionStorage mirror (FIRMWARE_STRANDED_STORAGE_KEY) keeps the
+      // marker alive across a page reload; it is cleared on the next
+      // successful settings load. Written inline (not via
+      // services/firmware-update.js) so the serial layer never imports back
+      // up the graph.
       const section = document.getElementById('sec-firmware');
       if (section) section.setAttribute('data-recover', 'true');
       const recoverBtn = document.getElementById('btnRecoverDevice');
       if (recoverBtn) recoverBtn.hidden = false;
+      try {
+        sessionStorage.setItem(FIRMWARE_STRANDED_STORAGE_KEY, '1');
+      } catch {}
       setConnectStageAutoHide('failed', 3000);
       setConnectedUI(false);
       showConnectionError(message, connect);

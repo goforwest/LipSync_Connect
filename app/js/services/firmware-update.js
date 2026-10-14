@@ -46,6 +46,7 @@ import {
   FIRMWARE_CHECK_STORAGE_KEY,
   FIRMWARE_CHECK_MIN_INTERVAL_MS,
   FIRMWARE_FETCH_TIMEOUT_MS,
+  FIRMWARE_STRANDED_STORAGE_KEY,
 } from '../config/constants.js';
 
 // ---- Version parsing / comparison (pure, exported for tests) ----
@@ -251,6 +252,9 @@ export function setBootloaderStranded() {
   if (section) section.setAttribute('data-recover', 'true');
   const btn = $('btnRecoverDevice');
   if (btn) btn.hidden = false;
+  try {
+    sessionStorage.setItem(FIRMWARE_STRANDED_STORAGE_KEY, '1');
+  } catch {}
 }
 
 export function clearBootloaderStranded() {
@@ -258,6 +262,23 @@ export function clearBootloaderStranded() {
   if (section) section.removeAttribute('data-recover');
   const btn = $('btnRecoverDevice');
   if (btn) btn.hidden = true;
+  try {
+    sessionStorage.removeItem(FIRMWARE_STRANDED_STORAGE_KEY);
+  } catch {}
+}
+
+/**
+ * Re-reveals Recover after a page reload: the DOM marker dies with the old
+ * page, but the sessionStorage mirror survives, so a user whose update was
+ * interrupted (and who reloaded — for the wedged-port remedy, a crash,
+ * anything) still has the one button that repairs the device within reach.
+ * The flag's lifetime ends at the next successful settings load, where
+ * afterDeviceLoad() clears it — a normally-booting device never shows it.
+ */
+export function restoreBootloaderStrandedFromStorage() {
+  try {
+    if (sessionStorage.getItem(FIRMWARE_STRANDED_STORAGE_KEY)) setBootloaderStranded();
+  } catch {}
 }
 
 /**
@@ -413,6 +434,7 @@ function renderCheckResult(entry, deviceVersion, message, state = 'ok') {
 const SNAPSHOT_KEYS = [
   ['SS', 'speedVal', 'Cursor speed level'],
   ['SL', 'scrollVal', 'Scroll level'],
+  ['AV', 'accelVal', 'Cursor acceleration'],
   ['ST', 'sipVal', 'Sip threshold'],
   ['PT', 'puffVal', 'Puff threshold'],
   ['IZ', 'innerDeadzoneVal', 'Inner deadzone'],
@@ -490,6 +512,23 @@ export function downloadSettingsBackup(snapshot) {
   log('Settings backup downloaded.', 'log-info');
 }
 
+// ---- Post-flash restore settle -------------------------------------------
+// Hardware (2026-10-11 validation round): the first one or two settings
+// writes over a freshly restored session can time out right after a flash
+// (observed: SS and SL "Timed out waiting for device response" immediately
+// after reconnect, succeeding only on the re-armed retry pass — one extra
+// reconnect of user cost). The just-flashed device appears to drop its
+// first CDC writes while its USB stack finishes coming up; settling after
+// the settings load completes, before the first restore write, makes the
+// common path land in one pass.
+export const RESTORE_SETTLE_MS = 1500;
+let restoreSettleMs = RESTORE_SETTLE_MS;
+
+/** Test seam: shrink (or zero) the post-flash settle so scenarios run fast. */
+export function setRestoreSettleForTests(ms) {
+  restoreSettleMs = ms;
+}
+
 /**
  * Re-applies a snapshot's writable settings over the serial API. Float
  * endpoints are normalized through fmtApiFloat so every write lands on a
@@ -497,7 +536,7 @@ export function downloadSettingsBackup(snapshot) {
  */
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
-  const order = ['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'];
+  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'];
   let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];
@@ -817,6 +856,70 @@ async function attemptSoftResetRestart(cancelled, signal) {
   log('Device is rebooting (soft reset) — waiting for it to come back before the update-mode signal.', 'log-info');
   // Closing a port whose device is departing/departed rejects fast — the
   // slow-close-then-wedge cycle never forms.
+  await disconnect({ quiet: true });
+  await sleep(srRebootSettleMs);
+  return cancelled?.() ? 'cancelled' : 'sent';
+}
+
+// ---- UM-first update-mode entry (firmware ≥ 4.3.0) ------------------------
+// Firmware 4.3.0 adds UM,1:1 — ack, draw the deliberate "Update mode"
+// splash, reset into the stock bootloader — so the Hub's screen tells the
+// truth during a flash instead of freezing on "Restarting" (the stock
+// bootloader never drives the OLED; firmware-update improvements item 1).
+// Sending it over the LIVE session mirrors the proven SR,1:1 flow (the same
+// abort-aware command path, the same fast close of a departing port) and
+// replaces the whole SR + 1200-baud touch choreography in one exchange.
+// Any failure — older firmware answers FAIL, the link died, a cancel —
+// falls back to the established SR-first + touch path below.
+export const UM_FIRMWARE_MIN_VERSION = '4.3.0';
+
+/**
+ * Sends UM,1:1 over the live session. Returns 'sent' (device acked and is
+ * resetting into its update loader; session torn down; settle elapsed) |
+ * 'unavailable' (UM could not be delivered — the session is untouched and
+ * the caller falls back to the SR + touch choreography) | 'cancelled'.
+ * The wizard's AbortSignal rides the command exactly as it does for SR: a
+ * cancel before the write stops the bytes; one after (the device acks in
+ * milliseconds) is honored via the honest teardown ('sent').
+ * @param {() => boolean} [cancelled]
+ * @param {AbortSignal} [signal]
+ */
+async function attemptUpdateModeRestart(cancelled, signal) {
+  if (cancelled?.()) return 'cancelled';
+  if (!serialSession.port || !serialSession.writer) return 'unavailable';
+  // The reboot's departure must not trip the read loop's recovery chatter.
+  serialSession.disconnecting = true;
+  let sent = false;
+  try {
+    await sendCommand('UM,1:1', CMD_RESET_TIMEOUT, undefined, { signal });
+    sent = true;
+    if (wizard) wizard.umWritten = true;
+  } catch (e) {
+    if (e?.name === 'AbortError' && e.commandWritten) {
+      // The cancel raced the command's write and lost: the device has the
+      // update-mode signal and will ack + enter its loader on its own.
+      sent = true;
+      log(
+        'The update-mode signal was already sent when the update was cancelled — the LipSync enters update mode on its own.',
+        'log-info',
+      );
+    } else {
+      log(
+        'Could not enter update mode over the session (' + e.message + ') — using the standard restart instead.',
+        'log-info',
+      );
+    }
+  }
+  if (!sent) {
+    // The session is still alive and healthy — restore normal watchdog
+    // behavior; the standard restart path will disconnect it.
+    serialSession.disconnecting = false;
+    return 'unavailable';
+  }
+  log('Device is entering update mode — waiting for its update loader to appear.', 'log-info');
+  // Closing a port whose device is departing rejects fast — the same
+  // wedge-free property the SR flow relies on. The settle spans the ack, the
+  // update-mode splash and the bootloader's enumeration.
   await disconnect({ quiet: true });
   await sleep(srRebootSettleMs);
   return cancelled?.() ? 'cancelled' : 'sent';
@@ -1176,10 +1279,6 @@ async function runFlashWizard({ pkg, targetVersion }) {
     // settle, 'restart' is the honest key (the device may or may not have
     // gotten the signal), not the stale 'snapshot' default.
     wizard.stage = 'restart';
-    setWizardStep('Restarting the LipSync into update mode…', {
-      showCancel: true,
-      hint: 'This usually takes a few seconds — the wizard retries automatically if the first try does not take.',
-    });
     const appPort = serialSession.port;
     if (!appPort) {
       throw new Error('The connection was lost before the update could start. Reconnect and retry.');
@@ -1188,50 +1287,77 @@ async function runFlashWizard({ pkg, targetVersion }) {
     let stalled = false;
     let unplugged = false;
     let wedged = false;
-    // SR-first: reboot over the live session (wedge-free re-enumeration),
-    // then touch the fresh enumeration — no wake pulse needed, the device
-    // just booted. On failure ('unavailable') fall back to the standard
-    // close-then-touch choreography below. The wizard's abort signal rides
-    // along: a cancel during the command's handshake stops the SR bytes
-    // from ever being written instead of rebooting a cancelled update.
-    const softReset = await attemptSoftResetRestart(cancelled, wizard.abort.signal);
-    if (cancelled()) return;
-    if (softReset !== 'sent') {
-      await disconnect({ quiet: true });
+    let umSent = false;
+    // UM-first (firmware ≥ 4.3.0): one ack'd exchange over the live session
+    // replaces the SR reboot + 1200-baud touch, and the Hub's screen shows
+    // the deliberate "Update mode" splash instead of freezing on
+    // "Restarting". Older firmware (or any delivery failure) takes the
+    // established SR-first + touch choreography below unchanged.
+    const deviceVersion = ($('version')?.textContent || '').trim();
+    const versionVsUm = compareVersions(deviceVersion, UM_FIRMWARE_MIN_VERSION);
+    if (versionVsUm !== null && versionVsUm >= 0) {
+      setWizardStep('Switching the LipSync to update mode…', {
+        showCancel: true,
+        hint: 'The Hub will show an “Update mode” screen while it waits for the flash.',
+      });
+      const updateMode = await attemptUpdateModeRestart(cancelled, wizard.abort.signal);
       if (cancelled()) return;
-      // Ground truth (observed on hardware): a rapid close/open cycle is the
-      // main cause of a macOS port refusing to open — and the session close
-      // above JUST completed. Give the OS a beat first.
-      await sleep(touchSettleAfterDisconnectMs);
+      umSent = updateMode === 'sent';
+    }
+    if (!umSent) {
+      setWizardStep('Restarting the LipSync into update mode…', {
+        showCancel: true,
+        hint: 'This usually takes a few seconds — the wizard retries automatically if the first try does not take.',
+      });
+      // SR-first: reboot over the live session (wedge-free re-enumeration),
+      // then touch the fresh enumeration — no wake pulse needed, the device
+      // just booted. On failure ('unavailable') fall back to the standard
+      // close-then-touch choreography below. The wizard's abort signal rides
+      // along: a cancel during the command's handshake stops the SR bytes
+      // from ever being written instead of rebooting a cancelled update.
+      const softReset = await attemptSoftResetRestart(cancelled, wizard.abort.signal);
+      if (cancelled()) return;
+      if (softReset !== 'sent') {
+        await disconnect({ quiet: true });
+        if (cancelled()) return;
+        // Ground truth (observed on hardware): a rapid close/open cycle is the
+        // main cause of a macOS port refusing to open — and the session close
+        // above JUST completed. Give the OS a beat first.
+        await sleep(touchSettleAfterDisconnectMs);
+        if (cancelled()) return;
+      }
+      lockSessionButtons(true);
+      wizard.stage = 'enter-bootloader';
+      try {
+        ({ touched, stalled, unplugged, wedged } = await tryTouchDevice(appPort, cancelled, {
+          skipWake: softReset === 'sent',
+          // Visible liveness on retries (hint region only — the step text is a
+          // live region and must not re-announce every attempt).
+          onAttempt: (n) => setWizardHint(`Still restarting — automatic retry ${n} of ${TOUCH_MAX_ATTEMPTS}…`),
+        }));
+      } catch (e) {
+        log('Could not restart the device automatically: ' + e.message, 'log-err');
+      }
       if (cancelled()) return;
     }
-    lockSessionButtons(true);
-    wizard.stage = 'enter-bootloader';
-    try {
-      ({ touched, stalled, unplugged, wedged } = await tryTouchDevice(appPort, cancelled, {
-        skipWake: softReset === 'sent',
-        // Visible liveness on retries (hint region only — the step text is a
-        // live region and must not re-announce every attempt).
-        onAttempt: (n) => setWizardHint(`Still restarting — automatic retry ${n} of ${TOUCH_MAX_ATTEMPTS}…`),
-      }));
-    } catch (e) {
-      log('Could not restart the device automatically: ' + e.message, 'log-err');
-    }
-    if (cancelled()) return;
     wizard.stage = 'await-bootloader-port';
     setWizardStatus('Firmware update — choose the update port');
     setWizardStep(
-      touched
-        ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
-        : stalled
-          ? 'The serial port stopped responding. Unplug the LipSync, plug it back in, wait a few seconds — then click Continue and pick the update loader.'
-          : wedged
-            ? 'The serial port wedged while restarting (a macOS quirk after a settings session). Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue and pick the update loader. (Unplugging and replugging, or reloading the page, also clears it.)'
-            : unplugged
-              ? 'The LipSync is not responding — check that it is plugged in securely (try another USB cable or port), then click Continue.'
-              : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
+      umSent
+        ? 'The LipSync is in update mode. Click Continue, then pick it in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
+        : touched
+          ? 'Select the update port: click Continue, then pick the LipSync in the browser dialog — it may be named “XIAO nRF52840” or “XIAO nRF52840 Sense”.'
+          : stalled
+            ? 'The serial port stopped responding. Unplug the LipSync, plug it back in, wait a few seconds — then click Continue and pick the update loader.'
+            : wedged
+              ? 'The serial port wedged while restarting (a macOS quirk after a settings session). Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue and pick the update loader. (Unplugging and replugging, or reloading the page, also clears it.)'
+              : unplugged
+                ? 'The LipSync is not responding — check that it is plugged in securely (try another USB cable or port), then click Continue.'
+                : 'The automatic restart did not take. Press the small reset button on the Hub twice, slowly — the device enters update mode by itself — then click Continue.',
       {
-        hint: 'In update mode the Hub\u2019s screen goes dark or stays frozen on its last message (you may still see \u201cRestarting\u201d) — the screen is not live, and that is normal. Its lights go quiet too. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
+        hint: umSent
+          ? 'In update mode the Hub\u2019s screen shows an \u201cUpdate mode — use the LipSync Connect app\u201d message; its lights go quiet. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).'
+          : 'In update mode the Hub\u2019s screen goes dark or stays frozen on its last message (you may still see \u201cRestarting\u201d) — the screen is not live, and that is normal. Its lights go quiet too. If the device does not appear in the dialog, unplug it, plug it back in, and press reset twice (slowly).',
         showContinue: true,
         showCancel: true,
         showBackup: true,
@@ -1589,6 +1715,7 @@ async function cancelWizard(message) {
   const stopWindowHedge = wizard?.stopWindowHedge === true;
   const recovery = !!wizard?.recovery;
   const srWritten = wizard?.srWritten === true;
+  const umWritten = wizard?.umWritten === true;
   const cancelTarget = wizard?.target;
   const cancelSnapshot = wizard?.snapshot;
   // An interrupted flash past START strands the device in its update loader,
@@ -1688,16 +1815,20 @@ async function cancelWizard(message) {
               ? 'Update dismissed. The update may or may not have completed — reconnect the LipSync to find out: if it starts normally the update finished; if it stays in update mode, use Recover to repair it.'
               : 'Restore cancelled. The firmware update itself finished — re-enter any missing settings from your backup file if needed.'
             : stage === 'restart'
-              ? srWritten
-                ? // The SR ack was received before the cancel: the reboot is
-                  // happening regardless of anyone waiting for it.
-                  'Update cancelled. The restart signal was already sent — the LipSync restarts on its own. Wait a few seconds, then reconnect as usual.'
-                : // The cancel may have landed anywhere inside the SR command —
-                  // including between its write and its milliseconds-fast ack,
-                  // where the device reboots anyway. Promise nothing.
-                  'Update cancelled. The LipSync may still restart on its own if the restart signal had already been sent — wait a few seconds before reconnecting.'
+              ? umWritten
+                ? // The UM ack was received before the cancel: the device is
+                  // entering its update loader regardless of anyone waiting.
+                  'Update cancelled. The update-mode signal was already sent — the LipSync is entering its update loader. Unplug and replug it (or press its reset button once) to start it normally, then reconnect.'
+                : srWritten
+                  ? // The SR ack was received before the cancel: the reboot is
+                    // happening regardless of anyone waiting for it.
+                    'Update cancelled. The restart signal was already sent — the LipSync restarts on its own. Wait a few seconds, then reconnect as usual.'
+                  : // The cancel may have landed anywhere inside the SR command —
+                    // including between its write and its milliseconds-fast ack,
+                    // where the device reboots anyway. Promise nothing.
+                    'Update cancelled. The LipSync may still restart on its own if the restart signal had already been sent — wait a few seconds before reconnecting.'
               : (stage === 'enter-bootloader' || stage === 'await-bootloader-port' || stage === 'picking') &&
-                  touchLanded
+                  (touchLanded || umWritten)
                 ? // "was", not "is": the touch landed at restart time, but the user
                   // may have replugged since (the picker hint tells them to when
                   // the device does not appear) — the claim must survive that.
@@ -1980,6 +2111,9 @@ async function finishPendingUpdate(pending) {
   lockSessionButtons(true);
   let failures = [];
   try {
+    // The observed post-flash drop window: give the freshly flashed device a
+    // beat before its first settings write (see RESTORE_SETTLE_MS above).
+    if (restoreSettleMs > 0) await sleep(restoreSettleMs);
     failures = await restoreSettingsSnapshot(pending.snapshot);
   } finally {
     lockSessionButtons(false);
@@ -2104,6 +2238,9 @@ export function resetFirmwareUpdateUi() {
 
 /** Button wiring from main.js (composition root). */
 export function bindFirmwareUpdate(guard) {
+  // A reload must not strand the stranded: restore the Recover marker from
+  // its sessionStorage mirror before anything else can hide the card.
+  restoreBootloaderStrandedFromStorage();
   const check = $('btnCheckUpdate');
   if (check)
     check.addEventListener(

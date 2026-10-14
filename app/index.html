@@ -238,7 +238,8 @@
         </div>
         <p class="hint" id="modeGuardHint" role="status"></p>
         <div class="row">
-          <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button>
+          <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button
+          ><button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
         </div>
         <div class="row" id="loadProgressRow" hidden>
           <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
@@ -301,6 +302,36 @@
             +
           </button>
           <span class="meter" id="scrollMeter" aria-hidden="true"></span>
+        </div>
+        <div class="row">
+          <label>Cursor acceleration</label>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="accel"
+            aria-label="Decrease cursor acceleration"
+            disabled
+          >
+            &minus;
+          </button>
+          <span class="value" id="accelVal">&mdash;</span>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="accel"
+            aria-label="Increase cursor acceleration"
+            disabled
+          >
+            +
+          </button>
+          <span
+            class="hint row-hint"
+            title="Reshapes the deflection-to-speed curve. 0 is linear; positive values move faster at gentle deflections; negative values trade speed for precision. Full deflection always keeps full speed."
+          >
+            &minus;10 to 10, 0 = off
+          </span>
         </div>
       </section>
 
@@ -550,6 +581,7 @@
             <div class="health-cell" id="hcJoystick" role="listitem" data-label="Joystick response"></div>
             <div class="health-cell" id="hcNeutral" role="listitem" data-label="Neutral position"></div>
             <div class="health-cell" id="hcCalibration" role="listitem" data-label="Stored calibration"></div>
+            <div class="health-cell" id="hcBus" role="listitem" data-label="I2C bus"></div>
           </div>
         </div>
         <div class="diag-group">

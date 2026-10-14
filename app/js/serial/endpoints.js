@@ -9,13 +9,20 @@ import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
 import { plotRing, plotNeutral } from '../plotting/plot.js';
 import { modeState } from '../state/modes.js';
 import { updateModeDisplay, updateBtName, applyModelFeatures } from '../services/mode-switch.js';
+import { noteDeviceVersion } from './commands.js';
 
 export const ENDPOINT_RENDERERS = {
   MN: (v) => {
     setValue('model', MODELS[v] ? MODELS[v] + ' (' + v + ')' : v);
     applyModelFeatures(v);
   },
-  VN: (v) => setValue('version', v),
+  VN: (v) => {
+    setValue('version', v);
+    // The version decides the wire-protocol generation (commands.js): 4.2.0+
+    // answers newline-terminated messages instantly, older firmware rejects
+    // the trailing newline — so the flag flips only once VN has landed.
+    noteDeviceVersion(v);
+  },
   ID: (v) => {
     setValue('deviceId', v);
     updateBtName();
@@ -36,6 +43,7 @@ export const ENDPOINT_RENDERERS = {
     setValue('scrollVal', v);
     updateMeter('scrollMeter', v);
   },
+  AV: (v) => setValue('accelVal', v),
   ST: (v) => {
     setValue('sipVal', v);
     if (document.activeElement !== $('sipInput')) $('sipInput').value = v;

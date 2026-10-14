@@ -6,7 +6,7 @@ Part of the OpenAT Joystick Project by [Makers Making Change](https://www.makers
 
 ## Requirements
 
-- A LipSync device running firmware v4.1 (the app's protocol is hand-tuned against it)
+- A LipSync device running firmware v4.1 or newer (the wire protocol is hand-tuned against v4.1; on firmware 4.2.0+ the app switches to newline-terminated commands once the device's version is known, which cuts a full settings load from ~2 s to well under a second)
 - A desktop browser with **Web Serial**: Chrome / Edge / Opera (macOS, Windows, Linux)
 - On Android, Chrome with a USB-C / OTG cable uses the built-in **WebUSB** fallback
 - **Not supported:** iOS, Firefox, Safari — the browser must be served over a secure context (HTTPS or `localhost`)
@@ -23,7 +23,7 @@ npm run dev:local        # HTTP + live reload for app/ edits
 
 `HOST`/`PORT` env vars override the bind address and port. Opening `https://localhost:4443` once and accepting the self-signed cert lets the browser treat the page as a secure context, which Web Serial requires.
 
-Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~17 settings to load (~2 s on firmware 4.2.0+; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
+Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~18 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
 
 ## Quality checks
 

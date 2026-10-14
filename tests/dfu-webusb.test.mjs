@@ -294,3 +294,100 @@ test('WebUSB: shim opens serialize per device and a stalled open cannot race a n
   assert.ok(events.includes('release:1'), 'a current close releases its claims');
   assert.ok(events.includes('device-close'), 'a current close closes the device');
 });
+
+// ---- One-shot probe retry (update-doc item 5) ---------------------------
+// A freshly entered bootloader sometimes misses the very first probe (the
+// bytes were written, the CDC interface just was not answering yet). The
+// silent ACK-timeout shape gets exactly one extra round; a stale loader
+// (wrong-number re-ACKs) must NOT be retried — only a replug re-syncs it.
+
+import { setProbeRetrySettleForTests } from '../app/js/serial/dfu/dfu-serial.js';
+import { slipDecode } from '../app/js/serial/dfu/dfu-protocol.js';
+
+function opOfFrame(bytes) {
+  const decoded = slipDecode(bytes.slice(1, -1));
+  const body = decoded.slice(0, -2);
+  const payload = body.slice(4);
+  return payload[0] | (payload[1] << 8) | (payload[2] << 16) | (payload[3] << 24);
+}
+
+test('probe retry: a silent first round gets one re-send and the flash proceeds', async () => {
+  setProbeRetrySettleForTests(10);
+  const sim = createBootloaderSim();
+  const realWriter = sim.port.writable.getWriter();
+  let probeWrites = 0;
+  const silentThenAlive = {
+    getInfo: sim.port.getInfo,
+    async open(o) {
+      return sim.port.open(o);
+    },
+    async close() {
+      return sim.port.close();
+    },
+    async setSignals() {},
+    readable: sim.port.readable,
+    writable: {
+      getWriter: () => ({
+        async write(bytes) {
+          if (opOfFrame(new Uint8Array(bytes)) === 2) {
+            probeWrites++;
+            if (probeWrites <= 3) return; // the whole first send() round goes unanswered
+          }
+          return realWriter.write(bytes);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+
+  const bin = new Uint8Array(700).fill(0x5a);
+  await flashSerialDfu({
+    port: silentThenAlive,
+    bin,
+    dat: new Uint8Array(14).fill(0x11),
+    ackTimeoutMs: 60,
+  });
+  assert.equal(probeWrites, 4, 'three silent probes, then the retry round answered');
+  assert.equal(sim.state.activated, true, 'the flash completed after the retry');
+  assert.deepEqual(
+    sim.state.ops.map((o) => o.name).filter((n) => n !== 'DATA'),
+    ['PROBE', 'START', 'INIT', 'STOP'],
+  );
+});
+
+test('probe retry: a stale loader session is never re-probed', async () => {
+  setProbeRetrySettleForTests(10);
+  // A live loader that re-ACKs wrong numbers: every frame is answered, but
+  // the sequence never advances (staleAckOnce models the first mismatch;
+  // forcing expectedSeq to a mismatched value models the persistent case).
+  const sim = createBootloaderSim({ ackDelayMs: 1 });
+  sim.state.expectedSeq = 3; // a session mid-flight: every probe (seq 1) is wrong
+  let probeWrites = 0;
+  const stalePort = {
+    getInfo: sim.port.getInfo,
+    async open(o) {
+      return sim.port.open(o);
+    },
+    async close() {
+      return sim.port.close();
+    },
+    async setSignals() {},
+    readable: sim.port.readable,
+    writable: {
+      getWriter: () => ({
+        async write(bytes) {
+          if (opOfFrame(new Uint8Array(bytes)) === 2) probeWrites++;
+          return sim.port.writable.getWriter().write(bytes);
+        },
+        releaseLock() {},
+      }),
+    },
+  };
+
+  const bin = new Uint8Array(700).fill(0x5a);
+  await assert.rejects(
+    flashSerialDfu({ port: stalePort, bin, dat: new Uint8Array(14).fill(0x11), ackTimeoutMs: 60 }),
+    /still holding the interrupted attempt/,
+  );
+  assert.equal(probeWrites, 3, 'one round only — a stale loader is classified immediately, never re-probed');
+});

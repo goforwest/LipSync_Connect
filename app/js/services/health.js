@@ -1,6 +1,7 @@
-// Four-step device health diagnostic: pressure sensors, joystick response,
-// neutral position, stored calibration. Stale results are cleared on
-// disconnect and at the start of each settings load.
+// Four-step device health diagnostic — five on firmware 4.3.0+, whose BH
+// endpoint adds the I2C bus telemetry: pressure sensors, joystick response,
+// neutral position, stored calibration, and bus health. Stale results are
+// cleared on disconnect and at the start of each settings load.
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { setCmdButtons } from '../ui/connection-ui.js';
@@ -9,12 +10,26 @@ import { log } from './log.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 
+// The firmware that introduced the BH bus-health endpoint. Older firmware
+// answers it with FAIL, so the step is reported as unavailable instead of
+// failing an otherwise-healthy device.
+const BUS_HEALTH_MIN_FIRMWARE = [4, 3, 0];
+
 const HEALTH_STEPS = [
   { id: 'hcPressure', label: 'Pressure sensors' },
   { id: 'hcJoystick', label: 'Joystick response' },
   { id: 'hcNeutral', label: 'Neutral position' },
   { id: 'hcCalibration', label: 'Stored calibration' },
+  { id: 'hcBus', label: 'I2C bus' },
 ];
+
+/** True when the connected firmware is at least [major, minor, rev]. @param {number[]} version */
+function firmwareAtLeast(version) {
+  const [major, minor, rev] = version;
+  const m = (($('version')?.textContent || '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/) || []).map(Number);
+  if (m.length < 4) return false;
+  return m[1] > major || (m[1] === major && (m[2] > minor || (m[2] === minor && m[3] >= rev)));
+}
 let healthStepState = {}; // id -> 'running' | 'ok' | 'warn' | 'err'
 
 function setHealthStep(id, state, detail) {
@@ -122,11 +137,52 @@ export async function runDiagnostics() {
     } else {
       setHealthStep('hcCalibration', 'ok');
     }
+    // I2C bus health (firmware 4.3.0+, roadmap item 3): the telemetry that
+    // would have diagnosed the whole flaky-bus saga in minutes — recovery
+    // count, per-device health gates, last-recovery age — behind one
+    // read-only endpoint. Older firmware reports the step as unavailable
+    // instead of failing.
+    if (!firmwareAtLeast(BUS_HEALTH_MIN_FIRMWARE)) {
+      setHealthStep('hcBus', 'idle', 'I2C bus (needs firmware 4.3.0+)');
+    } else {
+      setHealthStep('hcBus', 'running', 'Checking the I2C bus…');
+      setHealthStatus('Stored calibration validated. Checking the I2C bus…');
+      const bus = await sendCommand('BH,0:0');
+      const bh = (bus.value || '').split(',').map(Number);
+      if (!validFiniteList(bus.value, 6)) {
+        findings.push('The I2C bus health reading was incomplete.');
+        setHealthStep('hcBus', 'err');
+      } else {
+        const [recoveries, busHealthy, display, pressure, joystick, ageSec] = bh;
+        const busFindings = [];
+        if (recoveries > 0)
+          busFindings.push(
+            `the shared I2C bus wedged ${recoveries} time${recoveries === 1 ? '' : 's'} since power-on` +
+              (ageSec >= 0 ? ` (last was ${ageSec}s ago)` : ''),
+          );
+        if (!busHealthy) busFindings.push('the bus is being held right now');
+        if (display === 2) busFindings.push('the display stopped answering and is being re-probed');
+        else if (!display) busFindings.push('the display was not detected');
+        if (pressure === 2) busFindings.push('the pressure sensors were marked unhealthy (sip/puff paused)');
+        else if (!pressure) busFindings.push('the pressure sensors were not detected');
+        if (joystick === 2) busFindings.push('the joystick poll backed off because the bus is slow');
+        else if (!joystick) busFindings.push('the joystick sensor was not detected');
+        if (busFindings.length) {
+          findings.push('I2C bus: ' + busFindings.join('; ') + '.');
+          setHealthStep('hcBus', 'warn');
+        } else {
+          setHealthStep('hcBus', 'ok');
+        }
+      }
+    }
     $('healthSummary').textContent = findings.length ? 'Needs attention' : 'Passed';
     // On a clean pass, show a short confirmation and fade it out gently — the
-    // header summary ("Passed") plus the four ✓ cells carry the lasting state,
+    // header summary ("Passed") plus the ✓ cells carry the lasting state,
     // and an empty notice collapses to zero padding/border.
-    healthEl.textContent = findings.length ? 'Attention needed: ' + findings.join(' ') : 'All four checks passed ✓';
+    const okCount = HEALTH_STEPS.filter((s) => healthStepState[s.id] === 'ok').length;
+    healthEl.textContent = findings.length
+      ? 'Attention needed: ' + findings.join(' ')
+      : `All ${okCount} checks passed ✓`;
     if (!findings.length) {
       detailsFadeTimer = setTimeout(() => {
         detailsFadeTimer = 0;

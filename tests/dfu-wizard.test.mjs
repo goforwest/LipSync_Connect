@@ -146,6 +146,10 @@ fw.setTouchSettleAfterDisconnectForTests(30);
 // acked in ~2 ms; its failure path would otherwise wait the full 15 s).
 fw.setSrRebootSettleForTests(20);
 fw.setSrResetTimeoutForTests(400);
+// The post-flash restore settle (1.5 s) is a hardware CDC-drop workaround;
+// the simulated device answers instantly — shrink it so restore scenarios
+// stay fast. The settle itself is pinned in firmware-update.test.mjs.
+fw.setRestoreSettleForTests(0);
 const { configureDfuPortSource } = await import('../app/js/serial/dfu/dfu-serial.js');
 
 // Node lacks requestAnimationFrame (the settings-backup download uses it) and
@@ -195,6 +199,7 @@ function setLoadedValues(v = {}) {
     version: '4.1.0',
     speedVal: '5',
     scrollVal: '5',
+    accelVal: '0',
     sipVal: '3.00',
     puffVal: '3.00',
     innerDeadzoneVal: '0.07',
@@ -400,6 +405,7 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   assert.deepEqual(writes, [
     'SS,1:5',
     'SL,1:5',
+    'AV,1:0',
     'ST,1:3.00',
     'PT,1:3.00',
     'IZ,1:0.07',
@@ -1535,7 +1541,7 @@ test('wizard: a disconnect during settings restore retries on the next connect',
   assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
   assert.deepEqual(
     sentFinal.filter((t) => /,1:/.test(t)),
-    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    ['SS,1:5', 'SL,1:5', 'AV,1:0', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
     'the full restore runs on the retry',
   );
   await app.disconnect({ quiet: true });
@@ -3223,7 +3229,7 @@ test('restore: writes that fail on a silent device are retried on the next conne
   assert.deepEqual(
     sentSecond.filter((t) => /,1:/.test(t)),
     ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
-    'every setting is re-written on the retry',
+    'every setting in the snapshot is re-written on the retry',
   );
   await app.disconnect({ quiet: true });
   testHooks.detach();
@@ -3995,7 +4001,7 @@ test('wizard: a cancel inside the final STOP window preserves the maybe-finished
   assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
   assert.deepEqual(
     sentVerify.filter((t) => /,1:/.test(t)),
-    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    ['SS,1:5', 'SL,1:5', 'AV,1:0', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
     'the reconnect verified the completed update and restored the settings',
   );
   assert.equal(fw.readPending(), null, 'the pending entry completes and clears');
@@ -4877,4 +4883,292 @@ test('wizard: the session buttons stay locked through a dismissed picker', async
   assert.equal(byId('fwWizard').hidden, true);
   assert.equal(byId('btnConnect').disabled, false, 'the cancel hands the buttons back to the session state');
   await app.disconnect({ quiet: true });
+});
+
+// ---- Stranded-marker persistence across page reloads (update-doc item 3) ----
+
+test('stranded marker: the sessionStorage mirror survives a reload and restores Recover', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  // The connect guard marked the device stranded; the user then reloaded the
+  // page (the wedged-port remedy names a reload), so the DOM marker died.
+  fw.setBootloaderStranded();
+  assert.equal(sessionStorage.getItem('lipsync-fw-stranded'), '1', 'the marker is mirrored to sessionStorage');
+  byId('btnRecoverDevice').hidden = true;
+  byId('sec-firmware').removeAttribute('data-recover');
+
+  // The "reload": restoreBootloaderStrandedFromStorage is what
+  // bindFirmwareUpdate runs at startup — Recover must come back without a
+  // Connect (and a bootloader-port pick) first.
+  fw.restoreBootloaderStrandedFromStorage();
+  assert.equal(byId('btnRecoverDevice').hidden, false, 'Recover is reachable immediately after the reload');
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
+
+  // A successful settings load is the marker's honest end of life.
+  const writer = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      if (text === 'SETTINGS') setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writer);
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = { simulated: true };
+  setLoadedValues({ version: '4.2.0' });
+  await fw.afterDeviceLoad();
+  await flush();
+  assert.equal(sessionStorage.getItem('lipsync-fw-stranded'), null, 'the mirror clears with the marker on success');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('stranded marker: no storage entry means no phantom Recover after a clean reload', () => {
+  sessionStorage.removeItem('lipsync-fw-stranded');
+  fw.restoreBootloaderStrandedFromStorage();
+  assert.equal(byId('btnRecoverDevice').hidden, true, 'a clean session never reveals Recover');
+  assert.equal(byId('sec-firmware').getAttribute('data-recover'), null);
+});
+
+// ---- UM-first update-mode entry (firmware ≥ 4.3.0, update-doc item 1) ----
+
+test('wizard: firmware 4.3.0+ enters update mode over the session (UM) — no 1200-baud touch', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  const sha = await sha256Hex(
+    FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  );
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.3.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.3.0_dfu.zip', size: FW_ZIP_BYTES.length, sha256: sha } },
+        },
+        tagName: 'V4.3.0',
+        releaseUrl: 'https://github.com/x',
+        checkedAt: Date.now(),
+        repo: { owner: 'goforwest', name: 'LipSync' },
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  // The app session port: the touch machinery must NEVER run — every open is
+  // recorded and asserted empty below.
+  const touchEvents = [];
+  const appPort = {
+    async open(opts) {
+      touchEvents.push('open:' + (opts?.baudRate ?? '?'));
+    },
+    async close() {
+      touchEvents.push('close');
+    },
+    async setSignals() {
+      touchEvents.push('signals');
+    },
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+
+  const sent = [];
+  const writer = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sent.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      if (text === 'UM,1:1') {
+        setTimeout(() => app.handleLine('SUCCESS,0:UM,1:1'), 2);
+        return;
+      }
+      const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+      if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+    },
+  };
+  testHooks.attach({ simulated: true }, writer);
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues({ version: '4.3.0' });
+
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone; // UM ack + settle → stops at the port picker
+
+  assert.ok(sent.includes('UM,1:1'), 'the update-mode command went out over the session');
+  assert.deepEqual(touchEvents, ['close'], 'no wake pulse, no 1200-baud touch, no verify probes');
+  assert.match(byId('fwWizardStep').textContent, /in update mode/, 'the picker step describes update mode');
+  assert.match(
+    byId('fwWizardHint').textContent,
+    /Update mode/,
+    'the hint names the deliberate splash firmware 4.3.0+ draws',
+  );
+  assert.equal(byId('btnFwContinue').hidden, false, 'waiting for the user to pick the bootloader port');
+
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('wizard: a firmware that rejects UM falls back to the standard SR + touch restart', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  const sha = await sha256Hex(
+    FW_ZIP_BYTES.buffer.slice(FW_ZIP_BYTES.byteOffset, FW_ZIP_BYTES.byteOffset + FW_ZIP_BYTES.length),
+  );
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: {
+          firmwareVersion: '4.3.0',
+          files: { dfu: { fileName: 'LipSync_Firmware_4.3.0_dfu.zip', size: FW_ZIP_BYTES.length, sha256: sha } },
+        },
+        tagName: 'V4.3.0',
+        releaseUrl: 'https://github.com/x',
+        checkedAt: Date.now(),
+        repo: { owner: 'goforwest', name: 'LipSync' },
+      }),
+    );
+  } catch {}
+  globalThis.fetch = async (url) =>
+    String(url).includes('/git/trees/')
+      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }) }
+      : {
+          ok: true,
+          status: 200,
+          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+        };
+
+  const touchEvents = [];
+  let openCount = 0;
+  const appPort = {
+    async open(opts) {
+      openCount++;
+      if (openCount > 2) {
+        const e = new Error('device no longer available');
+        e.name = 'NotFoundError';
+        throw e;
+      }
+      touchEvents.push('open:' + (opts?.baudRate ?? '?'));
+    },
+    async close() {
+      touchEvents.push('close');
+    },
+    async setSignals() {
+      touchEvents.push('signals');
+    },
+    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+  };
+
+  const sent = [];
+  const writer = {
+    write(bytes) {
+      const text = Buffer.from(bytes).toString('utf8');
+      sent.push(text);
+      if (text === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+        return;
+      }
+      if (text === 'UM,1:1') {
+        // A pre-4.3.0 build that happens to report 4.3.0, or any command
+        // delivery failure: the FAIL answer must route to the fallback.
+        setTimeout(() => app.handleLine('FAIL,0:UM,1:1'), 2);
+        return;
+      }
+      if (text === 'SR,1:1') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SR,1:1'), 2);
+        return;
+      }
+    },
+  };
+  testHooks.attach({ simulated: true }, writer);
+  const { serialSession } = await import('../app/js/serial/session.js');
+  serialSession.port = appPort;
+  setLoadedValues({ version: '4.3.0' });
+
+  const sim = createBootloaderSim();
+  configureDfuPortSource({ serial: { getPorts: async () => [sim.port], requestPort: async () => sim.port } });
+
+  const wizardDone = fw.startFirmwareUpdate();
+  await flush();
+  click('confirmOk');
+  await wizardDone;
+
+  assert.ok(sent.includes('UM,1:1'), 'UM was attempted first');
+  assert.ok(sent.includes('SR,1:1'), 'the SR fallback ran after UM was refused');
+  // Attempt 1 of the touch: SR-first skips the wake pulse, so the 1200-baud
+  // touch is the first open; the verify probe finds the fake port still
+  // alive ('app-live'), attempt 2's touch open throws gone-style (this
+  // appPort stops opening after two opens), and the live bootloader sim
+  // proves update mode — the flow still ends 'touched' at the picker.
+  assert.deepEqual(
+    touchEvents,
+    ['close', 'open:1200', 'signals', 'close', 'open:115200', 'close'],
+    'the fallback ran the 1200-baud touch directly (SR-first skips the wake pulse)',
+  );
+  assert.equal(byId('btnFwContinue').hidden, false, 'the flow still reaches the port picker');
+
+  click('btnFwCancel');
+  await flush();
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+// ---- Post-flash restore settle (update-doc item 2) ----
+
+test('restore settle: the first settings write waits out the post-flash settle window', async () => {
+  sessionStoreSet('lipsync-fw-pending', null);
+  fw.setRestoreSettleForTests(150);
+  try {
+    fw.writePending({
+      target: '4.2.0',
+      installed: true,
+      snapshot: { VN: '4.1.0', SS: '5' },
+    });
+    const sent = [];
+    const writer = {
+      write(bytes) {
+        const text = Buffer.from(bytes).toString('utf8');
+        sent.push(text);
+        if (text === 'SETTINGS') {
+          setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+          return;
+        }
+        const m = text.match(/^([A-Z]{2}),1:(.+)$/);
+        if (m) setTimeout(() => app.handleLine(`SUCCESS,0:${m[1]},1:${m[2]}`), 2);
+      },
+    };
+    testHooks.attach({ simulated: true }, writer);
+    const { serialSession } = await import('../app/js/serial/session.js');
+    serialSession.port = { simulated: true };
+    setLoadedValues({ version: '4.2.0' });
+
+    const finish = fw.afterDeviceLoad();
+    // The panel says "restoring" and the settle window is running — no
+    // settings write may have left yet (hardware: the freshly flashed CDC
+    // stack drops its first writes).
+    await sleep(60);
+    assert.equal(sent.filter((t) => /,1:/.test(t)).length, 0, 'no restore write during the settle window');
+    assert.match(byId('fwWizardStep').textContent, /Restoring your settings/);
+    await finish;
+    await waitFor(() => sent.some((t) => /,1:/.test(t)), { what: 'the first restore write after the settle' });
+    assert.ok(sent.includes('SS,1:5'), 'the restore ran once the settle elapsed');
+    await app.disconnect({ quiet: true });
+    testHooks.detach();
+  } finally {
+    fw.setRestoreSettleForTests(0);
+  }
 });

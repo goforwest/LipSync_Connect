@@ -30,6 +30,23 @@ truly dark.
 the copy in `app/js/services/firmware-update.js` (three hint strings plus
 the cancel-while-restarting message) back to the simple truth.
 
+> **Done (2026-10-14, firmware 4.3.0 + app).** The 1200-baud handler turned
+> out to live in the pinned core (Adafruit_TinyUSB's
+> `tud_cdc_line_state_cb`), not the sketch — so the app firmware got its
+> own deliberate entry instead: `UM,1:1` acks, draws the "Update mode —
+> use the LipSync Connect app" splash as the final frame, then calls the
+> core's `enterSerialDfu()` (the exact destination the touch lands in).
+> The wizard now sends `UM,1:1` over the live session in place of the
+> whole SR + 1200-baud touch choreography when the connected firmware is
+> ≥ 4.3.0 — same shape as the proven `SR,1:1` flow (ack, then the device
+> goes; the port departs fast) — and falls back to the established
+> SR-first + touch path on any failure. The picker hint is now
+> conditional: on 4.3.0+ it names the deliberate splash; older firmware
+> keeps the "dark or frozen — that is normal" truth. A maker with a
+> serial monitor can also enter update mode with `SETTINGS` + `UM,1:1`
+> instead of the double-reset dance. Hardware validation of the UM path
+> belongs to the 4.3.0 release session (item 6 covers the same surface).
+
 ### 2. Post-flash serial silence on the first restore writes
 
 **Problem.** Immediately after a flash, the first one or two settings
@@ -43,6 +60,13 @@ settle ~1–2 s after the settings load completes before starting the
 restore writes in `finishPendingUpdate`. Today the re-arm machinery makes
 this self-healing but slow (one extra reconnect).
 
+> **Done (2026-10-14) — the mitigation shipped.**
+> `finishPendingUpdate` now settles `RESTORE_SETTLE_MS` (1.5 s) after the
+> load completes before the first restore write (a test seam shrinks it
+> for scenarios; the settle-before-write contract is pinned by a
+> test). The firmware-side "why does fresh CDC drop its first writes"
+> investigation remains open if the settle ever proves insufficient.
+
 ## App (LipSync_Connect)
 
 ### 3. Persist the "stranded in update mode" hint across page reloads
@@ -54,12 +78,20 @@ Recover reappears. Persisting a "device likely stranded" flag in
 sessionStorage — cleared on the next successful settings load — would keep
 Recover reachable immediately after a reload.
 
-> Round-2 note (2026-10-12): Recover (and Flash local file) now live
+> **Round-2 note (2026-10-12):** Recover (and Flash local file) now live
 > outside `#fwActionsRow`, so the button is clickable while a wizard panel —
 > including a restore-pending sentinel — is on screen whenever the marker
 > is set (e.g. a Connect that picked the update loader while the panel was
 > up). The marker itself still dies with the page reload — this item
 > remains open.
+
+> **Done (2026-10-14).** The marker now mirrors into sessionStorage
+> (`lipsync-fw-stranded`, written by the connect guard and by
+> `setBootloaderStranded`); `bindFirmwareUpdate` restores it at startup so
+> Recover is reachable immediately after a reload, and it clears on the
+> next successful settings load exactly as specified. The
+> restore-pending entry and this flag are the two halves of "a reload
+> must not strand the stranded" — both now hold.
 
 ### 4. Quiet the 30 s idle watchdog while the wizard is showing
 
@@ -88,6 +120,14 @@ flows.
 > open/close at 115200 per Continue on repeat updates), so a stale grant
 > can no longer masquerade as the live loader. A live-but-flaky first
 > probe still benefits from the one-shot retry this item proposes.
+
+> **Done (2026-10-14).** The probe now gets exactly one extra round
+> before "did not respond as an update loader" is declared: a settle
+> (~1 s, test seam) plus a re-send, and only for the silent
+> ACK-timeout shape — a loader that answers with wrong sequence numbers
+> is the stale-session pathology and is classified immediately (a
+> re-send can never re-sync it), and a failed write is a dead link.
+> Pinned by tests for both shapes.
 
 ### 6. Android/OTG hardware validation
 

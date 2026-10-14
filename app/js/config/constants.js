@@ -58,6 +58,7 @@ export const VALUE_IDS = [
   'commode',
   'speedVal',
   'scrollVal',
+  'accelVal',
   'sipVal',
   'puffVal',
   'innerDeadzoneVal',
@@ -74,6 +75,7 @@ export const VALUE_LABELS = {
   commode: 'Communication mode',
   speedVal: 'Cursor speed level',
   scrollVal: 'Scroll level',
+  accelVal: 'Cursor acceleration',
   sipVal: 'Sip threshold',
   puffVal: 'Puff threshold',
   innerDeadzoneVal: 'Inner deadzone',
@@ -131,6 +133,14 @@ export const FIRMWARE_MANIFEST_URL_OVERRIDE_KEY = 'lipsync-fw-manifest-url';
 // releases. Same host as the real API, so CSP still confines it.
 export const FIRMWARE_RELEASE_API_OVERRIDE_KEY = 'lipsync-fw-release-api';
 export const FIRMWARE_CHECK_STORAGE_KEY = 'lipsync-fw-check';
+// The "device likely stranded in its update loader" marker. Lives in the DOM
+// (sec-firmware[data-recover] + the Recover button) but is mirrored into
+// sessionStorage so a page reload keeps Recover reachable — a user whose
+// flash was interrupted past START must not have to Connect (and pick the
+// bootloader port) once before the button reappears. Cleared on the next
+// successful settings load. serial/connection.js writes it directly (the DOM
+// marker there is deliberately duplicated to keep the module graph acyclic).
+export const FIRMWARE_STRANDED_STORAGE_KEY = 'lipsync-fw-stranded';
 // Auto-checks are served from cache for this long so reconnect-heavy usage
 // cannot burn GitHub's unauthenticated rate limit (60 req/h per IP).
 export const FIRMWARE_CHECK_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -155,6 +165,10 @@ export const USB_PID_BOOTLOADER_SENSE = 0x0045;
 export const STEP_TARGETS = {
   speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
   scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
+  // Acceleration (AV) is bipolar: -10 (slowest, most precise) .. 10 (fastest);
+  // 0 is the linear no-op default. No meter — the 10-segment meter is a
+  // 0..10 display, and the numeric value carries the sign.
+  accel: { endpoint: 'AV', valueId: 'accelVal', min: -10, max: 10 },
   brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
 };
 

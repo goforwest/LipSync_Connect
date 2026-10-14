@@ -101,11 +101,42 @@ export function waitLine(predicate, timeoutMs, signal) {
   });
 }
 
+// ---- Wire protocol v2: newline-terminated commands (roadmap item 6) ------
+// Firmware 4.2.0's line parser frames newline-terminated messages the instant
+// they arrive, while legacy bare writes keep the 50 ms idle-gap frame that
+// pads every exchange (a full 17-setting load: ~50 ms of framing per
+// command). Stock 4.1 REJECTS a trailing newline on every comparison, so the
+// newline must never go out until the connected device has identified itself
+// as 4.2.0 or newer — the VN load (the second command of a fresh session)
+// flips the flag, and everything after lands in ~2 ms instead of ~50 ms.
+// The first exchange or two of a session stays bare, which every firmware
+// accepts. Reset on every connect so a 4.2 device followed by a 4.1 device
+// on the same page can never leak v2 framing to the older one.
+let wireNewlineFraming = false;
+
+/** Connect-time hook (serial/connection.js): unknown device → legacy framing. */
+export function resetWireNewlineFraming() {
+  wireNewlineFraming = false;
+}
+
+/**
+ * Records the connected firmware's wire-protocol generation. Called by the
+ * VN endpoint renderer once the version has been read. Unparsable versions
+ * keep the safe legacy framing.
+ * @param {string|number|null} version
+ */
+export function noteDeviceVersion(version) {
+  const m = String(version ?? '')
+    .trim()
+    .match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  wireNewlineFraming = !!m && (+m[1] > 4 || (+m[1] === 4 && +m[2] >= 2));
+}
+
 export async function sendRaw(text) {
   log('>> ' + text, 'log-tx');
   if (!serialSession.writer) throw new Error('Not connected');
   resetReadTimer();
-  await serialSession.writer.write(enc.encode(text));
+  await serialSession.writer.write(enc.encode(wireNewlineFraming ? text + '\n' : text));
 }
 
 /**

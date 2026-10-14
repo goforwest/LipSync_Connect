@@ -127,6 +127,14 @@ Connect's Health check ("✗/✓ I2C bus"), which would have turned "screen is
 black, is it the USB?" into a one-line answer. Pairs naturally with the
 #64 Maker Guide troubleshooting item (see docs backlog).
 
+> **Done (2026-10-14, firmware 4.3.0 + app):** `BH,0:0` answers
+> `recoveries,busHealthy,display,pressure,joystick,ageSec` (per-device
+> values: 0 = not detected, 1 = healthy, 2 = gated/backed-off; ageSec is
+> −1 when the bus never wedged this boot). The app's health check grew a
+> fifth "I2C bus" step, version-gated on 4.3.0 — older firmware reports
+> the step as "needs firmware 4.3.0+" instead of failing. The #64 Maker
+> Guide write-up is still open (docs backlog).
+
 ### 4. Restore `TwoWire::begin()`-style pin config after bus recovery
 
 `wireRecoverBus()` reconfigures the SDA/SCL pins as GPIO for the NXP
@@ -136,6 +144,10 @@ pull-up, open-drain). PSEL re-attachment gives the peripheral ownership so
 this is functionally benign today, but restoring the `begin()`-equivalent
 pin configuration after recovery is proper hygiene. Small, bounded change
 in the vendored Wire.
+
+> **Done (2026-10-14):** `wireRecoverBus()` now restores both PIN_CNF
+> registers to the `begin()` configuration after the bus-clear; the vendored
+> Wire README documents it.
 
 ### 5. Explicit API forward declarations in the headers
 
@@ -157,6 +169,14 @@ the auto-prototype dependency entirely; until then, the working rule is:
 **no `static` locals in `.ino` functions — class members or plain locals
 only.**
 
+> **Done (2026-10-14, firmware 4.3.0):** `LSApiDeclarations.h` declares the
+> whole serial API surface (both argument shapes of every endpoint), the
+> cross-tab free functions the headers call (softwareReset, buzzerSoundOn/
+> Off, the screen transition continuations) and the calibration timer
+> callbacks; LSScreen.h, LSJoystick.h, LSBuzzer.h, LSAPI.ino and the
+> primary .ino all include it. The `static`-local rule stays as folklore
+> hygiene, but the build no longer depends on it.
+
 ### 9. Implement cursor acceleration (upstream #86)
 
 **Problem.** Requested by multiple users: time- and/or deflection-based
@@ -170,6 +190,18 @@ API endpoints exist as stubs (`getJoystickAcceleration` /
 out in setup with "TODO Implement acceleration"). Implement a
 deflection-or-time curve in the joystick output path, add a level setting
 (hub menu + serial API + app card), and validate the feel with users.
+
+> **Done (2026-10-14, firmware 4.3.0 + app) — feel validation still
+> pending.** Deflection-based power curve in the mouse output path:
+> `out = sign(v)·max·(|v|/max)^(1−level·0.1)`, level −10..10, default 0
+> (bit-for-byte the old linear output); zero and full deflection are
+> fixed points, so acceleration trades mid-range precision for speed,
+> never top speed. Surfaces: Hub menu More → Acceleration, the AV
+> endpoints (wired to the live global at last — the old
+> `decreaseJoystickAcceleration` had an inverted comparison that made
+> lowering the level a no-op), the app's Cursor card, and the update
+> backup/restore set. Curve feel still needs validation with users on
+> hardware before calling #86 closed.
 
 ### 12. Verify spontaneous mode changes are gone (upstream #74)
 
@@ -202,6 +234,14 @@ in `LSScreen` is the natural place). (b) The `usbCheckConnection` healthy
 branch should redraw the default screen once when the latch resets
 (`screen.resetUsbErrorPage()` already exists — add the redraw next to it).
 
+> **Done (2026-10-14, firmware 4.3.0).** (a) `setJoystickCalibration`
+> tells the screen when the run is API-originated
+> (`calibrationEndsByClosingMenu(apiEnabled)`), and `returnToMenu()` —
+> the scheduled end-of-calibration continuation — closes the menu instead
+> of parking it on the main menu. (b) `resetUsbErrorPage()` now draws the
+> ready screen once when an error episode actually painted something and
+> no menu owns the display.
+
 ### 15. Input timing & accessibility cluster (upstream #9, #22, #58, #62)
 
 The biggest user-value cluster: input timing is hardcoded and rigid.
@@ -224,6 +264,14 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
 - **Audio**: optional sounds when scroll mode / drag mode engage (#61) —
   the 4.2.0 non-blocking buzzer note queue makes this a small, safe
   addition.
+
+> **Half done (2026-10-14, firmware 4.3.0).** The audio half shipped:
+> `buzzer.modeEngageTone()` plays one short cue when scroll or drag
+> engages (scroll chirps higher than drag so the two are distinguishable
+> by ear), gated to the "All" sound tier so "Basic" users hear nothing
+  new. The LED half stays open: re-keying LED feedback from output action
+  to input state changes existing semantics and needs hardware
+  validation with affected users.
 
 ### 17. Mechanical drift investigation (upstream #54)
 
@@ -248,6 +296,16 @@ note, and exchanges drop from ~50 ms to ~2 ms (a full load lands under
 200 ms). Backward compatibility can be preserved by feature-detecting —
 or shipped version-gated, as the DFU protocol already is.
 
+> **Done (2026-10-14) — shipped version-gated, exactly as the DFU protocol
+> is.** `noteDeviceVersion()` (fed by the VN renderer) flips
+> `sendRaw()` to newline-terminated writes once the connected device has
+> identified as 4.2.0+; `connect()` resets the flag so a 4.2 device
+> followed by a 4.1 device can never leak v2 framing, and unparsable
+> versions stay bare. The first exchange or two of a session is bare
+> (before VN lands), which every firmware accepts. README updated.
+> A full load against 4.3.0 hardware should now land well under a
+> second — worth confirming on the bench.
+
 ### 13. Settings snapshot export (upstream #67)
 
 **Problem.** Sharing a device's configuration for troubleshooting today
@@ -259,6 +317,15 @@ existing log export. Far simpler than the issue's USB-keyboard-output
 idea, and it lands in the tool users already have open during support.
 Optionally pair with a serial `EXPORT`-style dump command for
 non-app contexts.
+
+> **Done (2026-10-14).** "Export settings" in the Device Information card
+> downloads a labeled JSON snapshot (`services/settings-export.js`):
+> every loaded value under its human key, values that did not load listed
+> under `notLoaded` (so "off" can never be confused with "never read"),
+> and the device identifier left out entirely — the same privacy line the
+> log export draws. The load now also reads AV, so the export covers all
+> 18 endpoints. The serial `EXPORT` dump command remains open for
+> non-app contexts.
 
 ### 11. Input & mode restriction settings (upstream #21, #44, #68, #77, #20)
 

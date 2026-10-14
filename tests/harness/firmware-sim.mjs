@@ -23,7 +23,12 @@ export function createDeviceSimulator({ handleLine }) {
       write(bytes) {
         const text = Buffer.from(bytes).toString('utf8');
         sent.push(text);
-        for (const reply of behavior(text) || []) {
+        // Newline-tolerant: a 4.2.0+ simulated device answers the app's
+        // protocol-v2 (newline-terminated) writes; `sent` keeps the raw
+        // framing so tests can assert it, while behaviors match on the
+        // command alone.
+        const command = text.replace(/\r?\n$/, '');
+        for (const reply of behavior(command) || []) {
           setTimeout(() => handleLine(reply.line), reply.delay ?? 5);
         }
       },

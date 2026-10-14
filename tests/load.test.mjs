@@ -1,5 +1,5 @@
 // Behavioral verification of the initial settings load (services/settings-service.js
-// loadDeviceInfo): the 17-endpoint read-back, placeholder -> value transitions, the
+// loadDeviceInfo): the 18-endpoint read-back, placeholder -> value transitions, the
 // ERR state for a failed endpoint, and the progress bar lifecycle. Runs against the
 // real wiring (main.js module graph + gating DOM stub) with a simulated v4.1 device.
 import test from 'node:test';
@@ -13,7 +13,7 @@ const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// All 17 load endpoints with a value per endpoint; SL is overridden to FAIL by
+// All 18 load endpoints with a value per endpoint; SL is overridden to FAIL by
 // launch(true) to exercise the ERR path.
 const RESPONSES = {
   'MN,0': '1',
@@ -23,6 +23,7 @@ const RESPONSES = {
   'CM,0': '1',
   'SS,0': '6',
   'SL,0': '5',
+  'AV,0': '0',
   'ST,0': '12',
   'PT,0': '14',
   'IZ,0': '0.25',
@@ -79,6 +80,8 @@ test('settings load populates every endpoint and clears loading placeholders', a
     'SETTINGS',
     'SL,0:0',
     'SETTINGS',
+    'AV,0:0',
+    'SETTINGS',
     'ST,0:0',
     'SETTINGS',
     'PT,0:0',
@@ -105,7 +108,7 @@ test('settings load populates every endpoint and clears loading placeholders', a
   assert.equal(doc.getElementById('modeGuardHint').textContent, '');
   // Reduced-motion stub makes the progress row collapse instantly.
   assert.equal(doc.getElementById('loadProgressRow').hidden, true);
-  assert.equal(doc.getElementById('loadProgress').value, 17);
+  assert.equal(doc.getElementById('loadProgress').value, 18);
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
@@ -118,7 +121,7 @@ test('a failed endpoint renders ERR and a recovery hint', async () => {
   assert.equal(errCell.textContent, 'ERR');
   assert.ok(errCell.classList.contains('err'));
   assert.equal(errCell.getAttribute('aria-label'), 'Scroll level failed to load');
-  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 17 settings failed to load/);
+  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 18 settings failed to load/);
   // The rest of the load still landed.
   assert.equal(doc.getElementById('sipVal').textContent, '12');
   await app.disconnect({ quiet: true });

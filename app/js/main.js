@@ -32,6 +32,7 @@ import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { runDiagnostics } from './services/health.js';
+import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
 
@@ -315,6 +316,7 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnGuideDismiss').addEventListener('click', hideGuide);
     $('btnDisconnect').addEventListener('click', disconnect);
     $('btnRefreshAll').addEventListener('click', guard(loadDeviceInfo));
+    $('btnExportSettings').addEventListener('click', guard(exportSettings));
     $('btnRunDiagnostics').addEventListener('click', guard(runDiagnostics));
     bindDeviceOps(guard);
     bindModeSwitch(guard, disconnect, setCmdButtons);

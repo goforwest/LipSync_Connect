@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { createDeviceSimulator, firmware41 } from './harness/firmware-sim.mjs';
 import { testHooks } from './harness/test-hooks.mjs';
 import { app } from './harness/setup-protocol.mjs';
+import { noteDeviceVersion, resetWireNewlineFraming } from '../app/js/serial/commands.js';
 
 const { attachDevice } = createDeviceSimulator({ handleLine: app.handleLine });
 
@@ -368,4 +369,54 @@ test('confirm-guard refuses script/img/attribute-bearing tags', () => {
     (b) => unknownTag.test(b),
   ).length;
   assert.equal(guardBlockCount, 3);
+});
+
+// ---- Wire protocol v2: newline-terminated commands (roadmap item 6) ----
+// Firmware 4.2.0 frames newline-terminated messages instantly; stock 4.1
+// rejects the trailing newline on every comparison. The flag must flip only
+// after VN identifies a 4.2.0+ device, and reset on the next connect so a
+// 4.2 device followed by a 4.1 device can never leak v2 framing.
+
+test('wire protocol v2: bare writes until the device identifies as 4.2.0+', async () => {
+  resetWireNewlineFraming();
+  const dev = attachDevice(firmware41());
+  await app.sendCommand('SS,0:0', 300, 300);
+  assert.equal(dev.sent.at(-1), 'SS,0:0', 'unknown device → bare legacy write');
+
+  noteDeviceVersion('4.1.9');
+  await app.sendCommand('SS,0:0', 300, 300);
+  assert.equal(dev.sent.at(-1), 'SS,0:0', 'a 4.1.x device keeps the bare legacy frame');
+
+  noteDeviceVersion('4.2.0');
+  await app.sendCommand('SS,0:0', 300, 300);
+  assert.equal(dev.sent.at(-1), 'SS,0:0\n', 'a 4.2.0 device gets the instant newline frame');
+
+  noteDeviceVersion('v4.3.1');
+  await app.sendCommand('SL,0:0', 300, 300);
+  assert.equal(dev.sent.at(-1), 'SL,0:0\n', 'a v-prefixed 4.3.1 device also gets protocol v2');
+
+  dev.detach();
+  await sleep(20);
+});
+
+test('wire protocol v2: unparsable versions keep the safe legacy framing', async () => {
+  resetWireNewlineFraming();
+  const dev = attachDevice(firmware41());
+  for (const bad of ['', 'unknown', 'V?', '4.x', null, undefined]) {
+    noteDeviceVersion(bad);
+    await app.sendCommand('SS,0:0', 300, 300);
+    assert.equal(dev.sent.at(-1), 'SS,0:0', `unparsable version (${bad ?? 'null'}) stays bare`);
+  }
+  dev.detach();
+  await sleep(20);
+});
+
+test('wire protocol v2: the framing resets for the next connection', async () => {
+  noteDeviceVersion('4.3.0');
+  resetWireNewlineFraming(); // what connect() does at the top of every fresh session
+  const dev = attachDevice(firmware41());
+  await app.sendCommand('SS,0:0', 300, 300);
+  assert.equal(dev.sent.at(-1), 'SS,0:0', 'a fresh connect starts bare again — no leak from a previous 4.2+ device');
+  dev.detach();
+  await sleep(20);
 });

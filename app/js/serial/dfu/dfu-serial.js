@@ -73,6 +73,17 @@ const LIPSYNC_WEBUSB_FILTERS = [...BOOTLOADER_PIDS, ...APP_PIDS].map((pid) => ({
 // safe direction) instead of grinding the user.
 const DFU_LIVENESS_PROBE_MS = 3000;
 
+// Settle between the probe's first (silent) round and its one re-send: a
+// freshly entered bootloader's CDC interface can need a beat before it
+// answers — the re-send exists precisely to wait that beat out.
+export const DFU_PROBE_RETRY_SETTLE_MS = 1000;
+let probeRetrySettleMs = DFU_PROBE_RETRY_SETTLE_MS;
+
+/** Test seam: shrink the probe-retry settle so silent-probe scenarios run fast. */
+export function setProbeRetrySettleForTests(ms) {
+  probeRetrySettleMs = ms;
+}
+
 /**
  * Proves the device behind a granted bootloader port is actually present by
  * opening the port at the DFU baud rate and closing it again (harmless to the
@@ -335,9 +346,30 @@ export async function flashSerialDfu(options) {
 
   try {
     onProgress({ stage: 'connect', message: 'Contacting the device bootloader…' });
-    try {
-      await send(probeFrame(seq));
-    } catch (e) {
+    // The probe gets one extra round before failure is declared: a freshly
+    // entered bootloader's CDC interface sometimes misses the very first
+    // probe (pre-SR-flow hardware logs) — the bytes were written, the device
+    // simply was not answering yet, and the whole first-ever-update flow
+    // reported "did not respond as an update loader". One settle + re-send
+    // smooths that; only the silent (ACK-timeout) failure shape retries —
+    // a loader that ANSWERS with wrong sequence numbers is the stale-session
+    // pathology below (a re-send can never re-sync it), and a failed WRITE
+    // is a dead link no re-send can repair.
+    let probeSent = false;
+    let probeError = null;
+    for (let probeRound = 0; probeRound < 2 && !probeSent; probeRound++) {
+      if (probeRound > 0) await sleep(probeRetrySettleMs);
+      try {
+        await send(probeFrame(seq));
+        probeSent = true;
+      } catch (e) {
+        probeError = e;
+        throwIfAborted(); // a cancelled flash never spends its retry
+        if (!/Timed out waiting for the device to acknowledge/i.test(e?.message ?? '')) break;
+      }
+    }
+    if (!probeSent) {
+      const e = probeError;
       // Two very different failures collapse at the probe, and only one of
       // them can be fixed by picking the port again:
       //  - the port is silent (the still-running app was picked, a dead
