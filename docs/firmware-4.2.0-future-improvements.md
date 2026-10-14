@@ -13,48 +13,59 @@ the follow-on "everything times out" chaos was a reversed interface cable
 dragging the shared I2C bus (upstream #73's failure class), which the
 firmware now self-defends against on every consumer.
 
+**2026-10-14 pass (firmware 4.3.0 + app):** the easy-mid items landed —
+items 3, 4, 5, 6, 9, 13, 14 and the audio half of 16 are done (each carries
+a Done note); upstream #36, #63, #67 and the audio half of #61 are
+close-pending hardware validation. Open with the most value next: item 11
+(input & mode restrictions), item 15 (input timing & accessibility), and
+the docs backlog (now cheaper — item 3's BH endpoint exists to write #64
+against).
+
 ## Upstream issue map — open issues (42)
+
+Dispositions reflect the 2026-10-14 pass (firmware 4.3.0 + app): items
+marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 
 | # | Title (short) | Disposition |
 |---|---|---|
 | 87 | Easier mouthpiece replacement | docs backlog |
-| 86 | Cursor acceleration | **item 9** |
+| 86 | Cursor acceleration | ✅ item 9 done in 4.3.0 (feel validation pending, then closeable) |
 | 85 | ESP32 feasibility evaluation | research |
 | 84 | Screw clearance hole diameter | mechanical |
 | 83 | Static shock killed hub | **item 10** |
 | 82 | Update error codes in User Guide | docs backlog |
-| 80 | Clean up unused branches | docs backlog (chore) |
+| 80 | Clean up unused branches | docs backlog (chore; 48 remote branches counted 2026-10-14) |
 | 79 | Maker Guide: programming issues | docs backlog |
 | 78 | Space in file path breaks compile | docs backlog (upstream Seeed core limit; CI unaffected) |
 | 77 | Sip-and-puff menu lockout | **item 11** |
 | 76 | Mouthpiece cleaning/replacement docs | docs backlog |
 | 75 | Watchdog activates after factory reset | ✅ fixed in 4.2.0 (see community notes) |
-| 74 | LipSync changing mode by itself | **item 12** |
+| 74 | LipSync changing mode by itself | **item 12** (likely fixed by 4.2.0; verify on hardware) |
 | 73 | Wrong/reversed interface cable → error lights, stuck boot | ✅ 4.2.0 survives it; **item 7** fixes at source |
 | 72 | Mouse flipped — joystick orientation docs | docs backlog |
 | 71 | Sip/puff swapped — host left-handed note | docs backlog |
 | 70 | Print issues on middle-housing threads | mechanical |
 | 69 | Mounting-part filename length | mechanical |
 | 68 | Lock out unwanted mode changes | **item 11** |
-| 67 | Easy way to share device settings | **item 13** |
+| 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings"; closeable) |
 | 65 | Magnetometer orientation in Maker Guide | docs backlog |
-| 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with **item 3**) |
-| 63 | USB error message persists after reboot | ✅ amplifier fixed in 4.2.0; residual → **item 14** |
+| 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with ✅ **item 3** — the BH endpoint landed in 4.3.0) |
+| 63 | USB error message persists after reboot | ✅ amplifier in 4.2.0 + residual (item 14b) in 4.3.0 — closeable |
 | 62 | Adjustable input time thresholds | **item 15** |
-| 61 | Audio cue for scroll/drag mode | **item 16** |
+| 61 | Audio cue for scroll/drag mode | ✅ item 16 audio half done in 4.3.0 ("All" tier; validate, then closeable) |
 | 59 | Reversed RJ11 interface cable wiring | **item 10** (cable hardening) |
 | 58 | Hard sip / hard puff inputs | **item 15** |
 | 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
 | 54 | Mechanical drift / center hysteresis | **item 17** |
 | 44 | Toggle cursor movement during sip/puff | **item 11** |
-| 43 | LED feedback keyed to input state, not action | **item 16** |
+| 43 | LED feedback keyed to input state, not action | **item 16** (audio half done; LED half open) |
 | 37 | TLV493D library deprecated | **items 1–2** |
-| 36 | Menu stays open after serial-API calibration | **item 14** |
+| 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
 | 33 | Debug mode documentation incomplete | docs backlog |
 | 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
 | 24 | Sled component print failure | mechanical |
 | 22 | Sip/puff threshold levels UX | **item 15** |
-| 21 | Ability to disable sip and puff | **item 11** |
+| 21 | Ability to disable sip and puff | **item 11** (see upstream branches v4.1-disable-sip-and-puff for prior art) |
 | 20 | Switches as independent inputs | **item 11** |
 | 19 | Unreliable STEMMA-Dupont connection | **item 10** |
 | 16 | Switch between multiple Bluetooth devices | research |

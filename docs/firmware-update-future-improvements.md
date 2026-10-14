@@ -5,6 +5,13 @@ feature (2026-10-11). None are required for correctness today; they are
 ordered by user-visible value. The motivating item is #1 — the Hub's screen
 freezing on "Restarting" for the whole time the device sits in update mode.
 
+**2026-10-14 pass:** items 1 (UM,1:1 + the app's UM-first wizard flow),
+2 (the post-flash settle mitigation), 3 (stranded-marker persistence) and
+5 (the one-shot probe retry) are done — each carries a Done note below.
+Open: item 6 (the Android/OTG hardware session, which now also validates
+the UM path) and the firmware-side half of item 2 (why fresh CDC drops its
+first writes).
+
 ## Firmware (lipsync repo)
 
 ### 1. Show a deliberate "Update mode" screen (or blank the OLED) before entering the bootloader
