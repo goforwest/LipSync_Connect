@@ -23,6 +23,7 @@ export function applyDeviceResponse(line) {
   const updates = {
     SS: () => ENDPOINT_RENDERERS.SS(r.value),
     SL: () => ENDPOINT_RENDERERS.SL(r.value),
+    AV: () => ENDPOINT_RENDERERS.AV(r.value),
     ST: () => ENDPOINT_RENDERERS.ST(r.value),
     PT: () => ENDPOINT_RENDERERS.PT(r.value),
     IZ: () => ENDPOINT_RENDERERS.IZ(r.value),
