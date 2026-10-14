@@ -7,6 +7,7 @@ import { $ } from '../ui/dom.js';
 import { plotDot, toScreen, orientFromOutput, scheduleRenderPlot, plotState } from './plot.js';
 import { gaugeDelta } from './gauge.js';
 import { serialSession } from '../serial/session.js';
+import { log } from '../services/log.js';
 
 export function showDiagPanel(mode) {
   Object.entries(DIAG_PANELS).forEach(([m, id]) => {
@@ -107,6 +108,37 @@ export function applyDebugData(mode, value) {
     if (sip && sip.classList) sip.classList.toggle('on', p[0] === 1);
     if (puff && puff.classList) puff.classList.toggle('on', p[0] === 2);
     setDiagSubState('diagSapTime', p);
+    noteSapHold(p);
+  }
+}
+
+// Hold-length capture for the sip & puff state stream (Phase 6 diagnosis,
+// 2026-10-14): "scroll and drag never engage" needs the exact hold the
+// device measured — the firmware's action windows are 0-1 s click,
+// 1-3 s drag/scroll, 3-8 s menu/middle click. The RELEASED frame lives only
+// ~33 ms on the wire (the state machine replaces it on its next tick) and
+// the stream polls at 100 ms, so waiting for it can miss the number;
+// instead the PEAK elapsed seen during each hold is logged once the hold
+// ends (released or the missed-release fallback). One log line per hold —
+// no 10 Hz flood — and it rides the normal exportable session log.
+let sapHoldPeakMs = 0;
+let sapHoldMain = 0;
+function noteSapHold(p) {
+  const [main, sub, ms] = p;
+  if (sub === 1 && main !== 0) {
+    // In-progress hold: keep the largest elapsed seen (a missed frame
+    // should read the hold as no shorter than it was).
+    sapHoldPeakMs = Math.max(sapHoldPeakMs, Number.isFinite(ms) ? ms : 0);
+    sapHoldMain = main;
+  } else if (sapHoldPeakMs > 0 && (sub === 2 || sub === 0)) {
+    const name = sapHoldMain === 2 ? 'Puff' : 'Sip';
+    const verb = sub === 2 ? 'released' : 'hold ended';
+    const logged = Number.isFinite(ms) && sub === 2 ? ms : sapHoldPeakMs;
+    log(
+      `${name} ${verb} — device measured the hold at ${logged} ms (window: 0-1000 click, 1000-3000 drag/scroll, 3000-8000 menu/middle).`,
+      'log-info',
+    );
+    sapHoldPeakMs = 0;
   }
 }
 // Firmware emits {mainState, subState, elapsedMs}; the middle field cycles

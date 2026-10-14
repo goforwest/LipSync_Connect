@@ -77,6 +77,11 @@ export function applyDeviceResponse(line) {
     },
     SR: () => log('Device acknowledged restart (SR). Restart in progress…', 'log-info'),
     SE: () => log('Device acknowledged settings commit (SE).', 'log-info'),
+    UM: () =>
+      log(
+        'Device acknowledged update-mode entry (UM). Entering its update loader — the Hub screen shows the "Update mode" message.',
+        'log-info',
+      ),
     // FR/CH/RT all emit a value-bearing ack (SUCCESS,0:<EP>,1:<n>); without a
     // handler here each would fall through to the 'Unrecognized device response'
     // log line even though the app issued the command itself. Log them as what
