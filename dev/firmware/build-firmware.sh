@@ -12,13 +12,6 @@
 # This script is the local twin of the lipsync repo's CI workflow; keep the
 # compile/package steps identical so local artifacts match release artifacts.
 #
-# Optional manifest signing (mirrors the release pipeline's signing step):
-#   FW_MANIFEST_SIGNING_KEY=/path/to/private.pem dev/firmware/build-firmware.sh
-# signs manifest.json with Ed25519; the app verifies signatures against the
-# public key pinned in app/js/config/constants.js. The private key must never
-# live in either repo — locally it is whatever PEM path you pass, in CI it is
-# a secrets-store entry.
-#
 # uf2conv.py + uf2families.json are vendored byte-identical from
 # https://github.com/microsoft/uf2 (utils/, MIT license) so the build has no
 # network dependency; re-vendor deliberately and note the source here if
@@ -108,54 +101,6 @@ with open(os.path.join(out_dir, "manifest.json"), "w") as f:
     json.dump(manifest, f, indent=2)
     f.write("\n")
 EOF
-
-# Optional signing: canonicalize exactly like the app's
-# manifestSignaturePayload() (config/constants.js — prefix, version, DFU file
-# name, size, sha256, one per line, trailing newline), sign with openssl, and
-# embed the base64 signature the app expects.
-if [ -n "${FW_MANIFEST_SIGNING_KEY:-}" ]; then
-  if [ ! -r "$FW_MANIFEST_SIGNING_KEY" ]; then
-    echo "FW_MANIFEST_SIGNING_KEY is not a readable PEM file: $FW_MANIFEST_SIGNING_KEY" >&2
-    exit 1
-  fi
-  command -v openssl >/dev/null 2>&1 || {
-    echo "openssl not found — cannot sign the manifest." >&2
-    exit 1
-  }
-  echo "==> Signing manifest (Ed25519)"
-  sign_dir=$(mktemp -d)
-  python3 - "$OUT_DIR" > "$sign_dir/payload" <<'EOF'
-import json, os, sys
-with open(os.path.join(sys.argv[1], "manifest.json")) as f:
-    m = json.load(f)
-sys.stdout.write(
-    "lipsync-firmware-manifest-v1\n"
-    + m["firmwareVersion"] + "\n"
-    + m["files"]["dfu"]["fileName"] + "\n"
-    + str(m["files"]["dfu"]["size"]) + "\n"
-    + m["files"]["dfu"]["sha256"] + "\n"
-)
-EOF
-  # -rawin: Ed25519 signs the raw message (no pre-hash). OpenSSL 3.5 defaults
-  # to raw for Ed25519, but 3.0 runners (ubuntu-latest) require the flag for
-  # non-digest-size input — explicit keeps local and CI identical.
-  openssl pkeyutl -sign -rawin -inkey "$FW_MANIFEST_SIGNING_KEY" -in "$sign_dir/payload" -out "$sign_dir/sig"
-  python3 - "$OUT_DIR" "$sign_dir/sig" <<'EOF'
-import base64, json, os, sys
-out_dir, sig_path = sys.argv[1], sys.argv[2]
-with open(sig_path, "rb") as f:
-    value = base64.b64encode(f.read()).decode()
-with open(os.path.join(out_dir, "manifest.json")) as f:
-    m = json.load(f)
-m["signature"] = {"algorithm": "ed25519", "value": value}
-with open(os.path.join(out_dir, "manifest.json"), "w") as f:
-    json.dump(m, f, indent=2)
-    f.write("\n")
-EOF
-  rm -rf "$sign_dir"
-else
-  echo "==> Manifest left unsigned (set FW_MANIFEST_SIGNING_KEY=<private.pem> to sign it)"
-fi
 
 echo "==> Done: $OUT_DIR"
 ls -l "$OUT_DIR"
