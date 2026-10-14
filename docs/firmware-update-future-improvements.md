@@ -6,11 +6,12 @@ ordered by user-visible value. The motivating item is #1 — the Hub's screen
 freezing on "Restarting" for the whole time the device sits in update mode.
 
 **2026-10-14 pass:** items 1 (UM,1:1 + the app's UM-first wizard flow),
-2 (the post-flash settle mitigation), 3 (stranded-marker persistence) and
+2 (the post-flash settle mitigation **and** the firmware-side root cause —
+the USB-HID report paths no longer block the main loop, see item 2's
+notes), 3 (stranded-marker persistence) and
 5 (the one-shot probe retry) are done — each carries a Done note below.
 Open: item 6 (the Android/OTG hardware session, which now also validates
-the UM path) and the firmware-side half of item 2 (why fresh CDC drops its
-first writes).
+the UM path).
 
 ## Firmware (lipsync repo)
 
@@ -71,8 +72,32 @@ this self-healing but slow (one extra reconnect).
 > `finishPendingUpdate` now settles `RESTORE_SETTLE_MS` (1.5 s) after the
 > load completes before the first restore write (a test seam shrinks it
 > for scenarios; the settle-before-write contract is pinned by a
-> test). The firmware-side "why does fresh CDC drop its first writes"
-> investigation remains open if the settle ever proves insufficient.
+> test).
+
+> **Root cause found and fixed in firmware (2026-10-14, 4.4.0 line).**
+> The device was not dropping writes at all — it was going *deaf*. The
+> USB-HID report paths blocked the whole main loop waiting for HID
+> readiness: `LSUSBMouse::mouseReport()` spun `while(!isReady())
+> delay(1)` for up to 5 s (recursing into `usbCheckConnection` from inside
+> the spin), and the gamepad's `send()`/`write()` spun the same 5 s
+> *unlatched*, refiring on every report. The post-flash reconnect window
+> is exactly when the freshly re-enumerated composite device's HID
+> interface can lag its CDC interface — and any restore write landing in
+> that freeze timed out ("SS and SL right after reconnect"), with the next
+> pass succeeding because the host had finished configuring by then.
+> Worse, `Adafruit_USBD_HID::begin()` has no already-begun guard (the CDC
+> class does), so every connect-retry `begin()` appended a *duplicate*
+> HID interface to the USB configuration descriptor — the next
+> enumeration then presented a corrupted composite device, which is how
+> "serial alive, HID never ready" persists instead of clearing. The
+> firmware fix: reports skip instantly when the interface is not ready
+> (latching the timeout state once per episode and handing recovery to
+> the existing connect timer — no delay loops), and `begin()` registers
+> the interface exactly once. The app-side 1.5 s settle stays as
+> belt-and-braces. **Hardware residual:** confirm on the bench that a
+> post-flash restore now lands in one pass even without the settle
+> (shrink `RESTORE_SETTLE_MS` to 0 to test), and that an actual
+> mid-session unplug/replug still draws the No-USB page and recovers.
 
 ## App (LipSync_Connect)
 
