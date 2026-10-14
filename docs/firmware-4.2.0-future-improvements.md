@@ -47,7 +47,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 70 | Print issues on middle-housing threads | mechanical |
 | 69 | Mounting-part filename length | mechanical |
 | 68 | Lock out unwanted mode changes | **item 11** |
-| 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings"; closeable) |
+| 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings") + the serial EX,0:0 dump in the firmware — closeable |
 | 65 | Magnetometer orientation in Maker Guide | docs backlog |
 | 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with ✅ **item 3** — the BH endpoint landed in 4.3.0) |
 | 63 | USB error message persists after reboot | ✅ amplifier in 4.2.0 + residual (item 14b) in 4.3.0 — closeable |
@@ -335,8 +335,15 @@ non-app contexts.
 > under `notLoaded` (so "off" can never be confused with "never read"),
 > and the device identifier left out entirely — the same privacy line the
 > log export draws. The load now also reads AV, so the export covers all
-> 18 endpoints. The serial `EXPORT` dump command remains open for
-> non-app contexts.
+> 18 endpoints.
+>
+> **Done (2026-10-14, firmware) — the serial `EXPORT` dump.** `EX,0:0`
+> (LipSync repo, 4.4.0 line) replays every stored setting as the exact
+> standard response lines the per-endpoint reads produce, framed by
+> `SUCCESS,0:EX,0:BEGIN`/`END` — a maker with a serial monitor sends
+> `SETTINGS` + `EX,0:0` and pastes the output into a support ticket; no
+> app and no new format required. The device identifier is excluded
+> (same privacy line); support asks for `ID,0:0` explicitly when needed.
 
 ### 11. Input & mode restriction settings (upstream #21, #44, #68, #77, #20)
 
