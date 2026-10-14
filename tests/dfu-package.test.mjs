@@ -183,8 +183,18 @@ test('corrupt archives surface a friendly error, not an engine stack', async () 
   await assert.rejects(() => unzip(bytes.buffer), /could not be read|corrupted/i);
 });
 
-test('parses the real locally built artifact when present', { skip: !fs.existsSync(path.join(root, 'dev/firmware/dist/LipSync_Firmware_4.1.0_dfu.zip')) }, async () => {
-  const bytes = fs.readFileSync(path.join(root, 'dev/firmware/dist/LipSync_Firmware_4.1.0_dfu.zip'));
+// The real-artifact fixture: derive the file name from the built manifest so
+// the test follows the version instead of silently skipping whenever the
+// locally built artifact moves past a hard-coded name.
+const distDir = path.join(root, 'dev/firmware/dist');
+const distManifestPath = path.join(distDir, 'manifest.json');
+const distDfuName = fs.existsSync(distManifestPath)
+  ? (JSON.parse(fs.readFileSync(distManifestPath, 'utf8')).files?.dfu?.fileName ?? null)
+  : null;
+const distDfuPath = distDfuName ? path.join(distDir, distDfuName) : null;
+
+test('parses the real locally built artifact when present', { skip: !distDfuPath || !fs.existsSync(distDfuPath) }, async () => {
+  const bytes = fs.readFileSync(distDfuPath);
   const pkg = await parseDfuPackage(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   const app = pkg.manifest.manifest.application;
   assert.ok(app.bin_file.endsWith('.bin'));
