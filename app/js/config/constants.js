@@ -242,11 +242,96 @@ export const WINDOW_SETTINGS = [
 ];
 
 // ---- Sip/puff threshold level scale (firmware 4.4.0+; roadmap item 15 / upstream #22) ----
-// The Hub menu's OLED threshold pages step through these coarse levels
+// The Hub menu's OLED threshold pages step these coarse levels
 // (hPa) instead of fine ±1 hPa steps; the serial API and this app keep the
 // fine granularity. Mirrors the firmware's PRESS_THRESHOLD_LEVEL_TABLE —
 // dev/firmware/protocol-cross-check.mjs verifies the two stay identical.
 export const PRESS_THRESHOLD_LEVELS = [2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 22.0, 32.0, 45.0];
+
+// ---- External switch actions (firmware 4.5.0+; upstream #20) ----
+// The three assistive-switch jacks' mouse- and gamepad-mode actions are
+// user-mappable settings: SA/SB/SC = jacks 1/2/3 in mouse mode, GA/GB/GC =
+// the same jacks in gamepad mode. Each endpoint covers one jack/mode's three
+// hold windows (short/long/very-long). The GET answers "short,long,max"; the
+// SET carries PACK_BASE + short*10000 + long*100 + max (the base keeps the
+// value a 6-digit number — the only magnitude the firmware's serial format
+// validator accepts), and 0 resets that jack/mode to the compiled factory
+// mapping. The action palette below mirrors the firmware's caregiver-safe
+// allowlist (CONF_SWITCH_REMAP_ALLOWED); the cross-check verifies the two
+// agree, and the firmware rejects anything else with FAIL,3.
+export const SWITCH_ACTIONS_MIN_FIRMWARE = [4, 5, 0];
+export const SWITCH_ACTION_PACK_BASE = 100000;
+export const SWITCH_ACTION_OPTIONS = {
+  0: 'Nothing',
+  1: 'Left click',
+  2: 'Right click',
+  3: 'Middle click',
+  4: 'Drag',
+  5: 'Scroll',
+  6: 'Gamepad B1',
+  7: 'Gamepad B2',
+  8: 'Gamepad B3',
+  9: 'Gamepad B4',
+  10: 'Gamepad B5',
+  11: 'Gamepad B6',
+  12: 'Gamepad B7',
+  13: 'Gamepad B8',
+  14: 'Center cursor',
+  16: 'Speed down',
+  17: 'Speed up',
+  18: 'Change mode',
+  19: 'Open menu',
+};
+export const SWITCH_SETTINGS = [
+  {
+    endpoint: 'SA',
+    jack: 'Switch 1',
+    mode: 'mouse',
+    selectPrefix: 'swSA',
+    jsonKey: 'switch1MouseActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+  {
+    endpoint: 'SB',
+    jack: 'Switch 2',
+    mode: 'mouse',
+    selectPrefix: 'swSB',
+    jsonKey: 'switch2MouseActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+  {
+    endpoint: 'SC',
+    jack: 'Switch 3',
+    mode: 'mouse',
+    selectPrefix: 'swSC',
+    jsonKey: 'switch3MouseActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+  {
+    endpoint: 'GA',
+    jack: 'Switch 1',
+    mode: 'gamepad',
+    selectPrefix: 'swGA',
+    jsonKey: 'switch1GamepadActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+  {
+    endpoint: 'GB',
+    jack: 'Switch 2',
+    mode: 'gamepad',
+    selectPrefix: 'swGB',
+    jsonKey: 'switch2GamepadActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+  {
+    endpoint: 'GC',
+    jack: 'Switch 3',
+    mode: 'gamepad',
+    selectPrefix: 'swGC',
+    jsonKey: 'switch3GamepadActions',
+    windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
+  },
+];
 
 // Live self-test narration tables: each entry pairs the firmware's narration
 // text with a human label; { hidden: true } steps exist purely for sequencing.

@@ -1,6 +1,6 @@
 # LipSync Connect
 
-Browser-based configuration and monitoring tool for the **LipSync** assistive joystick mouse. Connect the LipSync over USB serial (Web Serial or a WebUSB fallback on Android), adjust sip/puff thresholds, deadzones, cursor speed, feedback, and Bluetooth settings, guard against accidental input with the restriction toggles (firmware 4.4.0+), run device self-tests and a health diagnostic, calibrate the joystick — and check for and install firmware updates — all from a secure Chromium page with no install.
+Browser-based configuration and monitoring tool for the **LipSync** assistive joystick mouse. Connect the LipSync over USB serial (Web Serial or a WebUSB fallback on Android), adjust sip/puff thresholds, deadzones, cursor speed and acceleration, feedback, and Bluetooth settings, guard against accidental input with the restriction toggles (firmware 4.4.0+), remap the external assistive-switch jacks (firmware 4.5.0+), run device self-tests and a health diagnostic, calibrate the joystick — and check for and install firmware updates — all from a secure Chromium page with no install.
 
 Part of the OpenAT Joystick Project by [Makers Making Change](https://www.makersmakingchange.com/), a program of [Neil Squire](https://www.neilsquire.ca/).
 
@@ -23,7 +23,7 @@ npm run dev:local        # HTTP + live reload for app/ edits
 
 `HOST`/`PORT` env vars override the bind address and port. Opening `https://localhost:4443` once and accepting the self-signed cert lets the browser treat the page as a secure context, which Web Serial requires.
 
-Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~25 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
+Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~31 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
 
 ## Quality checks
 

@@ -108,7 +108,7 @@ test('settings load populates every endpoint and clears loading placeholders', a
   assert.equal(doc.getElementById('modeGuardHint').textContent, '');
   // Reduced-motion stub makes the progress row collapse instantly.
   assert.equal(doc.getElementById('loadProgressRow').hidden, true);
-  assert.equal(doc.getElementById('loadProgress').value, 25);
+  assert.equal(doc.getElementById('loadProgress').value, 31);
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
@@ -121,7 +121,7 @@ test('a failed endpoint renders ERR and a recovery hint', async () => {
   assert.equal(errCell.textContent, 'ERR');
   assert.ok(errCell.classList.contains('err'));
   assert.equal(errCell.getAttribute('aria-label'), 'Scroll level failed to load');
-  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 25 settings failed to load/);
+  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 18 settings failed to load/);
   // The rest of the load still landed.
   assert.equal(doc.getElementById('sipVal').textContent, '12');
   await app.disconnect({ quiet: true });

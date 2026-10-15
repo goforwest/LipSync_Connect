@@ -90,6 +90,10 @@ for (const f of ['LSAPI.ino', 'LipSync_Firmware.ino']) {
     /String commandKey = "([^"]+)"[\s\S]{0,2000}?mem\.read\w+\(CONF_SETTINGS_FILE,\s*commandKey/g,
   ))
     readKeys.add(m[1]);
+  // The switch-action endpoints read through the shared core getter, invoked
+  // with the endpoint key as a literal (boot load, EX dump).
+  for (const m of src.matchAll(/getSwitchAction\(\s*(?:true|false),\s*(?:true|false),\s*"([A-Z]{2})"\)/g))
+    readKeys.add(m[1]);
   // readPoint-style keys built dynamically (CA1..CA4)
   for (const m of src.matchAll(/"CA"\s*\+\s*String\(/g)) readKeys.add('CA1', 'CA2', 'CA3', 'CA4');
 }
@@ -101,7 +105,7 @@ if (defaults) {
 
 // ---- 4. Every command the app sends exists on the firmware ----------------
 console.log('\n[4] app -> firmware command pairs');
-const { RESTRICTION_SETTINGS, WINDOW_SETTINGS, STEP_TARGETS } = await import(
+const { RESTRICTION_SETTINGS, WINDOW_SETTINGS, STEP_TARGETS, SWITCH_SETTINGS, SWITCH_ACTION_OPTIONS } = await import(
   path.join(APP, 'app/js/config/constants.js')
 );
 const appSources = [
@@ -117,9 +121,12 @@ const appSources = [
 ].map(read);
 // Literal commands: sendCommand('EP,c:v...') — kept with their parameter so a
 // pinned firmware parameter ("0"/"1") can be compared, not just the pair.
+// Empty captures are command PREFIXES awaiting a concatenated value (e.g.
+// 'ST,1:' + fmtApiFloat(v)) — not real wire lines; skip them.
 const literalCommands = new Set(); // "EP,c:parameter"
 for (const src of appSources) {
   for (const m of src.matchAll(/sendCommand\(\s*['"`]([A-Z]{2}),(\d):([^'"`]*)/g)) {
+    if (m[3].length === 0) continue;
     literalCommands.add(`${m[1]},${m[2]}:${m[3]}`);
   }
 }
@@ -128,6 +135,10 @@ for (const src of appSources) {
 const symbolicPairs = new Set(); // "EP,c"
 for (const r of [...RESTRICTION_SETTINGS, ...WINDOW_SETTINGS]) symbolicPairs.add(r.endpoint + ',1');
 for (const t of Object.values(STEP_TARGETS)) symbolicPairs.add(t.endpoint + ',1');
+for (const s of SWITCH_SETTINGS) {
+  symbolicPairs.add(s.endpoint + ',0');
+  symbolicPairs.add(s.endpoint + ',1');
+}
 for (const m of read('app/js/services/settings-service.js').matchAll(/\['([A-Z]{2}),0:0'/g))
   symbolicPairs.add(m[1] + ',0');
 for (const m of read('app/js/main.js').matchAll(/setSimpleSetting\(\s*['"`]([A-Z]{2})['"`]/g))
@@ -208,6 +219,36 @@ if (fwLevels.length !== PRESS_THRESHOLD_LEVELS.length || fwLevels.some((v, i) =>
   ok(`threshold level scale [${fwLevels.join(', ')}] agrees (${fwLevels.length} levels)`);
 }
 
+// The external-switch remap allowlist (4.5.0+): the actions the app offers
+// in its remap selects must be exactly the actions the firmware's setter
+// accepts — an action on one side but not the other is either a pick that
+// always FAILs or a firmware capability the app hides.
+const fwAllowed = [...configSrc.matchAll(/CONF_SWITCH_REMAP_ALLOWED\[\]\s*=\s*\{([^}]*)\}/g)].flatMap((m) =>
+  m[1]
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0)
+    .map((x) => {
+      const def = x.match(/^CONF_ACTION_(\w+)$/);
+      if (def) {
+        const byName = configSrc.match(new RegExp(`#define\\s+CONF_ACTION_${def[1]}\\s+(-?\\d+)`));
+        return byName ? parseInt(byName[1], 10) : null;
+      }
+      const num = parseInt(x, 10);
+      return Number.isFinite(num) ? num : null;
+    })
+    .filter((x) => x !== null),
+);
+const appAllowed = Object.keys(SWITCH_ACTION_OPTIONS)
+  .map(Number)
+  .sort((a, b) => a - b);
+const fwAllowedSorted = [...fwAllowed].sort((a, b) => a - b);
+if (appAllowed.length !== fwAllowedSorted.length || appAllowed.some((v, i) => v !== fwAllowedSorted[i])) {
+  fail(`switch remap allowlist differs: app [${appAllowed.join(',')}] != firmware [${fwAllowedSorted.join(',')}]`);
+} else {
+  ok(`switch remap allowlist agrees (${appAllowed.length} actions)`);
+}
+
 // ---- 6. Version gates vs the paired firmware ------------------------------
 console.log('\n[6] app version gates vs firmware version');
 const fwVersion = [
@@ -215,7 +256,9 @@ const fwVersion = [
   define('CONF_LIPSYNC_VERSION_MINOR'),
   define('CONF_LIPSYNC_VERSION_REV'),
 ];
-const { RESTRICTIONS_MIN_FIRMWARE } = await import(path.join(APP, 'app/js/config/constants.js'));
+const { RESTRICTIONS_MIN_FIRMWARE, SWITCH_ACTIONS_MIN_FIRMWARE } = await import(
+  path.join(APP, 'app/js/config/constants.js')
+);
 const [gMaj, gMin, gRev] = RESTRICTIONS_MIN_FIRMWARE;
 const [fMaj, fMin, fRev] = fwVersion;
 const fwNewEnough = fMaj > gMaj || (fMaj === gMaj && (fMin > gMin || (fMin === gMin && fRev >= gRev)));
@@ -224,6 +267,15 @@ if (!fwNewEnough)
     `firmware ${fwVersion.join('.')} is OLDER than the app's ${RESTRICTIONS_MIN_FIRMWARE.join('.')} gate — the app would hide its own features`,
   );
 else ok(`firmware ${fwVersion.join('.')} satisfies the ${RESTRICTIONS_MIN_FIRMWARE.join('.')} gate`);
+{
+  const [sMaj, sMin, sRev] = SWITCH_ACTIONS_MIN_FIRMWARE;
+  const swOk = fMaj > sMaj || (fMaj === sMaj && (fMin > sMin || (fMin === sMin && fRev >= sRev)));
+  if (!swOk)
+    fail(
+      `firmware ${fwVersion.join('.')} is OLDER than the app's ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate — the app would hide its own features`,
+    );
+  else ok(`firmware ${fwVersion.join('.')} satisfies the ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate`);
+}
 const healthSrc = read('app/js/services/health.js');
 const bhGate = healthSrc.match(/BUS_HEALTH_MIN_FIRMWARE\s*=\s*\[(\d+),\s*(\d+),\s*(\d+)\]/);
 if (bhGate) {
@@ -237,12 +289,28 @@ if (umGate) ok(`UM gate ${umGate[1]} (present; satisfied by any 4.x ≥ 4.3)`);
 
 // ---- command length sanity: the firmware format validator -----------------
 console.log('\n[7] command shapes the firmware validator accepts');
+// Every line the app can plausibly put on the wire must land on a length the
+// firmware's isValidCommandFormat() accepts (6/7/8/9/10/11 for 1-6 digit
+// parameters). Checking only the longest command once missed a real bug:
+// the validator originally skipped 5-digit parameters (10-char lines), so
+// the timing-window maximum — WM,1:10000, a value the Hub menu can set and
+// the app allows — was answered FAIL,0 on the wire.
 const probes = [];
 for (const lit of literalCommands) probes.push(lit);
 for (const pair of symbolicPairs) probes.push(`${pair}:10000`);
-const longest = probes.sort((a, b) => b.length - a.length)[0];
-if (longest.length > 11) fail(`a plausible app command (${longest}) exceeds the firmware's 11-char format limit`);
-else ok(`longest plausible command (${longest}) fits the firmware format validator`);
+const legalLengths = new Set([6, 7, 8, 9, 10, 11]);
+const badLen = probes.filter((p) => !legalLengths.has(p.length));
+if (badLen.length) {
+  for (const p of badLen)
+    fail(`plausible app command (${p}, ${p.length} chars) is not a length the firmware format validator accepts`);
+} else {
+  const longest = probes.sort((a, b) => b.length - a.length)[0];
+  ok(`all ${probes.length} plausible command shapes fit the firmware format validator (longest: ${longest})`);
+}
+// The concrete maximum the app can write: the timing-window maximum must be
+// writable (this exact line is why 10-char lines exist).
+if (!legalLengths.has('WM,1:10000'.length)) fail('WM,1:10000 (the max window) is not a legal command line');
+else ok('WM,1:10000 (the max timing window) is a legal command line');
 
 console.log(`\n${problems.length ? problems.length + ' PROBLEM(S)' : 'ALL CHECKS PASS'}`);
 process.exit(problems.length ? 1 : 0);

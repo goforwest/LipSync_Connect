@@ -7,7 +7,33 @@ export function parseResponse(line) {
   return { type: m[1], ok: m[1] !== 'FAIL', num: parseInt(m[2], 10), cmd: m[3], value: m[4] ?? null };
 }
 
-export const ECHO_WRITE_ENDPOINTS = new Set(['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'DM', 'OM', 'CM']);
+// Write endpoints whose SUCCESS ack echoes the written value verbatim —
+// the SET of each of these is value-checked against its echo (a firmware
+// that accepted-but-canonicalized would fail the command). Endpoints whose
+// writes echo a DIFFERENT shape (e.g. WS/WL/WM answer the stored window,
+// SD/MA/LK/CF answer the stored flag) are deliberately absent.
+export const ECHO_WRITE_ENDPOINTS = new Set([
+  'SS',
+  'SL',
+  'ST',
+  'PT',
+  'IZ',
+  'OZ',
+  'SM',
+  'LM',
+  'LL',
+  'DM',
+  'OM',
+  'CM',
+  // External switch actions (4.5.0+): the SET ack echoes the packed value
+  // exactly as sent (0 on reset).
+  'SA',
+  'SB',
+  'SC',
+  'GA',
+  'GB',
+  'GC',
+]);
 
 export function commandMatchDetails(cmd) {
   const m = cmd.match(/^([A-Z]{1,4}),(\d+)(?::(.*))?$/);

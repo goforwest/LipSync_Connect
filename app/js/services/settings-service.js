@@ -10,6 +10,10 @@ import {
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
   WINDOW_SETTINGS,
+  SWITCH_SETTINGS,
+  SWITCH_ACTIONS_MIN_FIRMWARE,
+  SWITCH_ACTION_OPTIONS,
+  SWITCH_ACTION_PACK_BASE,
 } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -170,6 +174,164 @@ export async function setTimingWindow(endpoint, valueMs) {
   log(`${w.label} set to ${resp.value ?? valueMs} ms.`, 'log-info');
 }
 
+// ---- External switch actions (firmware 4.5.0+; upstream #20) ----
+// The three assistive-switch jacks' mouse- and gamepad-mode actions are
+// settings: one endpoint per (jack, mode), covering that jack's three hold
+// windows. The last device-confirmed triple per endpoint, for write reverts.
+/** @type {Record<string, number[]>} */
+const appliedSwitchActions = {};
+
+/** @param {string} endpoint @returns {{endpoint: string, jack: string, mode: string, selectPrefix: string, jsonKey: string, windowLabels: string[]}|null} */
+function switchSettingByEndpoint(endpoint) {
+  return SWITCH_SETTINGS.find((s) => s.endpoint === endpoint) ?? null;
+}
+
+/** Fills one window select's options from the shared action palette. */
+function populateSwitchSelect(sel) {
+  if (!sel || sel.options?.length) return;
+  for (const [value, label] of Object.entries(SWITCH_ACTION_OPTIONS)) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
+
+/** Populates every switch-action select (called once at startup wiring). */
+export function populateSwitchActionSelects() {
+  for (const s of SWITCH_SETTINGS) {
+    for (let i = 0; i < s.windowLabels.length; i++) populateSwitchSelect($(s.selectPrefix + i));
+  }
+}
+
+/**
+ * A switch-action value landed (initial load, or a write ack over the wire):
+ * reflect it in the three selects. Accepts both wire shapes — the GET's
+ * "short,long,max" triple and the SET's packed BASE+short*10000+long*100+max
+ * echo — so a change always re-syncs from device truth.
+ * @param {string} endpoint SA / SB / SC / GA / GB / GC
+ * @param {string|number} value
+ */
+export function applySwitchActionValue(endpoint, value) {
+  const s = switchSettingByEndpoint(endpoint);
+  if (!s) return;
+  const raw = String(value ?? '');
+  let cells = null;
+  if (raw.includes(',')) {
+    cells = raw.split(',').map((c) => parseInt(c, 10));
+  } else {
+    const packed = Number(raw) - SWITCH_ACTION_PACK_BASE;
+    if (Number.isFinite(packed) && packed >= 0)
+      cells = [Math.floor(packed / 10000), Math.floor(packed / 100) % 100, packed % 100];
+  }
+  if (!cells || cells.length !== 3 || cells.some((c) => !Number.isFinite(c))) return;
+  cells.forEach((c, i) => {
+    const sel = $(s.selectPrefix + i);
+    if (!sel) return;
+    populateSwitchSelect(sel);
+    if (!(String(c) in SWITCH_ACTION_OPTIONS)) {
+      // A future firmware action the palette doesn't know: show it honestly
+      // rather than silently blanking the mapping.
+      const opt = document.createElement('option');
+      opt.value = String(c);
+      opt.textContent = `Action #${c}`;
+      sel.appendChild(opt);
+    }
+    sel.value = String(c);
+    sel.disabled = false;
+  });
+  appliedSwitchActions[endpoint] = cells;
+  const btn = $('btnResetSwitchActions');
+  if (btn) btn.disabled = false;
+  const note = $('switchActionsNote');
+  if (note && !note.textContent.includes('firmware')) note.textContent = '';
+}
+
+/**
+ * Firmware too old for the switch-action endpoints (pre-4.5.0): keep the
+ * card honest instead of failing six loads on every connect — the selects
+ * stay off and the note says why.
+ */
+export function markSwitchActionsUnavailable() {
+  for (const s of SWITCH_SETTINGS) {
+    for (let i = 0; i < s.windowLabels.length; i++) {
+      const sel = $(s.selectPrefix + i);
+      if (sel) sel.disabled = true;
+    }
+  }
+  const btn = $('btnResetSwitchActions');
+  if (btn) btn.disabled = true;
+  const note = $('switchActionsNote');
+  if (note)
+    note.textContent = `External switch actions need firmware ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')}+ — update the firmware to remap the switch jacks.`;
+}
+
+/** Disconnect/start-of-load reset: no stale mapping may survive into a new session. */
+export function resetSwitchActionsUi() {
+  for (const s of SWITCH_SETTINGS) {
+    for (let i = 0; i < s.windowLabels.length; i++) {
+      const sel = $(s.selectPrefix + i);
+      if (sel) {
+        sel.value = '';
+        sel.disabled = true;
+      }
+    }
+    delete appliedSwitchActions[s.endpoint];
+  }
+  const btn = $('btnResetSwitchActions');
+  if (btn) btn.disabled = true;
+  const note = $('switchActionsNote');
+  if (note) note.textContent = '';
+}
+
+/**
+ * Writes one jack/mode's triple from its three selects. The wire value is
+ * PACK_BASE + short*10000 + long*100 + max (the base keeps it a 6-digit
+ * number — the only magnitude the firmware's serial format validator
+ * accepts); a rejected write reverts the picks to the last device-confirmed
+ * triple (the device is the truth).
+ * @param {string} endpoint
+ */
+export async function setSwitchAction(endpoint) {
+  const s = switchSettingByEndpoint(endpoint);
+  if (!s) throw new Error('Unknown switch endpoint.');
+  const cells = s.windowLabels.map((_, i) => parseInt($(s.selectPrefix + i)?.value, 10));
+  if (cells.some((c) => !Number.isFinite(c) || !(String(c) in SWITCH_ACTION_OPTIONS)))
+    throw new Error('Pick an action for each hold window first (load the device settings).');
+  const packed = cells[0] * 10000 + cells[1] * 100 + cells[2];
+  try {
+    const resp = await sendCommand(`${endpoint},1:${SWITCH_ACTION_PACK_BASE + packed}`);
+    // The SET ack echoes the packed value; the response dispatch has already
+    // re-applied it to the selects (device truth), so only a divergent echo
+    // needs the explicit apply here.
+    const echoed = Number(resp.value);
+    if (Number.isFinite(echoed) && echoed !== SWITCH_ACTION_PACK_BASE + packed)
+      applySwitchActionValue(endpoint, echoed);
+    log(`${s.jack} ${s.mode === 'mouse' ? 'mouse' : 'gamepad'} mapping applied.`, 'log-info');
+  } catch (e) {
+    const prev = appliedSwitchActions[endpoint];
+    if (prev)
+      prev.forEach((c, i) => {
+        const sel = $(s.selectPrefix + i);
+        if (sel) sel.value = String(c);
+      });
+    throw e;
+  }
+}
+
+/**
+ * Restores the compiled factory mapping on all six jack/modes: write 0 to
+ * each endpoint, then re-read them — the reset ack carries no triple, so the
+ * device's answer is the only truth worth displaying.
+ */
+export async function resetSwitchActions() {
+  for (const s of SWITCH_SETTINGS) {
+    await sendCommand(`${s.endpoint},1:0`);
+    await sendCommand(`${s.endpoint},0:0`); // its ack re-syncs the selects
+  }
+  log('External switch mappings restored to the factory defaults.', 'log-info');
+}
+
 /** The per-endpoint load plan: wire command + its render function (+ optional minimum firmware). @returns {[string, (r: any) => void, (number[] | undefined)?][]} */
 export function getDeviceLoadTasks() {
   return [
@@ -203,6 +365,16 @@ export function getDeviceLoadTasks() {
     ['WS,0:0', (r) => ENDPOINT_RENDERERS.WS(r.value), RESTRICTIONS_MIN_FIRMWARE],
     ['WL,0:0', (r) => ENDPOINT_RENDERERS.WL(r.value), RESTRICTIONS_MIN_FIRMWARE],
     ['WM,0:0', (r) => ENDPOINT_RENDERERS.WM(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    // External switch actions (4.5.0+, upstream #20): same version gate —
+    // the selects stay disabled on older firmware.
+    ...SWITCH_SETTINGS.map(
+      (s) =>
+        /** @type {[string, (r: any) => void, number[]]} */ ([
+          `${s.endpoint},0:0`,
+          (r) => applySwitchActionValue(s.endpoint, r.value),
+          SWITCH_ACTIONS_MIN_FIRMWARE,
+        ]),
+    ),
   ];
 }
 
@@ -216,6 +388,7 @@ export async function loadDeviceInfo() {
   });
   const tasks = getDeviceLoadTasks();
   let failed = 0,
+    attempted = 0,
     loadAborted = false,
     deadLink = false;
   const progBar = $('loadProgress'),
@@ -241,11 +414,13 @@ export async function loadDeviceInfo() {
     const minFw = /** @type {number[]|undefined} */ (/** @type {any} */ (tasks[i])[2]);
     if (minFw && !deviceFirmwareAtLeast(minFw[0], minFw[1], minFw[2] ?? 0)) {
       if (WINDOW_SETTINGS.some((w) => w.endpoint === tasks[i][0].slice(0, 2))) markWindowsUnavailable();
+      else if (SWITCH_SETTINGS.some((s) => s.endpoint === tasks[i][0].slice(0, 2))) markSwitchActionsUnavailable();
       else markRestrictionsUnavailable();
       continue;
     }
     setStatus(`Connected — loading ${i + 1}/${tasks.length}…`, true);
     if (progBar) progBar.value = i + 1;
+    attempted++;
     const remaining =
       timingSamples.length >= 3
         ? Math.round(((tasks.length - i) * timingSamples.reduce((a, b) => a + b, 0)) / timingSamples.length)
@@ -332,7 +507,7 @@ export async function loadDeviceInfo() {
     log('Settings partially loaded (overall timeout reached).', 'log-err');
   } else {
     const message = failed
-      ? `${failed} of ${tasks.length} settings failed to load; failed values are shown as ERR. Click Refresh all settings to retry.`
+      ? `${failed} of ${attempted} settings failed to load; failed values are shown as ERR. Click Refresh all settings to retry.`
       : '';
     $('modeGuardHint').textContent = message;
     if (message) announceStatus(message);

@@ -7,6 +7,7 @@ import {
   HEADER_SCROLL_THRESHOLD,
   RESTRICTION_SETTINGS,
   WINDOW_SETTINGS,
+  SWITCH_SETTINGS,
 } from './config/constants.js';
 import { debounce, fmtApiFloat } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
@@ -42,7 +43,15 @@ import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
-import { setRestriction, resetRestrictionsUi, setTimingWindow } from './services/settings-service.js';
+import {
+  setRestriction,
+  resetRestrictionsUi,
+  setTimingWindow,
+  populateSwitchActionSelects,
+  resetSwitchActionsUi,
+  setSwitchAction,
+  resetSwitchActions,
+} from './services/settings-service.js';
 
 // Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
 // plotting/gauge.js, and this binding calls them on input edits.
@@ -132,6 +141,7 @@ const clearSessionUi = () => {
   resetHubRemote();
   resetFirmwareUpdateUi();
   resetRestrictionsUi();
+  resetSwitchActionsUi();
 };
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
@@ -499,6 +509,36 @@ window.addEventListener('DOMContentLoaded', () => {
         }),
       );
     });
+
+    // External switch actions (upstream #20; firmware 4.5.0+): each pick
+    // writes its jack/mode's triple immediately; a rejected write reverts
+    // to the last device-confirmed mapping.
+    populateSwitchActionSelects();
+    SWITCH_SETTINGS.forEach((s) => {
+      for (let i = 0; i < s.windowLabels.length; i++) {
+        $(s.selectPrefix + i).addEventListener(
+          'change',
+          guard(
+            async () => {
+              $('switchError').textContent = '';
+              try {
+                await setSwitchAction(s.endpoint);
+              } catch (e) {
+                $('switchError').textContent = e.message;
+                throw e;
+              }
+            },
+            { quiet: true },
+          ),
+        );
+      }
+    });
+    $('btnResetSwitchActions').addEventListener(
+      'click',
+      guard(async () => {
+        await resetSwitchActions();
+      }),
+    );
 
     $('btnReadPressure').addEventListener(
       'click',

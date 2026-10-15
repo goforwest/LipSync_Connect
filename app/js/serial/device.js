@@ -9,7 +9,7 @@ import { ENDPOINT_RENDERERS } from '../services/registry.js';
 import { applyDebugData, showDiagPanel, syncLiveButtons } from '../plotting/diag.js';
 import { gaugeDelta } from '../plotting/gauge.js';
 import { plotCorner, plotRawXY, orientFromOutput, cornerState } from '../plotting/plot.js';
-import { updateStepButtons, calibrationIsRunning } from '../services/settings-service.js';
+import { updateStepButtons, calibrationIsRunning, applySwitchActionValue } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
 
 export function applyDeviceResponse(line) {
@@ -59,6 +59,17 @@ export function applyDeviceResponse(line) {
     WS: () => ENDPOINT_RENDERERS.WS(r.value),
     WL: () => ENDPOINT_RENDERERS.WL(r.value),
     WM: () => ENDPOINT_RENDERERS.WM(r.value),
+    // External switch actions (4.5.0+, upstream #20): the GET answers the
+    // "short,long,max" triple and the SET ack echoes the packed wire value —
+    // both shapes land in applySwitchActionValue, so writes confirm from
+    // device truth exactly like reads. (No Hub-menu surface exists for
+    // remaps, so no MANUAL line can arrive here.)
+    SA: () => applySwitchActionValue('SA', r.value),
+    SB: () => applySwitchActionValue('SB', r.value),
+    SC: () => applySwitchActionValue('SC', r.value),
+    GA: () => applySwitchActionValue('GA', r.value),
+    GB: () => applySwitchActionValue('GB', r.value),
+    GC: () => applySwitchActionValue('GC', r.value),
     IN: () => {
       ENDPOINT_RENDERERS.IN(r.value);
       // Only claim the neutral was "updated" for a user-triggered IN,1:1

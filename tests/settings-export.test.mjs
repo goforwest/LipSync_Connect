@@ -56,6 +56,12 @@ test('a loaded device exports labeled settings with no holes', () => {
     'menuButtonsOnly',
     'modeLocked',
     'cursorHoldDuringSap',
+    'switch1MouseActions',
+    'switch2MouseActions',
+    'switch3MouseActions',
+    'switch1GamepadActions',
+    'switch2GamepadActions',
+    'switch3GamepadActions',
   ]);
   assert.match(data.note, /identifier is redacted/);
 });
@@ -75,6 +81,12 @@ test('values that did not load are listed as holes, not exported as garbage', ()
     'menuButtonsOnly',
     'modeLocked',
     'cursorHoldDuringSap',
+    'switch1MouseActions',
+    'switch2MouseActions',
+    'switch3MouseActions',
+    'switch1GamepadActions',
+    'switch2GamepadActions',
+    'switch3GamepadActions',
   ]);
   assert.match(data.note, /notLoaded/);
 });

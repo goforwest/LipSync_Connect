@@ -9,7 +9,7 @@ import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { announceStatus } from '../ui/a11y.js';
 import { downloadLogFile } from './log-export.js';
-import { RESTRICTION_SETTINGS } from '../config/constants.js';
+import { RESTRICTION_SETTINGS, SWITCH_SETTINGS } from '../config/constants.js';
 
 // [element id, JSON key] — every value is read from the live readout, so the
 // export always matches what the user sees (and can act as a screenshot-
@@ -72,6 +72,19 @@ export function collectSettingsExport() {
       continue;
     }
     settings[r.jsonKey] = el.checked;
+  }
+  // External switch actions (4.5.0+, upstream #20): the in-force triples as
+  // [short, long, veryLong] action numbers — labels live in the guides; the
+  // numbers are the wire truth. Unloaded (older firmware, or the reads did
+  // not land) → holes, same contract as everything else.
+  for (const s of SWITCH_SETTINGS) {
+    const sel = $(s.selectPrefix + 0);
+    const cells = s.windowLabels.map((_, i) => parseInt($(s.selectPrefix + i)?.value ?? '', 10));
+    if (!sel || sel.disabled || cells.some((c) => !Number.isFinite(c))) {
+      notLoaded.push(s.jsonKey);
+      continue;
+    }
+    settings[s.jsonKey] = cells;
   }
   return {
     device: 'LipSync',

@@ -503,6 +503,30 @@ select {
 .hub-screen-items li.display-only {
   color: var(--muted);
 }
+
+/* External switch actions (sec-switches): one block per jack, two rows
+   (mouse/gamepad mode) of three labeled selects. */
+.switch-jack h3 {
+  margin: 14px 0 2px;
+  font-size: 1rem;
+}
+.switch-row {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.switch-mode-label {
+  min-width: 8.5em;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.switch-row label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.switch-row select {
+  min-width: 9em;
+}
 .hub-screen-note {
   margin: 8px 0 0;
   font-size: 0.85rem;

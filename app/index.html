@@ -115,6 +115,20 @@
       <button
         type="button"
         class="circle-trigger"
+        data-section="sec-switches"
+        aria-controls="sec-switches"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="12" x2="12" y2="18" />
+            <line x1="12" y1="6" x2="12" y2="9" /></svg></span
+        ><span class="circle-label">Switches</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
         data-section="sec-joystick"
         aria-controls="sec-joystick"
         aria-expanded="false"
@@ -507,6 +521,87 @@
         <p class="hint">
           Each restriction takes effect on the device immediately. With sip & puff disabled and the menu locked to
           buttons, only the Hub buttons (or this app) can change settings.
+        </p>
+      </section>
+
+      <section class="section-card" id="sec-switches" aria-label="External switch actions">
+        <h2>External switch actions</h2>
+        <p class="hint" id="switchActionsNote"></p>
+        <p class="hint">
+          Map each assistive-switch jack to the function its short, long and very-long holds trigger — independently of
+          sip & puff, per mode. The hold windows are the device&rsquo;s input timing settings; changes apply the moment
+          you pick an action.
+        </p>
+        <div class="switch-jack" role="group" aria-label="Switch 1">
+          <h3>Switch 1</h3>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swSAlabel">Mouse mode</span>
+            <label for="swSA0">Short hold</label>
+            <select id="swSA0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSA1">Long hold</label>
+            <select id="swSA1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSA2">Very long hold</label>
+            <select id="swSA2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swGAlabel">Gamepad mode</span>
+            <label for="swGA0">Short hold</label>
+            <select id="swGA0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGA1">Long hold</label>
+            <select id="swGA1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGA2">Very long hold</label>
+            <select id="swGA2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+        </div>
+        <div class="switch-jack" role="group" aria-label="Switch 2">
+          <h3>Switch 2</h3>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swSBlabel">Mouse mode</span>
+            <label for="swSB0">Short hold</label>
+            <select id="swSB0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSB1">Long hold</label>
+            <select id="swSB1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSB2">Very long hold</label>
+            <select id="swSB2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swGBlabel">Gamepad mode</span>
+            <label for="swGB0">Short hold</label>
+            <select id="swGB0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGB1">Long hold</label>
+            <select id="swGB1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGB2">Very long hold</label>
+            <select id="swGB2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+        </div>
+        <div class="switch-jack" role="group" aria-label="Switch 3">
+          <h3>Switch 3</h3>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swSClabel">Mouse mode</span>
+            <label for="swSC0">Short hold</label>
+            <select id="swSC0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSC1">Long hold</label>
+            <select id="swSC1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swSC2">Very long hold</label>
+            <select id="swSC2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+          <div class="row switch-row">
+            <span class="switch-mode-label" id="swGClabel">Gamepad mode</span>
+            <label for="swGC0">Short hold</label>
+            <select id="swGC0" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGC1">Long hold</label>
+            <select id="swGC1" disabled aria-describedby="switchActionsNote"></select>
+            <label for="swGC2">Very long hold</label>
+            <select id="swGC2" disabled aria-describedby="switchActionsNote"></select>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="cmd" id="btnResetSwitchActions" disabled>Restore default switch mappings</button>
+        </div>
+        <div class="error" id="switchError" role="alert"></div>
+        <p class="hint">
+          Menu navigation and the two-switches combination stay fixed, and one switch press can never reset or factory
+          reset the device. A rejected pick reverts — the device is the truth.
         </p>
       </section>
 
@@ -973,7 +1068,7 @@
         <details>
           <summary>Settings won&rsquo;t load &mdash; values show ERR or stay stuck on &hellip;</summary>
           <p class="hint">
-            Values load one at a time in sequence (25 total on firmware 4.4.0+, 18 on older firmware; ~2 seconds on
+            Values load one at a time in sequence (31 total on firmware 4.5.0+, 25 on 4.4.0, 18 on older; ~2 seconds on
             firmware 4.2.0+). If one command times out, it shows
             <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to retry only the
             failed items.

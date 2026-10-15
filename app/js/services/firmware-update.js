@@ -50,6 +50,9 @@ import {
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
   WINDOW_SETTINGS,
+  SWITCH_SETTINGS,
+  SWITCH_ACTIONS_MIN_FIRMWARE,
+  SWITCH_ACTION_PACK_BASE,
 } from '../config/constants.js';
 
 // ---- Version parsing / comparison (pure, exported for tests) ----
@@ -520,6 +523,29 @@ export function captureSettingsSnapshot() {
     }
     snapshot[w.endpoint] = v;
   }
+  // External switch actions (4.5.0+, upstream #20): the same optional-keys
+  // contract at its own gate — a pre-4.5.0 device simply doesn't have the
+  // settings; on firmware that does, an unloaded mapping is a hole (the
+  // restore promises to write a caregiver's remaps back or fail loudly).
+  const deviceHasSwitchActions = deviceFirmwareAtLeast(
+    SWITCH_ACTIONS_MIN_FIRMWARE[0],
+    SWITCH_ACTIONS_MIN_FIRMWARE[1],
+    SWITCH_ACTIONS_MIN_FIRMWARE[2],
+  );
+  if (deviceHasSwitchActions) {
+    for (const s of SWITCH_SETTINGS) {
+      const cells = s.windowLabels.map((_, i) => parseInt($(s.selectPrefix + i)?.value ?? '', 10));
+      const sel = $(s.selectPrefix + 0);
+      if (!sel || sel.disabled || cells.some((c) => !Number.isFinite(c))) {
+        missing.push(`${s.jack} ${s.mode} mapping`);
+        continue;
+      }
+      // 0 (all nothing) is stored as the packed triple, never confused with
+      // the whole-endpoint factory reset (wire 0): snapshot the PACKED wire
+      // value exactly as the restore will write it.
+      snapshot[s.endpoint] = String(SWITCH_ACTION_PACK_BASE + cells[0] * 10000 + cells[1] * 100 + cells[2]);
+    }
+  }
   if (missing.length)
     throw new Error('Some settings did not load (' + missing.join(', ') + '). Click Refresh all settings and retry.');
   return snapshot;
@@ -570,7 +596,34 @@ export function setRestoreSettleForTests(ms) {
  */
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
-  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM'];
+  const order = [
+    'SS',
+    'SL',
+    'AV',
+    'ST',
+    'PT',
+    'IZ',
+    'OZ',
+    'SM',
+    'LM',
+    'LL',
+    'SD',
+    'MA',
+    'LK',
+    'CF',
+    'WS',
+    'WL',
+    'WM',
+    // External switch actions (4.5.0+) restore last: they are plain packed
+    // ints exactly as the snapshot captured them (the base included, or the
+    // whole-endpoint factory reset for a 0).
+    'SA',
+    'SB',
+    'SC',
+    'GA',
+    'GB',
+    'GC',
+  ];
   let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];

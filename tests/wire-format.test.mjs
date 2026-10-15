@@ -212,12 +212,18 @@ test('ECHO_WRITE_ENDPOINTS covers exactly the firmware write endpoints', () => {
   assert.deepEqual([...ECHO_WRITE_ENDPOINTS].sort(), [
     'CM',
     'DM',
+    'GA',
+    'GB',
+    'GC',
     'IZ',
     'LL',
     'LM',
     'OM',
     'OZ',
     'PT',
+    'SA',
+    'SB',
+    'SC',
     'SL',
     'SM',
     'SS',
@@ -229,10 +235,12 @@ test('ECHO_WRITE_ENDPOINTS covers exactly the firmware write endpoints', () => {
 
 test('fmtApiFloat pads params so every command line lands on a length the firmware accepts', async () => {
   const { fmtApiFloat } = await import('../app/js/utils/format.js');
-  // The firmware's isValidCommandFormat() accepts total lines of 6/7/8/9/11
-  // chars ("XX,d:" + param of length 1/2/3/4/6): a 5-char param would give a
-  // 10-char line and be REJECTED, so 5-char values gain a trailing zero.
-  const legalLineLengths = new Set([6, 7, 8, 9, 11]);
+  // The firmware's isValidCommandFormat() accepts total lines of 6-11
+  // chars ("XX,d:" + param of length 1-6). fmtApiFloat's trailing-zero rule
+  // predates the firmware accepting 5-char params (10-char lines, added in
+  // 4.5.0 so the timing-window maximum WM,1:10000 is wire-writable); the
+  // padding is semantically neutral for floats and kept.
+  const legalLineLengths = new Set([6, 7, 8, 9, 10, 11]);
   const vectors = [
     ['3', '3.00'],
     ['3.0', '3.00'],
