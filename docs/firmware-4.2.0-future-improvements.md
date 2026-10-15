@@ -566,6 +566,48 @@ the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
 > `docs/upstream-issue-comments.md` — posting them from the org account
 > is the maintainer action that closes this item.
 
+## Blocked / maintainer action (2026-10-14 state of the leftovers)
+
+Everything above is done or carries its own Done/deferral note. What
+remains, and exactly why:
+
+- **Hardware validation session (one bench day with a 4.4.0 unit) closes
+  most of the rest.** Items 11/15/16 shipped code-complete but
+  feel-gated: the restrictions (#21/#44/#68/#77), the timing windows and
+  level scale (#62/#22/#9), and the input-state LED tier (#43) each need
+  their "does it feel right with a real user" pass before their upstream
+  issues close; item 12 (#74, spontaneous mode changes) is verification
+  only — reproduce a flaky sensor against 4.2.0+ and confirm the
+  health-gated inputs prevent the phantom-menu walk; and the
+  firmware-update doc's item 6 (Android/OTG flash path + the UM entry)
+  is simulator-proven and needs its one hardware session. The settle-free
+  restore check from item 2's root-cause note belongs to the same day.
+- **Feel-design decision before code: #58 hard sip/puff** (which actions
+  hard inputs trigger is an accessibility decision to make WITH affected
+  users — see item 15's note) and **#20's switch-remap table** (a new
+  mapping-table settings surface; the restrictions plumbing it would
+  ride landed in 4.4.0).
+- **An affected unit: item 17 (#54 mechanical drift).** The firmware
+  mitigation (median-of-N center sampling, hysteresis-aware center
+  acceptance) is sketched in the item but iterating it blind against a
+  mechanical problem would be guessing.
+- **Hardware redesign, not firmware: items 7 and 10** (keyed/polarized
+  interface connector; soldered sensor connections + ESD/TVS protection
+  on the interface lines) — these remove the reversed-cable and
+  static-shock failure classes at the source; **#26** (PCB labels)
+  rides the same next PCB rev.
+- **Maintainer/community action: item 8** — post the drafts in
+  `docs/upstream-issue-comments.md` (then #73/#75/#63/#37 and the
+  closeable notes can close); **#80** — delete the ~48 stale remote
+  branches upstream.
+- **Word-side doc export:** the .docx working documents carry the docs
+  pass; regenerating the PDFs and folding the 4.3.0/4.4.0 endpoints into
+  the serial-command tables happen with the 4.4.0 release prep.
+- **Deliberate deferrals:** item 2 (XENSIV migration — subsumes the
+  vendored fork's role only when hardware validation can accompany it),
+  item 6's protocol-v3 (nothing to do; v2 already shipped), and the two
+  research calls above (ESP32: do not schedule; multi-BT: spike-first).
+
 ## Deliberately not "fixed" (recorded so nobody "fixes" them by accident)
 
 - `playShutdownSound()` and `softwareReset()`'s 3 s pre-restart window are
