@@ -33,28 +33,28 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 
 | # | Title (short) | Disposition |
 |---|---|---|
-| 87 | Easier mouthpiece replacement | docs backlog |
+| 87 | Easier mouthpiece replacement | ✅ docs pass 2026-10-14 (replacement steps + consumable sourcing; mechanical redesign not asked) |
 | 86 | Cursor acceleration | ✅ item 9 done in 4.3.0 (feel validation pending, then closeable) |
 | 85 | ESP32 feasibility evaluation | research |
 | 84 | Screw clearance hole diameter | mechanical |
 | 83 | Static shock killed hub | **item 10** |
-| 82 | Update error codes in User Guide | docs backlog |
+| 82 | Update error codes in User Guide | ✅ docs pass 2026-10-14 (bitfield rows corrected + explained) |
 | 80 | Clean up unused branches | docs backlog (chore; 48 remote branches counted 2026-10-14) |
-| 79 | Maker Guide: programming issues | docs backlog |
-| 78 | Space in file path breaks compile | docs backlog (upstream Seeed core limit; CI unaffected) |
+| 79 | Maker Guide: programming issues | ✅ docs pass 2026-10-14 |
+| 78 | Space in file path breaks compile | ✅ docs pass 2026-10-14 (Seeed core limitation + remedy documented) |
 | 77 | Sip-and-puff menu lockout | ✅ item 11 done in 4.4.0 (MA restriction; closeable after hardware validation) |
-| 76 | Mouthpiece cleaning/replacement docs | docs backlog |
+| 76 | Mouthpiece cleaning/replacement docs | ✅ docs pass 2026-10-14 (hygiene, cleaning, BOM sourcing) |
 | 75 | Watchdog activates after factory reset | ✅ fixed in 4.2.0 (see community notes) |
 | 74 | LipSync changing mode by itself | **item 12** (likely fixed by 4.2.0; verify on hardware) |
 | 73 | Wrong/reversed interface cable → error lights, stuck boot | ✅ 4.2.0 survives it; **item 7** fixes at source |
-| 72 | Mouse flipped — joystick orientation docs | docs backlog |
-| 71 | Sip/puff swapped — host left-handed note | docs backlog |
+| 72 | Mouse flipped — joystick orientation docs | ✅ docs pass 2026-10-14 (User Guide troubleshooting + Maker Guide magnet step) |
+| 71 | Sip/puff swapped — host left-handed note | ✅ docs pass 2026-10-14 (troubleshooting entry) |
 | 70 | Print issues on middle-housing threads | mechanical |
 | 69 | Mounting-part filename length | mechanical |
 | 68 | Lock out unwanted mode changes | ✅ item 11 done in 4.4.0 (LK mode lock; closeable after hardware validation) |
 | 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings") + the serial EX,0:0 dump in the firmware — closeable |
-| 65 | Magnetometer orientation in Maker Guide | docs backlog |
-| 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with ✅ **item 3** — the BH endpoint landed in 4.3.0) |
+| 65 | Magnetometer orientation in Maker Guide | ✅ docs pass 2026-10-14 (step qualified; calibration's limits named) |
+| 64 | Faulty-sensor troubleshooting in Maker Guide | ✅ docs pass 2026-10-14 (PV/JV/DM/BH/EX write-up against 4.2.0+ diagnostics) |
 | 63 | USB error message persists after reboot | ✅ amplifier in 4.2.0 + residual (item 14b) in 4.3.0 — closeable |
 | 62 | Adjustable input time thresholds | ✅ item 15 done in 4.4.0 (WS/WL/WM windows; closeable after hardware validation) |
 | 61 | Audio cue for scroll/drag mode | ✅ item 16 audio half done in 4.3.0 ("All" tier; validate, then closeable) |
@@ -66,7 +66,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 43 | LED feedback keyed to input state, not action | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier (closeable after the hardware validation it ships for) |
 | 37 | TLV493D library deprecated | ✅ item 1 done in 4.4.0 (bounded vendored fork; item 2's XENSIV migration is the deliberate follow-up) |
 | 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
-| 33 | Debug mode documentation incomplete | docs backlog |
+| 33 | Debug mode documentation incomplete | ✅ docs pass 2026-10-14 (packets corrected; DEBUG,2's 4th value is the sensor offset) |
 | 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
 | 24 | Sled component print failure | mechanical |
 | 22 | Sip/puff threshold levels UX | ✅ item 15 done in 4.4.0 (10-level Hub-menu scale; closeable after hardware validation) |
@@ -486,26 +486,22 @@ review for low-humidity environments.
 
 ## Documentation backlog (docs items — no firmware change)
 
-One pass over the guides closes eleven upstream issues; the highest-value
-entries first:
-
-- **#64** faulty-sensor troubleshooting using the debug modes — write it
-  against firmware 4.2.0's diagnostics (and item 3's health endpoint when
-  it lands): how to read the pressure/joystick debug streams, what
-  "sensor unhealthy" means, and what the safe-mode pages tell you. This
-  issue would have answered this entire flaky-bus saga for a maker.
-- **#79 + #56 + #78**: Maker Guide programming/troubleshooting — the
-  python→python3 platform.txt workaround, the space-in-path Seeed core
-  limitation, and the adafruit-nrfutil chmod fix (all three already have
-  known solutions documented only in issues).
-- **#71** sip/puff swapped → host left-handed-mode note; **#72** mouse
-  flipped → joystick orientation; **#65** magnetometer orientation —
-  three orientation troubleshooting notes.
-- **#82** correct the error-code table in the User Guide; **#33** fix the
-  debug-mode packet description (raw, filtered *and* output values).
-- **#76 + #87** mouthpiece cleaning/replacement and filter sourcing.
-- **#26** PCB labels for the RJ11 jack, microcontroller pads and I2C
-  header (next PCB rev, pairs with item 10); **#80** branch cleanup.
+> **Mostly done (2026-10-14, both guides' working documents).** One pass
+> over the .docx guides landed #64, #79, #56, #78, #65, #71, #72, #82,
+> #33, #76 and #87: both error-code tables now match the firmware's
+> bitfield (with the sum explained in prose), the debug-mode packets are
+> described as the firmware prints them, the Maker Guide gained the
+> faulty-sensor diagnostics write-up (PV/JV, the DM streams, BH, the EX
+> dump) and the three programming workarounds that lived only in issues,
+> the magnet-orientation step is honest about what calibration does and
+> does not fix, and the User Guide gained the swapped-clicks
+> (host left-handed setting) and flipped-cursor troubleshooting entries
+> plus mouthpiece hygiene/cleaning/sourcing guidance. **PDF regeneration
+> is the maintainer's Word export pass; the two User/Maker-Guide command
+> tables should also absorb the 4.3.0/4.4.0 API additions (UM, BH, AV,
+> EX, SD/MA/LK/CF, WS/WL/WM) when 4.4.0 releases.** Still open in this
+> backlog: **#26** PCB labels (next PCB rev, pairs with item 10) and
+> **#80** branch cleanup (upstream repo maintenance).
 
 ## Mechanical / 3D-print backlog (no firmware change)
 
