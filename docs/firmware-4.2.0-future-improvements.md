@@ -558,7 +558,13 @@ the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
   the retry loop's full-framebuffer redraw per 2 s tick was the amplifier;
   4.2.0 draws the page at most once per episode and only on an answerable
   bus (residual stale-page cleanup is item 14).
-- **#37** (TLV493D library deprecated): tracked as items 1–2 above.
+- **#37** (TLV493D library deprecated): tracked as items 1–2 above; the
+  vendored bounded fork landed in 4.4.0 (item 1 done).
+
+> **Drafted (2026-10-14):** paste-ready comment text for #73, #75, #63,
+> #37 and the closeable-now notes (#36/#67/#61/#86) lives in
+> `docs/upstream-issue-comments.md` — posting them from the org account
+> is the maintainer action that closes this item.
 
 ## Deliberately not "fixed" (recorded so nobody "fixes" them by accident)
 
