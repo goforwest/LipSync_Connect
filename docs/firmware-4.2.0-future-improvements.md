@@ -26,22 +26,34 @@ root (the USB-HID report paths no longer block the main loop; see the
 update doc's item 2). Open with the most value next: item 15 (input timing
 & accessibility) and the docs backlog.
 
-**2026-10-15 fresh-eye round (app):** an independent re-read of the list
-found one app-side residual the rounds had left: the Hub-menu remote mirror
+**2026-10-15 fresh-eye round (app + firmware 4.5.0):** an independent
+re-read of the list attacked what remained actionable and closed two
+findings plus the #20 feature family. (1) The Hub-menu remote mirror
 (`services/hub-remote.js`) still modeled the pre-4.3.0 OLED menu, so
 driving a 4.4.0 device through the app's own Hub remote would desync every
-Next/Select after the new rows. It now mirrors the 4.4.0 tree exactly —
+Next/Select after the new rows; it now mirrors the 4.4.0 tree exactly —
 More ▸ Acceleration (4.3.0+), More ▸ Restrictions with its state-bearing
 toggle lines, Sip & Puff ▸ Timing with the 250 ms adjust pages (range and
 short < long < max refusals included), the coarse 10-level threshold scale
-on 4.4.0+ with the firmware's exact level/label semantics (older firmware
-keeps its plain ±1 hPa steps — the mirror previously stepped ±0.25, which no
+with the firmware's exact level/label semantics (older firmware keeps its
+real plain ±1 hPa steps — the mirror previously stepped ±0.25, which no
 firmware ever did), and the Info page's display-only Version/ID rows — all
-version-gated on the session's firmware so a 4.1 device shows exactly the
-4.1 menu. The level table now lives in the app's constants and the
-protocol-cross-check verifies app ↔ firmware equality (the checklist's C4
-example was corrected to the code's real semantics: from 3.50, up steps to
-4.00/L3, down to 3.00/L2).
+version-gated on the session's firmware. The level table now lives in the
+app's constants and the protocol-cross-check verifies app ↔ firmware
+equality (the checklist's C4 example was corrected to the code's real
+semantics: from 3.50, up steps to 4.00/L3, down to 3.00/L2). (2) The
+serial format validator accepted 1-4-digit and 6-digit parameters but not
+5-digit, so `WM,1:10000` — the timing-window MAXIMUM the Hub menu can set —
+was answered FAIL,0 on the wire; fixed in 4.5.0 and the cross-check now
+verifies every plausible command line's length. (3) **Upstream #20, the
+switch-remap table, shipped as firmware 4.5.0 + the app's Switches card**
+(see item 11's note) — the fresh-eye judgment was that the ledger's
+"feel-design decision before code" classification fit #58's new-gesture
+question but not #20: the clinician's ask IS remappability, a settings
+surface over the existing action vocabulary with byte-identical defaults,
+so nothing ships that any user must relearn. (4) The load summary now counts
+attempted settings, and the app's load grew to 31 tasks (18 base + 7
+gated 4.4.0 + 6 gated 4.5.0).
 
 ## Upstream issue map — open issues (42)
 
@@ -88,7 +100,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 24 | Sled component print failure | mechanical |
 | 22 | Sip/puff threshold levels UX | ✅ item 15 done in 4.4.0 (10-level Hub-menu scale; closeable after hardware validation) |
 | 21 | Ability to disable sip and puff | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it; closeable after hardware validation) |
-| 20 | Switches as independent inputs | **item 11 residual** — the restrictions family landed; the remap table is the remaining half |
+| 20 | Switches as independent inputs | ✅ done in 4.5.0 (item 11's remap follow-up — see its note; closeable after hardware validation) |
 | 19 | Unreliable STEMMA-Dupont connection | **item 10** |
 | 16 | Switch between multiple Bluetooth devices | ✅ feasibility call written 2026-10-14 (roadmap Research section): buildable above Bluefruit; needs a multi-host bench spike |
 | 15 | Hub slides around (feet/velcro) | mechanical |
@@ -462,13 +474,37 @@ plumbing and each toggle can land incrementally.
 > pre-4.4.0 firmware reports the card as "needs firmware 4.4.0+"
 > instead of failing four loads, the update snapshot/restore round-trips
 > the toggles when the connected device has them, and the settings
-> export carries them as booleans. **Open:** #20's independent
-> switch-mapping table (the doc's deliberately separate follow-up —
-> the three switch jacks already have distinct default mappings; what
-> #20 wants is user-remappability, which is a mapping-table settings
-> surface of its own). **Hardware validation:** the 4.4.0 session
-> should confirm each toggle's feel on the bench (especially CF's
+> export carries them as booleans. **Hardware validation:** the 4.4.0
+> session should confirm each toggle's feel on the bench (especially CF's
 > freeze window) before closing #21/#44/#68/#77 upstream.
+>
+> **Done (2026-10-15, firmware 4.5.0 + app) — #20's switch-remap table,
+> the deliberate follow-up this doc named.** The mouse- and gamepad-mode
+> action cells of the three switch jacks are now settings: `SA/SB/SC` =
+> jacks 1/2/3 mouse mode, `GA/GB/GC` = gamepad mode, each endpoint
+> covering its jack's three hold windows. The GET answers
+> "short,long,max"; the SET takes 0 (compiled factory mapping) or
+> 100000 + short*10000 + long*100 + max (the base keeps every non-reset
+> value a 6-digit number, the only magnitude the serial format
+> validator accepts), with every cell pinned to a caregiver-safe
+> allowlist — calibration, menu navigation, software reset and factory
+> reset excluded, so one accidental press of a remapped switch can never
+> erase settings or restart the device. Menu/safe-mode columns and the
+> S1+S3 combination row stay compiled (menu navigation is a fixed
+> language), the 4.4.0 windows remain the routing, the 4.4.0
+> restriction gates still apply to remapped actions, and stored 0 =
+> compiled default (a settings file from older firmware keeps the
+> factory mapping on update). Surfaces: the six endpoints (EX dump and
+> factory-reset defaults included) and the app's 4.5.0-gated Switches
+> card — the caregiver surface the clinician's issue asked for; the Hub
+> menu deliberately does not grow a remap grid. The 2026-10-15
+> fresh-eye round re-judged the ledger's "feel-design decision before
+> code" block on this item: that classification fits #58 (inventing a
+> new gesture language users must relearn) but not #20, whose ask is
+> remappability itself over the existing vocabulary with
+> byte-identical defaults. **Hardware validation:** a 4.5.0 session
+> should confirm a remapped jack's feel per mode and window before
+> closing #20 upstream (checklist part H).
 
 ### Hardware (hub redesign / PCB backlog)
 
@@ -583,27 +619,34 @@ the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
 > `docs/upstream-issue-comments.md` — posting them from the org account
 > is the maintainer action that closes this item.
 
-## Blocked / maintainer action (2026-10-14 state of the leftovers)
+## Blocked / maintainer action (2026-10-15 state of the leftovers)
 
 Everything above is done or carries its own Done/deferral note. What
 remains, and exactly why:
 
-- **Hardware validation session (one bench day with a 4.4.0 unit) closes
-  most of the rest.** Items 11/15/16 shipped code-complete but
-  feel-gated: the restrictions (#21/#44/#68/#77), the timing windows and
-  level scale (#62/#22/#9), and the input-state LED tier (#43) each need
-  their "does it feel right with a real user" pass before their upstream
+- **Hardware validation session (one bench day with a 4.4.0 unit, plus
+  the 4.5.0 part-H addendum once that line builds) closes most of the
+  rest.** Items 11/15/16 shipped code-complete but feel-gated: the
+  restrictions (#21/#44/#68/#77), the timing windows and level scale
+  (#62/#22/#9), and the input-state LED tier (#43) each need their
+  "does it feel right with a real user" pass before their upstream
   issues close; item 12 (#74, spontaneous mode changes) is verification
   only — reproduce a flaky sensor against 4.2.0+ and confirm the
-  health-gated inputs prevent the phantom-menu walk; and the
+  health-gated inputs prevent the phantom-menu walk; the switch-remap
+  surface (#20, 4.5.0) needs its per-jack/mode/window feel pass
+  (checklist part H); and the
   firmware-update doc's item 6 (Android/OTG flash path + the UM entry)
   is simulator-proven and needs its one hardware session. The settle-free
   restore check from item 2's root-cause note belongs to the same day.
 - **Feel-design decision before code: #58 hard sip/puff** (which actions
   hard inputs trigger is an accessibility decision to make WITH affected
-  users — see item 15's note) and **#20's switch-remap table** (a new
-  mapping-table settings surface; the restrictions plumbing it would
-  ride landed in 4.4.0).
+  users — see item 15's note). (#20's switch-remap table sat in this
+  bucket until the 2026-10-15 fresh-eye round argued it out — the
+  clinician's ask is remappability itself, a settings surface over the
+  existing vocabulary with byte-identical defaults, not a new gesture
+  language — and it shipped as firmware 4.5.0 + the app's Switches
+  card; see item 11's note. It now waits on the same hardware
+  validation as every other code-complete item.)
 - **An affected unit: item 17 (#54 mechanical drift).** The firmware
   mitigation (median-of-N center sampling, hysteresis-aware center
   acceptance) is sketched in the item but iterating it blind against a

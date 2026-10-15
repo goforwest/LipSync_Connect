@@ -86,3 +86,15 @@ blind swap).
 - **#86** (cursor acceleration): shipped in 4.3.0 as a stored −10..10
   level bending the deflection-to-speed curve; level 0 is the old linear
   behavior.
+- **#20** (switches as additional inputs): firmware 4.5.0 makes the three
+  assistive-switch jacks independently remappable — per jack, per hold
+  window, separately for mouse and gamepad mode — from a caregiver-safe
+  action palette (the clicks, drag, scroll, gamepad buttons B1-B8, cursor
+  centering, speed steps, mode change, menu open; calibration/reset actions
+  are deliberately excluded so one accidental press can never erase
+  settings). The compiled defaults are unchanged, so nothing changes for
+  existing users until a caregiver opts in; LipSync Connect exposes it as
+  its "External switch actions" card — the per-host mappability the
+  clinician's note asked for (gamepad mode is what an iPad's Switch
+  Control sees). Closeable once 4.5.0 ships and the bench session
+  (checklist part H) confirms the feel.
