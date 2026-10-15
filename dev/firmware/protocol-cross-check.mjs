@@ -51,7 +51,9 @@ const readFw = (p) => readFileSync(path.join(SKETCH, p), 'utf8');
 // ---- 1. Firmware dispatch table -------------------------------------------
 console.log('\n[1] firmware dispatch table');
 const dispatch = {}; // "EP,code" -> parameter string
-for (const m of readFw('LSAPI.ino').matchAll(/_functionList\s+\w+\s*=\s*\{\s*"([A-Z0-9]{2})"\s*,\s*"(\d)"\s*,\s*"([^"]*)"/g)) {
+for (const m of readFw('LSAPI.ino').matchAll(
+  /_functionList\s+\w+\s*=\s*\{\s*"([A-Z0-9]{2})"\s*,\s*"(\d)"\s*,\s*"([^"]*)"/g,
+)) {
   const key = m[1] + ',' + m[2];
   if (dispatch[key]) fail(`duplicate dispatch entry for ${key}`);
   dispatch[key] = m[3];
@@ -79,11 +81,14 @@ try {
 const readKeys = new Set();
 for (const f of ['LSAPI.ino', 'LipSync_Firmware.ino']) {
   const src = readFw(f);
-  for (const m of src.matchAll(/mem\.read(?:Int|Float|String|Point)\(CONF_SETTINGS_FILE,\s*"([^"]+)"/g)) readKeys.add(m[1]);
+  for (const m of src.matchAll(/mem\.read(?:Int|Float|String|Point)\(CONF_SETTINGS_FILE,\s*"([^"]+)"/g))
+    readKeys.add(m[1]);
   // Getters read through a local: String commandKey = "XX"; — but only when
   // that local is actually passed to a mem.read call nearby (some functions
   // declare it and never use it — dead labels, not keys).
-  for (const m of src.matchAll(/String commandKey = "([^"]+)"[\s\S]{0,2000}?mem\.read\w+\(CONF_SETTINGS_FILE,\s*commandKey/g))
+  for (const m of src.matchAll(
+    /String commandKey = "([^"]+)"[\s\S]{0,2000}?mem\.read\w+\(CONF_SETTINGS_FILE,\s*commandKey/g,
+  ))
     readKeys.add(m[1]);
   // readPoint-style keys built dynamically (CA1..CA4)
   for (const m of src.matchAll(/"CA"\s*\+\s*String\(/g)) readKeys.add('CA1', 'CA2', 'CA3', 'CA4');
@@ -99,9 +104,17 @@ console.log('\n[4] app -> firmware command pairs');
 const { RESTRICTION_SETTINGS, WINDOW_SETTINGS, STEP_TARGETS } = await import(
   path.join(APP, 'app/js/config/constants.js')
 );
-const appSources = ['app/js/main.js', 'app/js/services/settings-service.js', 'app/js/services/device-ops.js',
-  'app/js/services/hub-remote.js', 'app/js/services/mode-switch.js', 'app/js/services/health.js',
-  'app/js/services/firmware-update.js', 'app/js/services/calibration.js', 'app/js/serial/commands.js'].map(read);
+const appSources = [
+  'app/js/main.js',
+  'app/js/services/settings-service.js',
+  'app/js/services/device-ops.js',
+  'app/js/services/hub-remote.js',
+  'app/js/services/mode-switch.js',
+  'app/js/services/health.js',
+  'app/js/services/firmware-update.js',
+  'app/js/services/calibration.js',
+  'app/js/serial/commands.js',
+].map(read);
 // Literal commands: sendCommand('EP,c:v...') — kept with their parameter so a
 // pinned firmware parameter ("0"/"1") can be compared, not just the pair.
 const literalCommands = new Set(); // "EP,c:parameter"
@@ -143,7 +156,9 @@ for (const pair of [...symbolicPairs].sort()) {
   }
 }
 if (!pairFails)
-  ok(`${literalCommands.size} literal + ${symbolicPairs.size} symbolic command shapes all resolve in the firmware table`);
+  ok(
+    `${literalCommands.size} literal + ${symbolicPairs.size} symbolic command shapes all resolve in the firmware table`,
+  );
 
 // ---- 5. Value-range agreement ----------------------------------------------
 console.log('\n[5] app validation ranges vs firmware setters');
@@ -177,6 +192,22 @@ for (const [ep, fmin, fmax] of fwWindows) {
   else ok(`${ep} window [${lo}, ${hi}] agrees`);
 }
 
+// The Hub-menu threshold level scale: the app's Hub-remote mirror steps the
+// same coarse table the firmware's OLED pages step, so the two copies must
+// be identical (labels and stepping semantics both derive from it).
+const { PRESS_THRESHOLD_LEVELS } = await import(path.join(APP, 'app/js/config/constants.js'));
+const fwLevels = [...configSrc.matchAll(/PRESS_THRESHOLD_LEVEL_TABLE\[\]\s*=\s*\{([^}]*)\}/g)].flatMap((m) =>
+  m[1]
+    .split(',')
+    .map((x) => parseFloat(x.trim()))
+    .filter((x) => Number.isFinite(x)),
+);
+if (fwLevels.length !== PRESS_THRESHOLD_LEVELS.length || fwLevels.some((v, i) => v !== PRESS_THRESHOLD_LEVELS[i])) {
+  fail(`threshold level scale differs: app [${PRESS_THRESHOLD_LEVELS.join(',')}] != firmware [${fwLevels.join(',')}]`);
+} else {
+  ok(`threshold level scale [${fwLevels.join(', ')}] agrees (${fwLevels.length} levels)`);
+}
+
 // ---- 6. Version gates vs the paired firmware ------------------------------
 console.log('\n[6] app version gates vs firmware version');
 const fwVersion = [
@@ -188,7 +219,10 @@ const { RESTRICTIONS_MIN_FIRMWARE } = await import(path.join(APP, 'app/js/config
 const [gMaj, gMin, gRev] = RESTRICTIONS_MIN_FIRMWARE;
 const [fMaj, fMin, fRev] = fwVersion;
 const fwNewEnough = fMaj > gMaj || (fMaj === gMaj && (fMin > gMin || (fMin === gMin && fRev >= gRev)));
-if (!fwNewEnough) fail(`firmware ${fwVersion.join('.')} is OLDER than the app's ${RESTRICTIONS_MIN_FIRMWARE.join('.')} gate — the app would hide its own features`);
+if (!fwNewEnough)
+  fail(
+    `firmware ${fwVersion.join('.')} is OLDER than the app's ${RESTRICTIONS_MIN_FIRMWARE.join('.')} gate — the app would hide its own features`,
+  );
 else ok(`firmware ${fwVersion.join('.')} satisfies the ${RESTRICTIONS_MIN_FIRMWARE.join('.')} gate`);
 const healthSrc = read('app/js/services/health.js');
 const bhGate = healthSrc.match(/BUS_HEALTH_MIN_FIRMWARE\s*=\s*\[(\d+),\s*(\d+),\s*(\d+)\]/);

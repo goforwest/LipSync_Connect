@@ -500,6 +500,9 @@ select {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.hub-screen-items li.display-only {
+  color: var(--muted);
+}
 .hub-screen-note {
   margin: 8px 0 0;
   font-size: 0.85rem;

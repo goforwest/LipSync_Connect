@@ -241,6 +241,13 @@ export const WINDOW_SETTINGS = [
   },
 ];
 
+// ---- Sip/puff threshold level scale (firmware 4.4.0+; roadmap item 15 / upstream #22) ----
+// The Hub menu's OLED threshold pages step through these coarse levels
+// (hPa) instead of fine ±1 hPa steps; the serial API and this app keep the
+// fine granularity. Mirrors the firmware's PRESS_THRESHOLD_LEVEL_TABLE —
+// dev/firmware/protocol-cross-check.mjs verifies the two stay identical.
+export const PRESS_THRESHOLD_LEVELS = [2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 22.0, 32.0, 45.0];
+
 // Live self-test narration tables: each entry pairs the firmware's narration
 // text with a human label; { hidden: true } steps exist purely for sequencing.
 /** @type {[RegExp, string, { hidden?: boolean }?][]} */

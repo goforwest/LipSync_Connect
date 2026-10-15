@@ -21,10 +21,27 @@ close-pending hardware validation.
 **2026-10-14 round 2 (firmware 4.4.0 + app):** item 11 (the restrictions
 family — #21/#44/#68/#77) is done pending its hardware session, the serial
 `EX,0:0` settings dump closed item 13's residual, and the firmware-update
-doc's "why does fresh CDC drop its first writes" investigation closed at
-the root (the USB-HID report paths no longer block the main loop; see the
+doc's "why does fresh CDC drop its first writes" investigation closed at the
+root (the USB-HID report paths no longer block the main loop; see the
 update doc's item 2). Open with the most value next: item 15 (input timing
 & accessibility) and the docs backlog.
+
+**2026-10-15 fresh-eye round (app):** an independent re-read of the list
+found one app-side residual the rounds had left: the Hub-menu remote mirror
+(`services/hub-remote.js`) still modeled the pre-4.3.0 OLED menu, so
+driving a 4.4.0 device through the app's own Hub remote would desync every
+Next/Select after the new rows. It now mirrors the 4.4.0 tree exactly —
+More ▸ Acceleration (4.3.0+), More ▸ Restrictions with its state-bearing
+toggle lines, Sip & Puff ▸ Timing with the 250 ms adjust pages (range and
+short < long < max refusals included), the coarse 10-level threshold scale
+on 4.4.0+ with the firmware's exact level/label semantics (older firmware
+keeps its plain ±1 hPa steps — the mirror previously stepped ±0.25, which no
+firmware ever did), and the Info page's display-only Version/ID rows — all
+version-gated on the session's firmware so a 4.1 device shows exactly the
+4.1 menu. The level table now lives in the app's constants and the
+protocol-cross-check verifies app ↔ firmware equality (the checklist's C4
+example was corrected to the code's real semantics: from 3.50, up steps to
+4.00/L3, down to 3.00/L2).
 
 ## Upstream issue map — open issues (42)
 
