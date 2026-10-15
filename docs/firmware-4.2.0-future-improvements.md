@@ -56,10 +56,10 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 65 | Magnetometer orientation in Maker Guide | docs backlog |
 | 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with ✅ **item 3** — the BH endpoint landed in 4.3.0) |
 | 63 | USB error message persists after reboot | ✅ amplifier in 4.2.0 + residual (item 14b) in 4.3.0 — closeable |
-| 62 | Adjustable input time thresholds | **item 15** |
+| 62 | Adjustable input time thresholds | ✅ item 15 done in 4.4.0 (WS/WL/WM windows; closeable after hardware validation) |
 | 61 | Audio cue for scroll/drag mode | ✅ item 16 audio half done in 4.3.0 ("All" tier; validate, then closeable) |
 | 59 | Reversed RJ11 interface cable wiring | **item 10** (cable hardening) |
-| 58 | Hard sip / hard puff inputs | **item 15** |
+| 58 | Hard sip / hard puff inputs | **item 15** — blocked on feel validation with affected users (see item 15's note) |
 | 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
 | 54 | Mechanical drift / center hysteresis | **item 17** |
 | 44 | Toggle cursor movement during sip/puff | ✅ item 11 done in 4.4.0 (CF cursor hold; closeable after hardware validation) |
@@ -69,13 +69,13 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 33 | Debug mode documentation incomplete | docs backlog |
 | 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
 | 24 | Sled component print failure | mechanical |
-| 22 | Sip/puff threshold levels UX | **item 15** |
+| 22 | Sip/puff threshold levels UX | ✅ item 15 done in 4.4.0 (10-level Hub-menu scale; closeable after hardware validation) |
 | 21 | Ability to disable sip and puff | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it; closeable after hardware validation) |
 | 20 | Switches as independent inputs | **item 11 residual** — the restrictions family landed; the remap table is the remaining half |
 | 19 | Unreliable STEMMA-Dupont connection | **item 10** |
 | 16 | Switch between multiple Bluetooth devices | research |
 | 15 | Hub slides around (feet/velcro) | mechanical |
-| 9 | Very long sips/puffs impossible for some users | **item 15** |
+| 9 | Very long sips/puffs impossible for some users | ✅ mostly item 15: adjustable windows shrink every hold; hard inputs (#58) remain for the rest |
 
 ### Closed issues — verified history
 
@@ -271,6 +271,36 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
 - **Threshold levels UX** (#22): the hPa thresholds are adjustable in fine
   increments today; a coarse level scale (e.g. 10 levels) would make the
   hub-menu path practical.
+
+> **Two-thirds done (2026-10-14, firmware 4.4.0 + app) — #62, #22 and so
+> #9's shorter-route half.** The short/long/very-long window boundaries
+> (0-1 s / 1-3 s / 3-8 s, hardcoded since v1) are now settings: `WS`, `WL`,
+> `WM` over the serial API (stored 0 = the compiled default, which is what
+> an older settings file reads for the missing keys, so an update keeps the
+> factory feel), each validated to keep short < long < max, applied at the
+> single seam every action row is matched against (`effectiveWindowMs()`
+> maps a row's compiled boundary onto the user's windows). The Hub menu
+> gets Sip & Puff → Timing (one page per window, 250 ms steps), and the
+> sip/puff threshold pages now step a coarse 10-level scale
+> (2/3/4/5/7/10/15/22/32/45 hPa) instead of ±1 hPa — closing the old
+> "TODO: CHANGE THIS" stepping note — while the serial API and the app
+> keep fine hPa granularity. The app's Sip & Puff card grows three
+> window inputs (version-gated on 4.4.0+ like the restrictions; older
+> firmware shows them as unavailable, never as failures) with
+> client-side range + ordering validation, MANUAL sync from the Hub
+> menu, snapshot/restore round-trip and export coverage.
+>
+> **Open: #58 hard sip / hard puff — blocked on feel validation, by
+> design.** The mechanical half is clear (peak-pressure tracking per sap
+> episode in `LSPressure::updateState`, a hard-sip/hard-puff threshold
+> pair, and a post-release classification that can route to its own
+> action rows), but *which actions* hard inputs trigger is an accessibility
+> decision that must be made with affected users — the whole point (#9)
+> is an alternative route to "the menu and actions", and inventing the
+> mapping offline risks shipping the wrong gesture language to people who
+> cannot relearn it. The 4.4.0 hardware session should trial candidate
+> mappings (e.g. hard puff → menu, hard sip → drag exit) with a user
+> before the state-machine change lands.
 
 ### 16. Feedback cues keyed to input state (upstream #43, #61)
 

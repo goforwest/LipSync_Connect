@@ -66,6 +66,9 @@ export const VALUE_IDS = [
   'soundModeVal',
   'lightModeVal',
   'brightnessVal',
+  'w1Val',
+  'w2Val',
+  'w3Val',
 ];
 export const VALUE_LABELS = {
   model: 'Model',
@@ -83,6 +86,9 @@ export const VALUE_LABELS = {
   soundModeVal: 'Sound feedback',
   lightModeVal: 'Light feedback',
   brightnessVal: 'LED brightness',
+  w1Val: 'Short input window',
+  w2Val: 'Long input window',
+  w3Val: 'Max input window',
 };
 export const FEEDBACK_MODES = { 0: 'Off', 1: 'Basic', 2: 'All' };
 export const DEBUG_MODES = {
@@ -191,6 +197,43 @@ export const RESTRICTION_SETTINGS = [
     checkboxId: 'cursorHold',
     label: 'Cursor frozen during sip & puff',
     jsonKey: 'cursorHoldDuringSap',
+  },
+];
+
+// ---- Input timing windows (roadmap item 15; firmware 4.4.0+) ----
+// The short/long/very-long input window boundaries in ms (upstream #62/#9):
+// how long a sip/puff must be held to land in each action window. Ranges
+// mirror the firmware's setters, which also enforce short < long < max.
+export const WINDOW_SETTINGS = [
+  {
+    endpoint: 'WS',
+    valueId: 'w1Val',
+    inputId: 'w1Input',
+    label: 'Short input window',
+    unit: 'ms',
+    min: 200,
+    max: 2500,
+    jsonKey: 'inputWindowShortMs',
+  },
+  {
+    endpoint: 'WL',
+    valueId: 'w2Val',
+    inputId: 'w2Input',
+    label: 'Long input window',
+    unit: 'ms',
+    min: 400,
+    max: 6000,
+    jsonKey: 'inputWindowLongMs',
+  },
+  {
+    endpoint: 'WM',
+    valueId: 'w3Val',
+    inputId: 'w3Input',
+    label: 'Max input window',
+    unit: 'ms',
+    min: 1000,
+    max: 10000,
+    jsonKey: 'inputWindowMaxMs',
   },
 ];
 

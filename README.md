@@ -23,7 +23,7 @@ npm run dev:local        # HTTP + live reload for app/ edits
 
 `HOST`/`PORT` env vars override the bind address and port. Opening `https://localhost:4443` once and accepting the self-signed cert lets the browser treat the page as a secure context, which Web Serial requires.
 
-Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~22 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
+Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~25 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
 
 ## Quality checks
 

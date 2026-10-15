@@ -43,6 +43,9 @@ const BASE_RESPONSES = {
   'LM,0': '1',
   'LL,0': '5',
   'DM,0': '0',
+  'WS,0': '1000',
+  'WL,0': '3000',
+  'WM,0': '8000',
 };
 
 // Loads the whole settings surface; restrictionValues override the four

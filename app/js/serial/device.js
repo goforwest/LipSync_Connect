@@ -55,6 +55,10 @@ export function applyDeviceResponse(line) {
     MA: () => ENDPOINT_RENDERERS.MA(r.value),
     LK: () => ENDPOINT_RENDERERS.LK(r.value),
     CF: () => ENDPOINT_RENDERERS.CF(r.value),
+    // Input timing windows (4.4.0+): same sync contract.
+    WS: () => ENDPOINT_RENDERERS.WS(r.value),
+    WL: () => ENDPOINT_RENDERERS.WL(r.value),
+    WM: () => ENDPOINT_RENDERERS.WM(r.value),
     IN: () => {
       ENDPOINT_RENDERERS.IN(r.value);
       // Only claim the neutral was "updated" for a user-triggered IN,1:1

@@ -9,6 +9,7 @@ import {
   LOAD_TOTAL_TIMEOUT,
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
+  WINDOW_SETTINGS,
 } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -67,6 +68,26 @@ export function markRestrictionsUnavailable() {
     note.textContent = `Input restrictions need firmware ${RESTRICTIONS_MIN_FIRMWARE.join('.')}+ — update the firmware to use them.`;
 }
 
+/**
+ * Firmware too old for the timing windows (pre-4.4.0): the readouts show the
+ * not-applicable placeholder (never ERR — nothing failed), and the inputs
+ * and Set buttons lock until a firmware that has the endpoints loads.
+ */
+export function markWindowsUnavailable() {
+  for (const w of WINDOW_SETTINGS) {
+    const el = $(w.valueId);
+    if (el) {
+      el.textContent = '—';
+      el.classList.remove('loading', 'err');
+      el.removeAttribute('aria-label');
+    }
+    const input = $(w.inputId);
+    if (input) input.disabled = true;
+    const btn = $('btnSet' + w.endpoint);
+    if (btn) btn.disabled = true;
+  }
+}
+
 /** Disconnect/start-of-load reset: no stale checkbox may survive into a new session. */
 export function resetRestrictionsUi() {
   for (const r of RESTRICTION_SETTINGS) {
@@ -99,6 +120,56 @@ export async function setRestriction(endpoint, checked) {
   }
 }
 
+/** @param {string} endpoint @returns {{endpoint: string, valueId: string, inputId: string, label: string, unit: string, min: number, max: number}|null} */
+function windowByEndpoint(endpoint) {
+  return WINDOW_SETTINGS.find((w) => w.endpoint === endpoint) ?? null;
+}
+
+/**
+ * A timing-window value landed (initial load, or a MANUAL push after the
+ * Hub menu changed it): reflect it in the readout and the input field.
+ * @param {string} endpoint W1 / W2 / W3
+ * @param {string|number} value window boundary in ms
+ */
+export function applyTimingWindowValue(endpoint, value) {
+  const w = windowByEndpoint(endpoint);
+  if (!w) return;
+  setValue(w.valueId, value);
+  const input = $(w.inputId);
+  if (input) {
+    if (document.activeElement !== input) input.value = value;
+    input.disabled = false;
+  }
+  const btn = $('btnSet' + w.endpoint);
+  if (btn) btn.disabled = false;
+}
+
+/**
+ * Timing-window write (roadmap item 15, upstream #62): validates the value
+ * against the firmware's ranges AND the short < long < max ordering against
+ * the other two windows currently in force, then writes and re-syncs from
+ * the device's answer — the firmware validates too (defense in depth), and
+ * a rejected write throws with the device's truth left on screen.
+ * @param {string} endpoint W1 / W2 / W3
+ * @param {number} valueMs window boundary in ms
+ */
+export async function setTimingWindow(endpoint, valueMs) {
+  const w = windowByEndpoint(endpoint);
+  if (!w) throw new Error('Unknown timing window.');
+  if (!Number.isFinite(valueMs) || valueMs < w.min || valueMs > w.max)
+    throw new Error(`${w.label} must be between ${w.min} and ${w.max} ms.`);
+  // The full triple with the new value in place; ordering is only checked
+  // when both siblings have loaded (the firmware still guards it either way).
+  const triple = WINDOW_SETTINGS.map((x) =>
+    x.endpoint === endpoint ? valueMs : Number(($(x.valueId)?.textContent || '').trim()),
+  );
+  if (triple.every((v) => Number.isFinite(v)) && !(triple[0] < triple[1] && triple[1] < triple[2]))
+    throw new Error('Timing windows must stay ordered: short < long < max.');
+  const resp = await sendCommand(`${endpoint},1:${valueMs}`);
+  applyTimingWindowValue(endpoint, resp.value ?? valueMs);
+  log(`${w.label} set to ${resp.value ?? valueMs} ms.`, 'log-info');
+}
+
 /** The per-endpoint load plan: wire command + its render function (+ optional minimum firmware). @returns {[string, (r: any) => void, (number[] | undefined)?][]} */
 export function getDeviceLoadTasks() {
   return [
@@ -127,6 +198,11 @@ export function getDeviceLoadTasks() {
     ['MA,0:0', (r) => ENDPOINT_RENDERERS.MA(r.value), RESTRICTIONS_MIN_FIRMWARE],
     ['LK,0:0', (r) => ENDPOINT_RENDERERS.LK(r.value), RESTRICTIONS_MIN_FIRMWARE],
     ['CF,0:0', (r) => ENDPOINT_RENDERERS.CF(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    // Input timing windows (4.4.0+, roadmap item 15): same version gate —
+    // the readouts stay at their loading placeholders on older firmware.
+    ['WS,0:0', (r) => ENDPOINT_RENDERERS.WS(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    ['WL,0:0', (r) => ENDPOINT_RENDERERS.WL(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    ['WM,0:0', (r) => ENDPOINT_RENDERERS.WM(r.value), RESTRICTIONS_MIN_FIRMWARE],
   ];
 }
 
@@ -159,12 +235,13 @@ export async function loadDeviceInfo() {
   const timingSamples = [];
   for (let i = 0; i < tasks.length; i++) {
     if (!serialSession.port || loadAborted) break;
-    // Version-gated task (e.g. the 4.4.0+ restriction endpoints): never send
-    // it to firmware that doesn't have it — mark the surface unavailable and
-    // move on, the same honesty the BH health step practices.
+    // Version-gated task (e.g. the 4.4.0+ restriction and timing endpoints):
+    // never send it to firmware that doesn't have it — mark the surface
+    // unavailable and move on, the same honesty the BH health step practices.
     const minFw = /** @type {number[]|undefined} */ (/** @type {any} */ (tasks[i])[2]);
     if (minFw && !deviceFirmwareAtLeast(minFw[0], minFw[1], minFw[2] ?? 0)) {
-      markRestrictionsUnavailable();
+      if (WINDOW_SETTINGS.some((w) => w.endpoint === tasks[i][0].slice(0, 2))) markWindowsUnavailable();
+      else markRestrictionsUnavailable();
       continue;
     }
     setStatus(`Connected — loading ${i + 1}/${tasks.length}…`, true);

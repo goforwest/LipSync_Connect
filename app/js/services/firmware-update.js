@@ -49,6 +49,7 @@ import {
   FIRMWARE_STRANDED_STORAGE_KEY,
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
+  WINDOW_SETTINGS,
 } from '../config/constants.js';
 
 // ---- Version parsing / comparison (pure, exported for tests) ----
@@ -507,6 +508,18 @@ export function captureSettingsSnapshot() {
     }
     snapshot[r.endpoint] = el.checked ? '1' : '0';
   }
+  // Input timing windows (4.4.0+, roadmap item 15): the same optional-keys
+  // contract — skipped on firmware without them, failed honestly on firmware
+  // that has them but whose read did not land.
+  for (const w of WINDOW_SETTINGS) {
+    if (!deviceHasRestrictions) continue;
+    const v = ($(w.valueId)?.textContent || '').trim();
+    if (!v || v === '—' || v === 'ERR' || v === '…') {
+      missing.push(w.label);
+      continue;
+    }
+    snapshot[w.endpoint] = v;
+  }
   if (missing.length)
     throw new Error('Some settings did not load (' + missing.join(', ') + '). Click Refresh all settings and retry.');
   return snapshot;
@@ -557,7 +570,7 @@ export function setRestoreSettleForTests(ms) {
  */
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
-  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'SD', 'MA', 'LK', 'CF'];
+  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM'];
   let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];

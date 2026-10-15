@@ -3,7 +3,7 @@
 // everywhere instead of drifting across two paths.
 import { MODELS, FEEDBACK_MODES, DEBUG_MODES } from '../config/constants.js';
 import { registerEndpointRenderer } from '../services/registry.js';
-import { applyRestrictionValue } from '../services/settings-service.js';
+import { applyRestrictionValue, applyTimingWindowValue } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
 import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
@@ -92,6 +92,11 @@ export const ENDPOINT_RENDERERS = {
   MA: (v) => applyRestrictionValue('MA', v),
   LK: (v) => applyRestrictionValue('LK', v),
   CF: (v) => applyRestrictionValue('CF', v),
+  // Input timing windows (roadmap item 15; firmware 4.4.0+) — same MANUAL
+  // sync contract.
+  WS: (v) => applyTimingWindowValue('WS', v),
+  WL: (v) => applyTimingWindowValue('WL', v),
+  WM: (v) => applyTimingWindowValue('WM', v),
 };
 
 // Register with the shared registry so serial/device.js can dispatch without

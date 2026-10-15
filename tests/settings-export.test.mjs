@@ -49,6 +49,9 @@ test('a loaded device exports labeled settings with no holes', () => {
   assert.equal(data.settings.cursorSpeedLevel, '5');
   assert.equal(data.settings.calibrationCorner1, '-13.00|13.00');
   assert.deepEqual(data.notLoaded, [
+    'inputWindowShortMs',
+    'inputWindowLongMs',
+    'inputWindowMaxMs',
     'sipPuffDisabled',
     'menuButtonsOnly',
     'modeLocked',
@@ -65,6 +68,9 @@ test('values that did not load are listed as holes, not exported as garbage', ()
     'sipThresholdhPa',
     'puffThresholdhPa',
     'debugMode',
+    'inputWindowShortMs',
+    'inputWindowLongMs',
+    'inputWindowMaxMs',
     'sipPuffDisabled',
     'menuButtonsOnly',
     'modeLocked',

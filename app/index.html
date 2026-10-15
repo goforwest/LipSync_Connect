@@ -384,6 +384,59 @@
           />
           <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
         </div>
+        <div class="row">
+          <label for="w1Input">Short input window (200–2500 ms)</label>
+          <span class="value" id="w1Val">&mdash;</span>
+          <input
+            type="number"
+            id="w1Input"
+            min="200"
+            max="2500"
+            step="50"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-label="New short input window in milliseconds"
+            aria-describedby="sapError"
+          />
+          <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label for="w2Input">Long input window (400–6000 ms)</label>
+          <span class="value" id="w2Val">&mdash;</span>
+          <input
+            type="number"
+            id="w2Input"
+            min="400"
+            max="6000"
+            step="50"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-label="New long input window in milliseconds"
+            aria-describedby="sapError"
+          />
+          <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
+        </div>
+        <div class="row">
+          <label for="w3Input">Max input window (1000–10000 ms)</label>
+          <span class="value" id="w3Val">&mdash;</span>
+          <input
+            type="number"
+            id="w3Input"
+            min="1000"
+            max="10000"
+            step="50"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-label="New max input window in milliseconds"
+            aria-describedby="sapError"
+          />
+          <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
+        </div>
+        <p class="hint">
+          Input windows set how long a sip or puff must be held to trigger each action (short &rarr; click/drag, long
+          &rarr; scroll/menu, very long &rarr; more). Requires firmware 4.4.0+. The Hub menu offers the same settings
+          under Sip & Puff &rarr; Timing.
+        </p>
         <div class="error" id="sapError" role="alert"></div>
         <div class="row">
           <label>Live pressure</label>

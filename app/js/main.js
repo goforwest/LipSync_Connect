@@ -6,6 +6,7 @@ import {
   LIVE_STREAM_BUTTONS,
   HEADER_SCROLL_THRESHOLD,
   RESTRICTION_SETTINGS,
+  WINDOW_SETTINGS,
 } from './config/constants.js';
 import { debounce, fmtApiFloat } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
@@ -41,7 +42,7 @@ import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
-import { setRestriction, resetRestrictionsUi } from './services/settings-service.js';
+import { setRestriction, resetRestrictionsUi, setTimingWindow } from './services/settings-service.js';
 
 // Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
 // plotting/gauge.js, and this binding calls them on input edits.
@@ -396,6 +397,29 @@ window.addEventListener('DOMContentLoaded', () => {
     );
     $('sipInput').addEventListener('blur', () => clampInput('sipInput', 2, 149.99, 'sipVal'));
     $('puffInput').addEventListener('blur', () => clampInput('puffInput', 2, 149.99, 'puffVal'));
+
+    // Input timing windows (roadmap item 15; firmware 4.4.0+): each Set
+    // validates range and short < long < max ordering before writing; the
+    // firmware validates again (defense in depth).
+    WINDOW_SETTINGS.forEach((w) => {
+      $('btnSet' + w.endpoint).addEventListener(
+        'click',
+        guard(
+          async () => {
+            $('sapError').textContent = '';
+            try {
+              const v = Number($(w.inputId).value);
+              await setTimingWindow(w.endpoint, v);
+            } catch (e) {
+              $('sapError').textContent = e.message;
+              throw e;
+            }
+          },
+          { quiet: true },
+        ),
+      );
+      $(w.inputId).addEventListener('blur', () => clampInput(w.inputId, w.min, w.max, w.valueId));
+    });
     $('innerDeadzone').addEventListener('blur', () => clampInput('innerDeadzone', 0.01, 1, 'innerDeadzoneVal'));
     $('outerDeadzone').addEventListener('blur', () => clampInput('outerDeadzone', 0.01, 1, 'outerDeadzoneVal'));
     $('sipInput').addEventListener('input', () => {
