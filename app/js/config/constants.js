@@ -90,7 +90,11 @@ export const VALUE_LABELS = {
   w2Val: 'Long input window',
   w3Val: 'Max input window',
 };
-export const FEEDBACK_MODES = { 0: 'Off', 1: 'Basic', 2: 'All' };
+// Light feedback tier 3 (firmware 4.4.0+, roadmap item 16 / upstream #43):
+// LEDs keyed to the input's window (green/yellow/red while held) instead of
+// the pending action. Sound feedback has no tier 3 — the label applies to
+// the light mode only when read back.
+export const FEEDBACK_MODES = { 0: 'Off', 1: 'Basic', 2: 'All', 3: 'Input state' };
 export const DEBUG_MODES = {
   0: 'Off',
   1: 'Joystick',

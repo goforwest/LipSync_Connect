@@ -623,9 +623,14 @@
           ><select id="lightMode">
             <option value="0">Off</option>
             <option value="1">Basic</option>
-            <option value="2">All</option></select
+            <option value="2">All</option>
+            <option value="3">Input state (4.4.0+)</option></select
           ><button type="button" class="cmd" id="btnSetLight" disabled>Set</button>
         </div>
+        <p class="hint">
+          <strong>Input state</strong> lights the LEDs by how long you hold — green in the short window, yellow in the
+          long window, red in the very-long window — instead of by the pending action. Requires firmware 4.4.0+.
+        </p>
         <div class="row">
           <label>LED brightness</label
           ><button

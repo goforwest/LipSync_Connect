@@ -63,7 +63,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
 | 54 | Mechanical drift / center hysteresis | **item 17** |
 | 44 | Toggle cursor movement during sip/puff | ✅ item 11 done in 4.4.0 (CF cursor hold; closeable after hardware validation) |
-| 43 | LED feedback keyed to input state, not action | **item 16** (audio half done; LED half open) |
+| 43 | LED feedback keyed to input state, not action | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier (closeable after the hardware validation it ships for) |
 | 37 | TLV493D library deprecated | **items 1–2** |
 | 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
 | 33 | Debug mode documentation incomplete | docs backlog |
@@ -311,13 +311,24 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
   the 4.2.0 non-blocking buzzer note queue makes this a small, safe
   addition.
 
-> **Half done (2026-10-14, firmware 4.3.0).** The audio half shipped:
+> **Done (2026-10-14).** The audio half shipped in 4.3.0:
 > `buzzer.modeEngageTone()` plays one short cue when scroll or drag
 > engages (scroll chirps higher than drag so the two are distinguishable
 > by ear), gated to the "All" sound tier so "Basic" users hear nothing
-  new. The LED half stays open: re-keying LED feedback from output action
-  to input state changes existing semantics and needs hardware
-  validation with affected users.
+  new.
+>
+> **Done (2026-10-14, firmware 4.4.0) — the LED half, as an opt-in
+  tier.** Re-keying the default would have changed semantics for every
+  existing user, so the input-state feedback ships as light mode tier 3
+  (LM=3): while any input is held the LEDs show the window — green in
+  the short window, yellow after crossing into the long, red in the
+  very-long — and on release they return to default instead of blinking
+  the action; the window was the message. Existing tiers behave exactly
+  as before, restricted inputs still show nothing, and the app's
+  light-feedback select offers "Input state (4.4.0+)" so a caregiver
+  can flip it on the bench. **Validation with affected users — the
+  point of the deferral — belongs to the 4.4.0 hardware session; if it
+  lands well, #43 closes with the tier documented in the User Guide.**
 
 ### 17. Mechanical drift investigation (upstream #54)
 

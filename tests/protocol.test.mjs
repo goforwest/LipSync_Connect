@@ -51,6 +51,18 @@ test('VALUE_LABELS cross-file consistency', async (t) => {
   });
 });
 
+test('input-state light mode (roadmap item 16, upstream #43) surfaces consistently', () => {
+  // The LM=3 tier must exist in the readout label map and as a select option
+  // with its version note — the option is what a caregiver flips on the bench
+  // to trial the mode with affected users.
+  const fm = constantsSource.match(/FEEDBACK_MODES = \{([^}]*)\}/)?.[1] ?? '';
+  assert.match(fm, /3: 'Input state'/, 'FEEDBACK_MODES carries the tier-3 label');
+  assert.ok(
+    indexHtml.includes('<option value="3">Input state (4.4.0+)</option>'),
+    'the light-feedback select offers the input-state tier with its version note',
+  );
+});
+
 // ---- parseResponse ----
 test('parseResponse accepts SETTINGS handshake (regression !7)', () => {
   const p = app.parseResponse('SUCCESS,0:SETTINGS');
