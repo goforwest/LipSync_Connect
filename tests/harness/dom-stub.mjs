@@ -272,6 +272,7 @@ const SECTION_IDS = [
   'sec-device',
   'sec-cursor',
   'sec-sip',
+  'sec-restrictions',
   'sec-joystick',
   'sec-feedback',
   'sec-bluetooth',

@@ -63,8 +63,8 @@ test('Device card dimmed (card-off) pre-connect', () => {
 test('Log not gated pre-connect', () => {
   assert.equal(sec('sec-log').cardOff, false);
 });
-test('exactly 9 serial cards gated', () => {
-  assert.equal(sections().filter((x) => x.cardOff).length, 9);
+test('exactly 10 serial cards gated', () => {
+  assert.equal(sections().filter((x) => x.cardOff).length, 10);
 });
 test('nav dimming correct pre-connect', () => {
   assert.equal(nav('sec-device').dimmed, true);

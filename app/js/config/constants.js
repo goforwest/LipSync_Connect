@@ -172,6 +172,28 @@ export const STEP_TARGETS = {
   brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
 };
 
+// ---- Input restrictions (roadmap item 11; firmware 4.4.0+) ----
+// Four boolean gates against accidental input, all defaulting to off (the
+// unrestricted legacy behavior). Every value is 1 = restriction active.
+// checkboxId is the card control; jsonKey is the settings-export key.
+export const RESTRICTIONS_MIN_FIRMWARE = [4, 4, 0];
+export const RESTRICTION_SETTINGS = [
+  { endpoint: 'SD', checkboxId: 'sapDisabled', label: 'Sip & puff disabled', jsonKey: 'sipPuffDisabled' },
+  {
+    endpoint: 'MA',
+    checkboxId: 'menuButtonsOnly',
+    label: 'Menu restricted to hub buttons',
+    jsonKey: 'menuButtonsOnly',
+  },
+  { endpoint: 'LK', checkboxId: 'modeLock', label: 'Operating mode locked', jsonKey: 'modeLocked' },
+  {
+    endpoint: 'CF',
+    checkboxId: 'cursorHold',
+    label: 'Cursor frozen during sip & puff',
+    jsonKey: 'cursorHoldDuringSap',
+  },
+];
+
 // Live self-test narration tables: each entry pairs the firmware's narration
 // text with a human label; { hidden: true } steps exist purely for sequencing.
 /** @type {[RegExp, string, { hidden?: boolean }?][]} */

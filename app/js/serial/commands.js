@@ -114,9 +114,32 @@ export function waitLine(predicate, timeoutMs, signal) {
 // on the same page can never leak v2 framing to the older one.
 let wireNewlineFraming = false;
 
-/** Connect-time hook (serial/connection.js): unknown device → legacy framing. */
+// The connected firmware's parsed version ([major, minor, rev]), known once
+// the VN endpoint has answered — null before that. Version-gated features
+// (the BH health step, the 4.4.0+ restriction settings) consult this instead
+// of re-parsing the DOM, so the decision is always about the CURRENT session
+// and resets with every connect.
+let sessionDeviceVersion = null;
+
+/** Connect-time hook (serial/connection.js): unknown device → legacy framing, unknown version. */
 export function resetWireNewlineFraming() {
   wireNewlineFraming = false;
+  sessionDeviceVersion = null;
+}
+
+/**
+ * True when the connected firmware is at least the given version. False
+ * until VN has identified the device (and on every disconnect), which is
+ * what keeps version-gated endpoints from ever being sent to older
+ * firmware — the device would answer FAIL and the load would log noise.
+ * @param {number} major
+ * @param {number} minor
+ * @param {number} [rev]
+ */
+export function deviceFirmwareAtLeast(major, minor, rev = 0) {
+  if (!sessionDeviceVersion) return false;
+  const [dmaj, dmin, drev] = sessionDeviceVersion;
+  return dmaj > major || (dmaj === major && (dmin > minor || (dmin === minor && drev >= rev)));
 }
 
 /**
@@ -130,6 +153,7 @@ export function noteDeviceVersion(version) {
     .trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)/);
   wireNewlineFraming = !!m && (+m[1] > 4 || (+m[1] === 4 && +m[2] >= 2));
+  sessionDeviceVersion = m ? [+m[1], +m[2], +m[3]] : null;
 }
 
 export async function sendRaw(text) {

@@ -17,7 +17,7 @@ import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
 import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
-import { sendCommand } from '../serial/commands.js';
+import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { disconnect } from '../serial/connection.js';
 import { openPortBounded, closePortWithOutcome, isPortOpenWedged, markPortOpenWedged } from '../utils/port-open.js';
@@ -47,6 +47,8 @@ import {
   FIRMWARE_CHECK_MIN_INTERVAL_MS,
   FIRMWARE_FETCH_TIMEOUT_MS,
   FIRMWARE_STRANDED_STORAGE_KEY,
+  RESTRICTION_SETTINGS,
+  RESTRICTIONS_MIN_FIRMWARE,
 } from '../config/constants.js';
 
 // ---- Version parsing / comparison (pure, exported for tests) ----
@@ -486,6 +488,25 @@ export function captureSettingsSnapshot() {
   snapshot.CA = [$('neutralVal'), $('corner1'), $('corner2'), $('corner3'), $('corner4')]
     .map((el) => (el?.textContent || '').trim())
     .join(',');
+  // Input restrictions (4.4.0+): OPTIONAL snapshot keys. The session's
+  // firmware version decides: a pre-4.4.0 device simply doesn't have the
+  // settings, and the snapshot must neither fail nor invent values for it.
+  // On firmware that DOES have them, a restriction that failed to load is a
+  // hole like SM/LM — the restore promises to write these back.
+  const deviceHasRestrictions = deviceFirmwareAtLeast(
+    RESTRICTIONS_MIN_FIRMWARE[0],
+    RESTRICTIONS_MIN_FIRMWARE[1],
+    RESTRICTIONS_MIN_FIRMWARE[2],
+  );
+  for (const r of RESTRICTION_SETTINGS) {
+    if (!deviceHasRestrictions) continue;
+    const el = $(r.checkboxId);
+    if (!el || el.disabled || typeof el.checked !== 'boolean') {
+      missing.push(r.label);
+      continue;
+    }
+    snapshot[r.endpoint] = el.checked ? '1' : '0';
+  }
   if (missing.length)
     throw new Error('Some settings did not load (' + missing.join(', ') + '). Click Refresh all settings and retry.');
   return snapshot;
@@ -536,7 +557,7 @@ export function setRestoreSettleForTests(ms) {
  */
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
-  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'];
+  const order = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL', 'SD', 'MA', 'LK', 'CF'];
   let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];

@@ -95,7 +95,22 @@
             <path
               d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"
             /></svg></span
-        ><span class="circle-label">Sip &amp; Puff</span>
+        ><span class="circle-label">Sip & Puff</span>
+      </button>
+      <button
+        type="button"
+        class="circle-trigger"
+        data-section="sec-restrictions"
+        aria-controls="sec-restrictions"
+        aria-expanded="false"
+      >
+        <span class="circle-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="10" width="16" height="10" rx="2" />
+            <line x1="8" y1="10" x2="8" y2="7" />
+            <line x1="16" y1="10" x2="16" y2="7" />
+            <line x1="12" y1="14" x2="12" y2="17" /></svg></span
+        ><span class="circle-label">Restrict.</span>
       </button>
       <button
         type="button"
@@ -399,6 +414,47 @@
           <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
         </div>
         <p class="hint">Red markers show trigger values. Use Live view while adjusting thresholds.</p>
+      </section>
+
+      <section class="section-card" id="sec-restrictions" aria-label="Input restrictions">
+        <h2>Input restrictions</h2>
+        <p class="hint" id="restrictionsNote"></p>
+        <div class="row check-row">
+          <input type="checkbox" id="sapDisabled" disabled aria-describedby="restrictionsNote" />
+          <label for="sapDisabled"
+            >Disable sip & puff
+            <span class="row-hint">Mouthpiece inputs stop triggering actions entirely (upstream #21)</span></label
+          >
+        </div>
+        <div class="row check-row">
+          <input type="checkbox" id="menuButtonsOnly" disabled aria-describedby="restrictionsNote" />
+          <label for="menuButtonsOnly"
+            >Menu: hub buttons only
+            <span class="row-hint"
+              >Sip & puff and external switches can no longer open or navigate the menu (#77)</span
+            ></label
+          >
+        </div>
+        <div class="row check-row">
+          <input type="checkbox" id="modeLock" disabled aria-describedby="restrictionsNote" />
+          <label for="modeLock"
+            >Lock operating mode
+            <span class="row-hint"
+              >The device refuses input-driven mode changes; LipSync Connect still can (#68)</span
+            ></label
+          >
+        </div>
+        <div class="row check-row">
+          <input type="checkbox" id="cursorHold" disabled aria-describedby="restrictionsNote" />
+          <label for="cursorHold"
+            >Freeze cursor during sip & puff
+            <span class="row-hint">The pointer holds still while a mouthpiece input is in progress (#44)</span></label
+          >
+        </div>
+        <p class="hint">
+          Each restriction takes effect on the device immediately. With sip & puff disabled and the menu locked to
+          buttons, only the Hub buttons (or this app) can change settings.
+        </p>
       </section>
 
       <section class="section-card" id="sec-joystick" aria-label="Joystick">

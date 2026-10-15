@@ -49,6 +49,12 @@ export function applyDeviceResponse(line) {
     },
     OM: () => ENDPOINT_RENDERERS.OM(r.value),
     CM: () => ENDPOINT_RENDERERS.CM(r.value),
+    // Input restrictions (4.4.0+): the load reads and any MANUAL push from
+    // the Hub menu both land here, keeping the checkboxes in sync.
+    SD: () => ENDPOINT_RENDERERS.SD(r.value),
+    MA: () => ENDPOINT_RENDERERS.MA(r.value),
+    LK: () => ENDPOINT_RENDERERS.LK(r.value),
+    CF: () => ENDPOINT_RENDERERS.CF(r.value),
     IN: () => {
       ENDPOINT_RENDERERS.IN(r.value);
       // Only claim the neutral was "updated" for a user-triggered IN,1:1

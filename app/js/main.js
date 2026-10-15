@@ -1,6 +1,12 @@
 'use strict';
 
-import { FEEDBACK_MODES, DEBUG_MODES, LIVE_STREAM_BUTTONS, HEADER_SCROLL_THRESHOLD } from './config/constants.js';
+import {
+  FEEDBACK_MODES,
+  DEBUG_MODES,
+  LIVE_STREAM_BUTTONS,
+  HEADER_SCROLL_THRESHOLD,
+  RESTRICTION_SETTINGS,
+} from './config/constants.js';
 import { debounce, fmtApiFloat } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
@@ -35,6 +41,7 @@ import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
+import { setRestriction, resetRestrictionsUi } from './services/settings-service.js';
 
 // Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
 // plotting/gauge.js, and this binding calls them on input edits.
@@ -116,11 +123,14 @@ import { configureConnection } from './serial/connection.js';
 import { configureSettingsListeners } from './services/settings-service.js';
 import { clearHealthResults } from './services/health.js';
 // Disconnect (and a fresh settings load) must clear stale health results AND
-// the mirrored Hub screen — the device's menu dies with the port.
+// the mirrored Hub screen — the device's menu dies with the port. The
+// restriction checkboxes reset with the same stroke so a stale checked state
+// from a previous device can never leak into a new session.
 const clearSessionUi = () => {
   clearHealthResults();
   resetHubRemote();
   resetFirmwareUpdateUi();
+  resetRestrictionsUi();
 };
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
@@ -448,6 +458,23 @@ window.addEventListener('DOMContentLoaded', () => {
         await setSimpleSetting('LM', $('lightMode').value, 'lightModeVal', FEEDBACK_MODES);
       }),
     );
+
+    // Input restrictions (roadmap item 11; firmware 4.4.0+): each checkbox
+    // writes on change; a rejected write reverts (the device is the truth).
+    RESTRICTION_SETTINGS.forEach((r) => {
+      $(r.checkboxId).addEventListener(
+        'change',
+        guard(async () => {
+          const el = $(r.checkboxId);
+          el.disabled = true; // one write at a time; the renderer re-enables
+          try {
+            await setRestriction(r.endpoint, el.checked);
+          } finally {
+            el.disabled = false;
+          }
+        }),
+      );
+    });
 
     $('btnReadPressure').addEventListener(
       'click',

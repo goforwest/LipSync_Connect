@@ -1,7 +1,15 @@
 // Settings reads: the initial per-endpoint load (with progress UI), the
 // +/- steppers, deadzone writes, and calibration read-back. Everything here
 // runs through the commands layer; nothing touches the wire directly.
-import { STEP_TARGETS, VALUE_IDS, VALUE_LABELS, DIAG_PANELS, LOAD_TOTAL_TIMEOUT } from '../config/constants.js';
+import {
+  STEP_TARGETS,
+  VALUE_IDS,
+  VALUE_LABELS,
+  DIAG_PANELS,
+  LOAD_TOTAL_TIMEOUT,
+  RESTRICTION_SETTINGS,
+  RESTRICTIONS_MIN_FIRMWARE,
+} from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { setStatus } from '../ui/connection-ui.js';
@@ -9,7 +17,7 @@ import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { updateMeter } from '../plotting/gauge.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
 import { log } from './log.js';
-import { sendCommand } from '../serial/commands.js';
+import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { serialSession, pendingSteps, loadDoneTimerRef } from '../serial/session.js';
 import { ENDPOINT_RENDERERS } from './registry.js';
 
@@ -22,7 +30,76 @@ export function configureSettingsListeners(svc) {
   if (svc?.clearHealth) clearHealth = svc.clearHealth;
 }
 
-/** The per-endpoint load plan: wire command + its render function. @returns {[string, (r: any) => void][]} */
+/** @param {string} endpoint @returns {{endpoint: string, checkboxId: string, label: string}|null} */
+function restrictionByEndpoint(endpoint) {
+  return RESTRICTION_SETTINGS.find((r) => r.endpoint === endpoint) ?? null;
+}
+
+/**
+ * A restriction value landed (initial load, or a MANUAL push after the Hub
+ * menu changed it): reflect it in the checkbox and enable the control.
+ * @param {string} endpoint SD / MA / LK / CF
+ * @param {string|number} value '0' | '1'
+ */
+export function applyRestrictionValue(endpoint, value) {
+  const r = restrictionByEndpoint(endpoint);
+  if (!r) return;
+  const el = $(r.checkboxId);
+  if (!el) return;
+  el.checked = String(value) === '1';
+  el.disabled = false;
+  const note = $('restrictionsNote');
+  if (note && !note.textContent.includes('firmware')) note.textContent = '';
+}
+
+/**
+ * Firmware too old for the restriction settings (pre-4.4.0): keep the card
+ * honest instead of failing four loads on every connect — the controls stay
+ * off and the note says why, the same contract the BH health step uses.
+ */
+export function markRestrictionsUnavailable() {
+  for (const r of RESTRICTION_SETTINGS) {
+    const el = $(r.checkboxId);
+    if (el) el.disabled = true;
+  }
+  const note = $('restrictionsNote');
+  if (note)
+    note.textContent = `Input restrictions need firmware ${RESTRICTIONS_MIN_FIRMWARE.join('.')}+ — update the firmware to use them.`;
+}
+
+/** Disconnect/start-of-load reset: no stale checkbox may survive into a new session. */
+export function resetRestrictionsUi() {
+  for (const r of RESTRICTION_SETTINGS) {
+    const el = $(r.checkboxId);
+    if (el) {
+      el.checked = false;
+      el.disabled = true;
+    }
+  }
+  const note = $('restrictionsNote');
+  if (note) note.textContent = '';
+}
+
+/**
+ * Checkbox handler: write the restriction and re-sync from the device's
+ * answer. A rejected write reverts the checkbox (the device is the truth).
+ * @param {string} endpoint
+ * @param {boolean} checked
+ */
+export async function setRestriction(endpoint, checked) {
+  const r = restrictionByEndpoint(endpoint);
+  const el = r ? $(r.checkboxId) : null;
+  try {
+    const resp = await sendCommand(`${endpoint},1:${checked ? 1 : 0}`);
+    if (el) el.checked = String(resp.value ?? (checked ? 1 : 0)) === '1';
+    log(`${r?.label ?? endpoint} ${checked ? 'applied' : 'removed'}.`, 'log-info');
+  } catch (e) {
+    if (el) el.checked = !checked; // revert — the device did not take it
+    throw e;
+  }
+}
+
+/** The per-endpoint load plan: wire command + its render function (+ optional minimum firmware). @returns {[string, (r: any) => void, (number[] | undefined)?][]} */
 export function getDeviceLoadTasks() {
   return [
     ['MN,0:0', (r) => ENDPOINT_RENDERERS.MN(r.value)],
@@ -43,6 +120,13 @@ export function getDeviceLoadTasks() {
     ['LM,0:0', (r) => ENDPOINT_RENDERERS.LM(r.value)],
     ['LL,0:0', (r) => ENDPOINT_RENDERERS.LL(r.value)],
     ['DM,0:0', (r) => ENDPOINT_RENDERERS.DM(r.value)],
+    // Input restrictions (4.4.0+): the third element is the minimum firmware
+    // the endpoints exist on — the load loop skips (and marks unavailable)
+    // instead of sending them to older firmware, which would only FAIL.
+    ['SD,0:0', (r) => ENDPOINT_RENDERERS.SD(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    ['MA,0:0', (r) => ENDPOINT_RENDERERS.MA(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    ['LK,0:0', (r) => ENDPOINT_RENDERERS.LK(r.value), RESTRICTIONS_MIN_FIRMWARE],
+    ['CF,0:0', (r) => ENDPOINT_RENDERERS.CF(r.value), RESTRICTIONS_MIN_FIRMWARE],
   ];
 }
 
@@ -75,6 +159,14 @@ export async function loadDeviceInfo() {
   const timingSamples = [];
   for (let i = 0; i < tasks.length; i++) {
     if (!serialSession.port || loadAborted) break;
+    // Version-gated task (e.g. the 4.4.0+ restriction endpoints): never send
+    // it to firmware that doesn't have it — mark the surface unavailable and
+    // move on, the same honesty the BH health step practices.
+    const minFw = /** @type {number[]|undefined} */ (/** @type {any} */ (tasks[i])[2]);
+    if (minFw && !deviceFirmwareAtLeast(minFw[0], minFw[1], minFw[2] ?? 0)) {
+      markRestrictionsUnavailable();
+      continue;
+    }
     setStatus(`Connected — loading ${i + 1}/${tasks.length}…`, true);
     if (progBar) progBar.value = i + 1;
     const remaining =

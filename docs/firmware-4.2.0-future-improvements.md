@@ -16,10 +16,15 @@ firmware now self-defends against on every consumer.
 **2026-10-14 pass (firmware 4.3.0 + app):** the easy-mid items landed —
 items 3, 4, 5, 6, 9, 13, 14 and the audio half of 16 are done (each carries
 a Done note); upstream #36, #63, #67 and the audio half of #61 are
-close-pending hardware validation. Open with the most value next: item 11
-(input & mode restrictions), item 15 (input timing & accessibility), and
-the docs backlog (now cheaper — item 3's BH endpoint exists to write #64
-against).
+close-pending hardware validation.
+
+**2026-10-14 round 2 (firmware 4.4.0 + app):** item 11 (the restrictions
+family — #21/#44/#68/#77) is done pending its hardware session, the serial
+`EX,0:0` settings dump closed item 13's residual, and the firmware-update
+doc's "why does fresh CDC drop its first writes" investigation closed at
+the root (the USB-HID report paths no longer block the main loop; see the
+update doc's item 2). Open with the most value next: item 15 (input timing
+& accessibility) and the docs backlog.
 
 ## Upstream issue map — open issues (42)
 
@@ -37,7 +42,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 80 | Clean up unused branches | docs backlog (chore; 48 remote branches counted 2026-10-14) |
 | 79 | Maker Guide: programming issues | docs backlog |
 | 78 | Space in file path breaks compile | docs backlog (upstream Seeed core limit; CI unaffected) |
-| 77 | Sip-and-puff menu lockout | **item 11** |
+| 77 | Sip-and-puff menu lockout | ✅ item 11 done in 4.4.0 (MA restriction; closeable after hardware validation) |
 | 76 | Mouthpiece cleaning/replacement docs | docs backlog |
 | 75 | Watchdog activates after factory reset | ✅ fixed in 4.2.0 (see community notes) |
 | 74 | LipSync changing mode by itself | **item 12** (likely fixed by 4.2.0; verify on hardware) |
@@ -46,7 +51,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 71 | Sip/puff swapped — host left-handed note | docs backlog |
 | 70 | Print issues on middle-housing threads | mechanical |
 | 69 | Mounting-part filename length | mechanical |
-| 68 | Lock out unwanted mode changes | **item 11** |
+| 68 | Lock out unwanted mode changes | ✅ item 11 done in 4.4.0 (LK mode lock; closeable after hardware validation) |
 | 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings") + the serial EX,0:0 dump in the firmware — closeable |
 | 65 | Magnetometer orientation in Maker Guide | docs backlog |
 | 64 | Faulty-sensor troubleshooting in Maker Guide | docs backlog (pairs with ✅ **item 3** — the BH endpoint landed in 4.3.0) |
@@ -57,7 +62,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 58 | Hard sip / hard puff inputs | **item 15** |
 | 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
 | 54 | Mechanical drift / center hysteresis | **item 17** |
-| 44 | Toggle cursor movement during sip/puff | **item 11** |
+| 44 | Toggle cursor movement during sip/puff | ✅ item 11 done in 4.4.0 (CF cursor hold; closeable after hardware validation) |
 | 43 | LED feedback keyed to input state, not action | **item 16** (audio half done; LED half open) |
 | 37 | TLV493D library deprecated | **items 1–2** |
 | 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
@@ -65,8 +70,8 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
 | 24 | Sled component print failure | mechanical |
 | 22 | Sip/puff threshold levels UX | **item 15** |
-| 21 | Ability to disable sip and puff | **item 11** (see upstream branches v4.1-disable-sip-and-puff for prior art) |
-| 20 | Switches as independent inputs | **item 11** |
+| 21 | Ability to disable sip and puff | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it; closeable after hardware validation) |
+| 20 | Switches as independent inputs | **item 11 residual** — the restrictions family landed; the remap table is the remaining half |
 | 19 | Unreliable STEMMA-Dupont connection | **item 10** |
 | 16 | Switch between multiple Bluetooth devices | research |
 | 15 | Hub slides around (feet/velcro) | mechanical |
@@ -361,6 +366,36 @@ cursor-during-sap toggle — plus a separate switch-mapping table for #20.
 Firmware-side these are gates on the input evaluation path (the 4.2.0
 health gating occupies the same seam), so one PR can carry the
 plumbing and each toggle can land incrementally.
+
+> **Done (2026-10-14, firmware 4.4.0 + app) — the restrictions family.**
+> Four boolean settings, all defaulting to the unrestricted legacy
+> behavior (a settings file written by older firmware reads 0 for the
+> missing keys, so an update can never silently lock a device down):
+> `SD` disables sip & puff entirely (the pressure state machine and its
+> diagnostics keep running — a gated input produces no action, no LED,
+> no cue, no trace), `MA` restricts menu open/close/navigation to the
+> hub buttons, `LK` locks the operating mode against every input path —
+> the Hub menu's Mode page refuses with a short error cue while the
+> serial API stays open on purpose, so a caregiver can always adjust the
+> device through LipSync Connect — and `CF` freezes the cursor while a
+> mouthpiece input is in progress. The gates live at one seam every
+> resolved input action passes through (`applyInputRestrictions`,
+> called from `evaluateOutputAction`, which now knows which physical
+> input a state came from), and a drag/scroll engaged before a
+> restriction was applied still releases cleanly. Surfaces: the serial
+> API (SD/MA/LK/CF get+set), the Hub menu (More → Restrictions, one
+> state-bearing line per toggle), the EX,0:0 dump, factory-reset
+> defaults, and the app's version-gated Input-restrictions card —
+> pre-4.4.0 firmware reports the card as "needs firmware 4.4.0+"
+> instead of failing four loads, the update snapshot/restore round-trips
+> the toggles when the connected device has them, and the settings
+> export carries them as booleans. **Open:** #20's independent
+> switch-mapping table (the doc's deliberately separate follow-up —
+> the three switch jacks already have distinct default mappings; what
+> #20 wants is user-remappability, which is a mapping-table settings
+> surface of its own). **Hardware validation:** the 4.4.0 session
+> should confirm each toggle's feel on the bench (especially CF's
+> freeze window) before closing #21/#44/#68/#77 upstream.
 
 ### Hardware (hub redesign / PCB backlog)
 

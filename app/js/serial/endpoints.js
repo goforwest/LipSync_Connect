@@ -3,6 +3,7 @@
 // everywhere instead of drifting across two paths.
 import { MODELS, FEEDBACK_MODES, DEBUG_MODES } from '../config/constants.js';
 import { registerEndpointRenderer } from '../services/registry.js';
+import { applyRestrictionValue } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
 import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
@@ -84,6 +85,13 @@ export const ENDPOINT_RENDERERS = {
     $('neutralVal').textContent = v ?? '?';
     plotNeutral(v);
   },
+  // Input restrictions (roadmap item 11; firmware 4.4.0+). MANUAL pushes — a
+  // Hub-menu toggle on the device — flow through here too, keeping the
+  // checkboxes in sync exactly like every other setting readout.
+  SD: (v) => applyRestrictionValue('SD', v),
+  MA: (v) => applyRestrictionValue('MA', v),
+  LK: (v) => applyRestrictionValue('LK', v),
+  CF: (v) => applyRestrictionValue('CF', v),
 };
 
 // Register with the shared registry so serial/device.js can dispatch without

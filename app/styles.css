@@ -270,6 +270,31 @@ main {
   min-width: 200px;
   font-weight: 500;
 }
+/* Checkbox rows (input restrictions): the control leads, the label follows,
+   and the inline hint sits under the label text at muted weight. */
+.check-row input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+  flex: none;
+  margin-left: 2px;
+}
+.check-row label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+.check-row label .row-hint {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.check-row input:disabled + label,
+.check-row input:disabled ~ label {
+  cursor: default;
+}
 .value {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-variant-numeric: tabular-nums;

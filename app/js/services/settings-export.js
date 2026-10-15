@@ -9,6 +9,7 @@ import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { announceStatus } from '../ui/a11y.js';
 import { downloadLogFile } from './log-export.js';
+import { RESTRICTION_SETTINGS } from '../config/constants.js';
 
 // [element id, JSON key] — every value is read from the live readout, so the
 // export always matches what the user sees (and can act as a screenshot-
@@ -58,6 +59,17 @@ export function collectSettingsExport() {
   const model = (($('model')?.textContent ?? '') + '').trim();
   if (PLACEHOLDERS.has(model)) notLoaded.push('model');
   else settings.model = model;
+  // Input restrictions (4.4.0+): booleans, exported under their own keys.
+  // Unavailable (pre-4.4.0 firmware, or the card never loaded) → listed as
+  // holes like every other value, so support can tell "off" from "absent".
+  for (const r of RESTRICTION_SETTINGS) {
+    const el = $(r.checkboxId);
+    if (!el || el.disabled || typeof el.checked !== 'boolean') {
+      notLoaded.push(r.jsonKey);
+      continue;
+    }
+    settings[r.jsonKey] = el.checked;
+  }
   return {
     device: 'LipSync',
     exportedAt: new Date().toISOString(),

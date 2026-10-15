@@ -48,7 +48,12 @@ test('a loaded device exports labeled settings with no holes', () => {
   assert.equal(data.settings.accelVal, undefined, 'wire keys are not exported — human labels only');
   assert.equal(data.settings.cursorSpeedLevel, '5');
   assert.equal(data.settings.calibrationCorner1, '-13.00|13.00');
-  assert.deepEqual(data.notLoaded, []);
+  assert.deepEqual(data.notLoaded, [
+    'sipPuffDisabled',
+    'menuButtonsOnly',
+    'modeLocked',
+    'cursorHoldDuringSap',
+  ]);
   assert.match(data.note, /identifier is redacted/);
 });
 
@@ -56,7 +61,15 @@ test('values that did not load are listed as holes, not exported as garbage', ()
   setLoadedValues({ sipVal: 'ERR', puffVal: '—', debugModeVal: '…' });
   const data = collectSettingsExport();
   assert.equal(data.settings.sipThresholdhPa, undefined);
-  assert.deepEqual(data.notLoaded, ['sipThresholdhPa', 'puffThresholdhPa', 'debugMode']);
+  assert.deepEqual(data.notLoaded, [
+    'sipThresholdhPa',
+    'puffThresholdhPa',
+    'debugMode',
+    'sipPuffDisabled',
+    'menuButtonsOnly',
+    'modeLocked',
+    'cursorHoldDuringSap',
+  ]);
   assert.match(data.note, /notLoaded/);
 });
 
