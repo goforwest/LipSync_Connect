@@ -64,7 +64,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 54 | Mechanical drift / center hysteresis | **item 17** |
 | 44 | Toggle cursor movement during sip/puff | ✅ item 11 done in 4.4.0 (CF cursor hold; closeable after hardware validation) |
 | 43 | LED feedback keyed to input state, not action | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier (closeable after the hardware validation it ships for) |
-| 37 | TLV493D library deprecated | **items 1–2** |
+| 37 | TLV493D library deprecated | ✅ item 1 done in 4.4.0 (bounded vendored fork; item 2's XENSIV migration is the deliberate follow-up) |
 | 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
 | 33 | Debug mode documentation incomplete | docs backlog |
 | 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
@@ -120,6 +120,21 @@ watchdog catches it).
 `updateData()` return an error instead of blocking), pin it in the CI and
 local builds via `--libraries`, and document the fork against the core
 version as the Wire README does.
+
+> **Done (2026-10-14).** `Libraries/TLV493D-A1B6/` is the vendored fork,
+> pinned by the same `--libraries` flag as the patched Wire (the CI's
+> zip-unpack step is gone with the zip — the build's dependency files
+> confirm the vendored copy is the one compiled). The fork bounds the two
+> blocking constructs on the 20 ms joystick-poll path: a failed wake-up
+> write now returns `TLV493D_BUS_ERROR` immediately (the stock code
+> delayed for a measurement that never started — the mechanism behind
+> JV's old device-silencing freeze), and the measurement wait is clamped
+> to `TLV493D_MAX_MEASUREMENT_DELAY_MS` (50 ms, ~5x the real ~10 ms
+> master-controlled measurement, so healthy polling is unchanged; with
+> the vendored Wire's transaction bound the whole call is worst-case
+> bounded). The register model and API are untouched upstream, so item 2's
+> XENSIV migration remains a port of `LSJoystick` with hardware
+> validation, not of this fork.
 
 ### 2. Migrate to Infineon's XENSIV TLx493D library (upstream #37)
 
