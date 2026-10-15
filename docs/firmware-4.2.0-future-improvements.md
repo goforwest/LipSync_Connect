@@ -35,7 +35,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 |---|---|---|
 | 87 | Easier mouthpiece replacement | ✅ docs pass 2026-10-14 (replacement steps + consumable sourcing; mechanical redesign not asked) |
 | 86 | Cursor acceleration | ✅ item 9 done in 4.3.0 (feel validation pending, then closeable) |
-| 85 | ESP32 feasibility evaluation | research |
+| 85 | ESP32 feasibility evaluation | ✅ feasibility call written 2026-10-14 (roadmap Research section): feasible but a full platform migration — defer; three-spike gate if forced |
 | 84 | Screw clearance hole diameter | mechanical |
 | 83 | Static shock killed hub | **item 10** |
 | 82 | Update error codes in User Guide | ✅ docs pass 2026-10-14 (bitfield rows corrected + explained) |
@@ -73,7 +73,7 @@ marked ✅ are code-complete pending the 4.3.0 hardware validation session.
 | 21 | Ability to disable sip and puff | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it; closeable after hardware validation) |
 | 20 | Switches as independent inputs | **item 11 residual** — the restrictions family landed; the remap table is the remaining half |
 | 19 | Unreliable STEMMA-Dupont connection | **item 10** |
-| 16 | Switch between multiple Bluetooth devices | research |
+| 16 | Switch between multiple Bluetooth devices | ✅ feasibility call written 2026-10-14 (roadmap Research section): buildable above Bluefruit; needs a multi-host bench spike |
 | 15 | Hub slides around (feet/velcro) | mechanical |
 | 9 | Very long sips/puffs impossible for some users | ✅ mostly item 15: adjustable windows shrink every hold; hard inputs (#58) remain for the rest |
 
@@ -476,13 +476,46 @@ soldered (not Dupont) sensor connections, the keyed connector from item 7,
 and ESD protection (TVS diodes) on the interface lines plus a grounding
 review for low-humidity environments.
 
-### Research (need a feasibility call before scheduling)
+### Research (feasibility calls, written 2026-10-14)
 
-- **ESP32 hub** (upstream #85): platform migration evaluation; would
-  revisit the Wire/Bluefruit assumptions 4.2.0 was built against.
-- **Multi-device Bluetooth switching** (upstream #16): Bluefruit HID is
-  single-connection; switching paired hosts from the hub needs a
-  connection-management design above stock BLE HID.
+- **ESP32 hub** (upstream #85) — **feasible, but a full platform
+  migration; defer until supply-chain pressure demands it.** What
+  actually moves: every hardware-adjacent subsystem the 4.x line is
+  built against. (1) The bounded vendored Wire is nRF52-TWIM-specific —
+  an ESP32 port needs a new bounded driver (the ESP32's I2C timeout
+  registers make bounding easier than the nRF52 event waits were).
+  (2) USB: the XIAO's composite CDC+HID (settings API + mouse/gamepad
+  over one cable) is Adafruit TinyUSB turnkey; on ESP32 only the S2/S3
+  have native USB, and composite CDC+HID is possible through TinyUSB
+  but not a turnkey core feature — it would need bring-up work.
+  (3) The in-browser update flow is the highest-risk item: the whole
+  app-side wizard (DFU zip packages, sha256-manifest pipeline, the
+  1200-baud/UM bootloader entry, the stranded-recovery path) assumes the
+  nRF52 serial-DFU bootloader. ESP Web Tools proves browser flashing of
+  ESP32s over Web Serial is possible, but the wizard, artifact pipeline
+  and recovery story would all be rebuilt. (4) Bluefruit HID → NimBLE
+  HID; watchdog/GPREGRET boot-budget → Task-WDT + RTC memory semantics;
+  LittleFS InternalFS → esp_littlefs (mechanical). Current headroom
+  gives no pushing reason: 4.4.0 uses 33% of program flash and 11% of
+  RAM. **Recommendation: do not schedule.** If it is ever forced (e.g.
+  nRF52840 supply), start with a bring-up spike that validates exactly
+  three things before any commitment: composite CDC+HID on S3,
+  browser-based flashing with a recovery story, and a bounded I2C
+  recovery driver.
+- **Multi-device Bluetooth switching** (upstream #16) — **feasible
+  above the Bluefruit layer; the hard part is host behavior, not BLE.**
+  Stock Bluefruit HID keeps one bond and one connection. A switching
+  design means: multiple stored bonds, a "disconnect and advertise"
+  action surfaced in the Hub menu, and accepting whichever known host
+  connects — all buildable with the existing Bluefruit bond API on the
+  nRF52. The risk is host-side: central devices reconnect aggressively
+  and differ in how they handle a peripheral that drops them (macOS,
+  Windows, iOS and Android each have quirks), so the switching UX can
+  only be validated with a bench of real hosts. **Recommendation:
+  schedule as a hardware-validated design spike (firmware branch +
+  multi-host bench session), not as a firmware release feature; estimate
+  the Hub-menu host-switch flow at a week of code plus a week of bench
+  validation.**
 
 ## Documentation backlog (docs items — no firmware change)
 
