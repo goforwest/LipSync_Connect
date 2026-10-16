@@ -637,34 +637,26 @@ export function setRestoreSettleForTests(ms) {
  */
 export async function restoreSettingsSnapshot(snapshot) {
   const failures = [];
-  const order = [
-    'SS',
-    'SL',
-    'AV',
-    'ST',
-    'PT',
-    'IZ',
-    'OZ',
-    'SM',
-    'LM',
-    'LL',
-    'SD',
-    'MA',
-    'LK',
-    'CF',
-    'WS',
-    'WL',
-    'WM',
+  // The restore writes what the CONNECTED device can hold, not everything
+  // the snapshot carries: a snapshot taken on newer firmware (the natural
+  // state after a downgrade via "Flash local file…") holds keys older
+  // firmware has never heard of — writing them is guaranteed FAIL,1 noise,
+  // and two of those failures abort the whole restore early
+  // (bench-observed 2026-10-16 restoring a 4.5.0 snapshot onto 4.1.0).
+  // Gate each version-gated family on the session's firmware; an unknown
+  // version (VN never loaded) skips them too — the conservative direction,
+  // since a write to unknown firmware is exactly the noise being fixed.
+  const base = ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'];
+  const order = [...base];
+  if (deviceFirmwareAtLeast(RESTRICTIONS_MIN_FIRMWARE[0], RESTRICTIONS_MIN_FIRMWARE[1], RESTRICTIONS_MIN_FIRMWARE[2])) {
+    order.push('SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM');
+  }
+  if (deviceFirmwareAtLeast(SWITCH_ACTIONS_MIN_FIRMWARE[0], SWITCH_ACTIONS_MIN_FIRMWARE[1], SWITCH_ACTIONS_MIN_FIRMWARE[2])) {
     // External switch actions (4.5.0+) restore last: they are plain packed
     // ints exactly as the snapshot captured them (the base included, or the
     // whole-endpoint factory reset for a 0).
-    'SA',
-    'SB',
-    'SC',
-    'GA',
-    'GB',
-    'GC',
-  ];
+    order.push('SA', 'SB', 'SC', 'GA', 'GB', 'GC');
+  }
   let consecutive = 0;
   for (const ep of order) {
     const raw = snapshot?.[ep];
