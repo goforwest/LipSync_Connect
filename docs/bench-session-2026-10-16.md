@@ -5,40 +5,64 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 
 ## Findings closed today
 
-1. **Post-flash stuck No-USB page — ROOT CAUSE FOUND AND FIXED (`184eebc`).**
-   The 4.1.0→4.5.0 flash left the host hunting for the port; the host enumerated the
-   device mid-boot, between `Serial.begin()` (CDC registered) and `usbmouse.begin()`
-   (HID registered, ~100+ ms later after LittleFS/settings load). It locked in a
-   CDC-only device and never re-enumerated: serial worked, HID never mounted.
-   Stuck-boot BH proof: `usbMounted=1, hidReady=0, hidTimedOut=1, attempts
-   1454→2384, successes=0` while `lastInputX/Y` tracked real stick motion — the page
-   was truthful. Fix: `setup()` calls `USBDevice.detach()` before anything
-   registers; `beginComOpMode()` attaches once the composite descriptor is complete.
-   Safe mode intentionally comes up CDC-only (serial recovery is the point).
+1. **Post-flash stuck No-USB page — two rounds, now with self-healing (`f4082b5`).**
+   - Round 1 (`184eebc`, flashed + sha-verified): boot-order race — host could enumerate
+     during the LittleFS/settings window when only CDC was registered, locking in a
+     CDC-only device. Fix: `setup()` detaches the bus before anything registers;
+     `beginComOpMode()` attaches once the composite descriptor is complete.
+   - Round 2 (second stuck capture, same build): STILL wedged. Decoded stack semantics:
+     in this core `tud_mounted()` is `cfg_num != 0` — the host had genuinely completed
+     SET_CONFIGURATION (CDC serial worked all boot) while `hidReady` stayed 0, attempts
+     ~50/s, successes 0, until restart. Whatever the host's exact misstep (HID-less
+     config or wedged interrupt endpoint), it never self-corrects.
+   - Current fix (`f4082b5`): `usbCheckConnection` tracks the not-ready stretch and
+     after 3 s forces a re-enumeration (detach → 100 ms → attach), max 3 per episode.
+     A fresh enumeration rebuilds the host's config and TinyUSB's endpoint state, so a
+     wedged boot should clear itself in ~8 s. Witness lines added: `USB-EVT:
+     configured/unconfigured at <millis>` (`tud_mount_cb`/`tud_umount_cb`) plus a print
+     per forced cycle and on recovery — the next exported log carries the host timeline.
 
-2. **"Mode lock failed" — test error, not a bug.** The bench log shows `MA,1:1`
-   (menu restricted to hub buttons) and `LK,0:0` throughout: the wrong restriction
-   was toggled. **LK** ("Lock operating mode" in the app Restrictions card) is the
-   mode lock. Re-test: set LK only → Hub Mode page → select a mode → expect the
-   "Mode is locked" page with Back live → unset LK.
+2. **Mode lock — CONFIRMED WORKING (bench 2026-10-16 19:54).** `LK,1:1` applied, Hub
+   remote walk refused the locked mode rows. Remaining note: the app's remote hub
+   control has no read-back of the Hub's menu position, so a refused select (LK on)
+   desyncs the remote's assumed menu from the real one — "drift" is expected remote-model
+   behavior, not a firmware defect. Possible future UX fix: a menu-state query or
+   re-sync after refusal. Not a 4.5.0 blocker.
 
-3. **"S1 dead" — explained by the stuck boot, needs one clean re-test.** S1's
-   mouse-mode action (right-click) is a mouse HID report: with the HID interface
-   down (finding 1) it was silently dropped, while sip navigation and S2 menu
-   Select are display actions and kept working. Re-test on a healthy boot with all
-   restrictions off: S1 short = right-click in mouse mode; S1 = Next in menus;
-   S1+S2 held together ~1 s = open menu. If S1 is still dead with HID healthy,
-   run `DM,1:3` (button live view) and check the S1 stream — then it's a pin/path
-   issue, not this.
+3. **S1 (Next) button — under test, likely electrical.** DEBUG,3 live-view lines are
+   consumed by the app's plotting panel and never appear in exported logs, so the
+   log's silence during the DM,1:3 window proves nothing. The user reports no response
+   to S1 in the live view. Discriminating test pending (below). Note: a stuck-PRESSED
+   S1 is ruled out (S1+S2 combo would fire START_MENU; it doesn't).
 
 ## Verify fix (next bench session)
 
-1. Flash 4.1.0 (dfu zip from repo history) → connect → update to 4.5.0 `184eebc`
-   via the red Update button.
-2. Expect: brief No-USB page (truthful, host still enumerating) self-clears within
-   ~10 s; `BH,0:0` then shows `usbReady=1, hidRetrying=0, timedOut=0`, attempts and
-   successes climbing together.
-3. Then the finding-2 and finding-3 re-tests above.
+1. Flash 4.5.0 `f4082b5` (red Update button; dist rebuilt 13:45).
+2. Post-flash boot: expect at most a brief No-USB page; the log should show
+   `USB-EVT: configured at ~<early ms>` and, if the wedge recurs,
+   `USB forced re-enumeration #N at <ms>` → `USB-EVT: configured at <ms>` →
+   `USB recovered after forced re-enumeration #N`, with BH attempts=successes climbing.
+   If the page STILL sticks with all three re-enumerations spent, export the log —
+   the USB-EVT lines + BH tell the mechanism.
+3. S1 discrimination (healthy boot, all restrictions off):
+   - Open live view (DM,1:3), press S2 (Select) 3× as control — mainState must toggle
+     in the panel. Then S1 3×. If S2 shows and S1 doesn't: electrical — check the hub
+     ribbon cable seating and the switch itself; optionally flash 4.1.0 and repeat
+     (dead S1 there too = hardware for certain).
+   - If S1 DOES show in the panel but no right-click fires in mouse mode, it's the
+     action path — send the log.
+4. LK drift (finding 2): known remote-model limitation, no action for 4.5.0.
+
+## Open follow-ups
+
+- `ERROR: No free timers` (rapid health checks) and `ERROR: No timers are in use`
+  (LSTimer prints colliding mid-response during LK remote walk) — LSTimer pool hygiene,
+  cosmetic, unfixed.
+- One `Pressure sensors not responding` transient after watchdog recovery — checklist Part F (flaky-bus repro) still pending.
+- Checklist parts E (regression sweep) and G (Android/OTG) not yet run.
+- `WM,1:10000` (5-digit window) never exercised on hardware.
+- Settings file ~383 B vs 4.1.0's 512-byte reader — ~130 B headroom, future hazard.
+- LK remote-control drift — app-side menu-state model, future UX (see finding 2).
 
 ## Open follow-ups
 
