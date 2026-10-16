@@ -21,7 +21,7 @@ const playwrightIdx = path.join(repoRoot, 'dev', 'node_modules', 'playwright-cor
 const { chromium } = await import(playwrightIdx);
 const chrome = process.env.PLAYWRIGHT_CHROME_EXECUTABLE ?? chromium.executablePath();
 
-const PORT = 4443;
+const PORT = Number(process.env.E2E_PORT ?? 4443);
 const ORIGIN = `http://localhost:${PORT}`;
 
 test.before(async () => {

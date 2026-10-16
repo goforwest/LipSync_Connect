@@ -192,6 +192,38 @@ function handleRequest(req, res) {
     return;
   }
 
+  // Dev-only firmware artifacts: the DFU zip/UF2/hex built next to the
+  // manifest, served under /firmware-files/<name>. Together with the manifest
+  // route this makes the local build installable through the app's real
+  // update wizard (download → sha256 → flash) instead of forcing the
+  // "Flash local file…" escape hatch — the local twin of the release flow.
+  // Basename-guarded: only files that exist in dist/ resolve, no traversal.
+  if (file.startsWith('/firmware-files/')) {
+    const requested = path.basename(decodeURIComponent(file.slice('/firmware-files/'.length)));
+    const artifactPath = path.join(dir, 'firmware', 'dist', requested);
+    if (!requested || !fs.existsSync(artifactPath) || !fs.statSync(artifactPath).isFile()) {
+      res.writeHead(404, TEXT_HEADERS);
+      res.end('No such firmware artifact');
+      return;
+    }
+    fs.readFile(artifactPath, (err, data) => {
+      if (err) {
+        res.writeHead(500, TEXT_HEADERS);
+        res.end('Could not read firmware artifact');
+        return;
+      }
+      res.writeHead(
+        200,
+        withSecurity({
+          'Content-Type': 'application/octet-stream',
+          'Cache-Control': 'no-store',
+        }),
+      );
+      res.end(data);
+    });
+    return;
+  }
+
   if ((!filePath.startsWith(appDir + path.sep) && filePath !== appDir) || isBlockedFile(filePath)) {
     res.writeHead(403, TEXT_HEADERS);
     res.end('Forbidden');

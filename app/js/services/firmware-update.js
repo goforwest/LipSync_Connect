@@ -131,14 +131,43 @@ export async function fetchLatestFirmware(options = {}) {
   } catch {}
   if (overrideUrl) {
     const manifest = await fetchJson(overrideUrl);
-    return { manifest, tagName: null, releaseUrl: null, repo: null, checkedAt: Date.now() };
+    // The dev-server contract: artifacts built next to the manifest are
+    // served under /firmware-files/<name> at the manifest's own origin
+    // (dev/server.js). This makes a local build installable through the
+    // REAL update wizard — download → sha256 → flash — instead of forcing
+    // the "Flash local file…" path. The page URL is the base because the
+    // override value itself may be a relative URL; the fallback keeps
+    // test environments deterministic.
+    let localArtifactBase = null;
+    const base = globalThis.location?.href || 'http://localhost/';
+    try {
+      localArtifactBase = new URL('firmware-files/', new URL(overrideUrl, base)).href;
+    } catch {}
+    const entry = {
+      manifest,
+      tagName: null,
+      releaseUrl: null,
+      repo: null,
+      localArtifactBase,
+      checkedAt: Date.now(),
+    };
+    // Cached like any other check result so the wizard's resolve step can
+    // find it — but see the cache read below: a local entry never outlives
+    // the override that created it.
+    writeCheckCache(entry);
+    return entry;
   }
   // A redirected release API is a dev pointing at another repo (usually a
   // fork): a stale cached upstream entry would mask it, so bypass the cache
   // read and always hit the (redirected) source.
   if (!options.force && !releaseApiOverride) {
     const cached = readCheckCache();
-    if (cached && Date.now() - cached.checkedAt < FIRMWARE_CHECK_MIN_INTERVAL_MS) return cached;
+    // A cached local-manifest entry is only meaningful while its override
+    // is set: without the key it must not masquerade as a release result
+    // for the cache interval — a dev removing the override expects the
+    // next check to go back to GitHub.
+    if (cached && !cached.localArtifactBase && Date.now() - cached.checkedAt < FIRMWARE_CHECK_MIN_INTERVAL_MS)
+      return cached;
   }
   const release = await fetchJson(releaseApiOverride || FIRMWARE_RELEASE_API, {
     headers: { Accept: 'application/vnd.github+json' },
@@ -303,13 +332,25 @@ function setUpdateButton(entry, deviceVersion) {
   const btn = $('btnStartUpdate');
   const target = $('fwTargetVersion');
   if (!btn) return;
-  // Requires a repo: the manifest-URL dev override yields entries with a
-  // manifest but no repo, and installing needs repo coordinates — the button
-  // would only ever fail if shown.
-  const available =
-    !!entry?.manifest && !!entry.repo && compareVersions(deviceVersion, entry.manifest.firmwareVersion) === -1;
+  // Installable needs artifact coordinates: either repo coordinates (the
+  // release path downloads via api.github.com) or a local artifact base
+  // (the dev-server manifest override serves the built artifacts at its
+  // own origin — a local build installs through the same wizard).
+  const installable = !!entry?.manifest && (!!entry.repo || !!entry.localArtifactBase);
+  const newer = compareVersions(deviceVersion, entry?.manifest?.firmwareVersion) === -1;
+  const available = installable && newer;
   btn.hidden = !available;
   if (available && target) target.textContent = entry.manifest.firmwareVersion;
+  // A newer version with no install path must not be a dead end (the
+  // pre-fix behavior: the check announced an update, badged the nav, and
+  // offered nothing to press — bench-observed 2026-10-15). Name the escape
+  // hatch instead.
+  if (newer && !available) {
+    setCheckStatus(
+      `Update available: ${entry.manifest.firmwareVersion}, but this check has no downloadable package — use “Flash local file…” with the built artifact.`,
+      'warn',
+    );
+  }
   // Badge the circle-nav trigger so an available update is discoverable
   // without opening the Firmware card. Screen readers get the same news from
   // the check status, so the dot itself is aria-silent.
@@ -1930,12 +1971,12 @@ async function cancelWizard(message) {
 /** Resolves the latest release entry, fetching a fresh check if needed. */
 async function resolveLatestRelease() {
   let entry = readCheckCache();
-  if (!entry?.manifest || !entry.manifest.files?.dfu || !entry.repo) {
+  if (!entry?.manifest || !entry.manifest.files?.dfu || !(entry.repo || entry.localArtifactBase)) {
     await checkForFirmwareUpdate();
     entry = readCheckCache();
   }
   const manifest = entry?.manifest;
-  if (!manifest?.files?.dfu || !entry?.repo) {
+  if (!manifest?.files?.dfu || !(entry?.repo || entry?.localArtifactBase)) {
     // Distinguish "nothing published yet" from "we could not reach the
     // update service" — the latter is what a fresh failed check means.
     const statusState = $('fwUpdateStatus')?.getAttribute('data-state');
@@ -1968,7 +2009,18 @@ async function resolveLatestRelease() {
 /** Downloads + checksum-verifies + parses the release's DFU package. */
 async function downloadReleasePackage(entry, signal) {
   const manifest = entry.manifest;
-  const zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName, signal);
+  let zipBytes;
+  if (entry.localArtifactBase) {
+    // Dev-server path (manifest-URL override): the artifact sits next to the
+    // manifest under /firmware-files/ — same download → sha256 → parse gate
+    // as the release path, just a same-origin fetch.
+    const url = entry.localArtifactBase + encodeURIComponent(manifest.files.dfu.fileName);
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`Could not download the firmware package (HTTP ${res.status}).`);
+    zipBytes = new Uint8Array(await res.arrayBuffer());
+  } else {
+    zipBytes = await fetchRepoBinary(entry.repo, manifest.files.dfu.fileName, signal);
+  }
   const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
   const sha256 = await sha256Hex(zipBuffer);
   if (sha256 !== manifest.files.dfu.sha256) {

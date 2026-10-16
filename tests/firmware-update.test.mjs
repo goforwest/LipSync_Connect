@@ -196,7 +196,7 @@ test('offline failures surface a readable status without throwing', async () => 
   assert.equal(updateBtnHidden(), true);
 });
 
-test('manifest-override entries never offer the (uninstallable) Update button', async () => {
+test('manifest-override entries install through the dev-server artifact route (the button works)', async () => {
   storage.clear();
   try {
     localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json');
@@ -208,11 +208,44 @@ test('manifest-override entries never offer the (uninstallable) Update button', 
   await checkForFirmwareUpdate();
   await flush();
   assert.match(status(), /Update available: 4\.2\.0/);
-  // The check lights up, but installing needs release coordinates the
-  // override path does not have — the button must stay hidden so clicking
-  // Update can never end in "No downloadable firmware package is available yet."
-  assert.equal(updateBtnHidden(), true, 'the Update button is not offered for manifest-only entries');
-  assert.equal(document.getElementById('btnStartUpdate').hidden, true);
+  // The override entry carries local artifact coordinates (dev/server.js
+  // serves the built files next to the manifest under /firmware-files/),
+  // so the same wizard that flashes releases can flash a local build —
+  // the button must be there to press (bench-observed 2026-10-15: the
+  // check announced an update and offered nothing).
+  assert.equal(updateBtnHidden(), false, 'the Update button is offered for installable local-build entries');
+  // The cached entry keeps the artifact base for the wizard's download step.
+  const cached = JSON.parse(localStorage.getItem('lipsync-fw-check'));
+  assert.ok(cached.localArtifactBase.endsWith('/firmware-files/'), 'entry carries the artifact base');
+});
+
+test('a newer version with NO install path is an honest dead end, not a silent badge', async () => {
+  storage.clear();
+  // Legacy cache shape (pre-local-artifact entries): manifest but neither
+  // repo nor artifact base — the button stays hidden and the status names
+  // the escape hatch instead of announcing an update with nothing to press.
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: MANIFEST('4.2.0'),
+        tagName: null,
+        releaseUrl: null,
+        repo: null,
+        localArtifactBase: null,
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+  setDeviceVersion('4.1.0');
+  await checkForFirmwareUpdate({ auto: true });
+  await flush();
+  assert.equal(updateBtnHidden(), true, 'the Update button is not offered without artifact coordinates');
+  assert.match(status(), /no downloadable package/);
+  assert.match(status(), /Flash local file/);
+  // The nav badge must not advertise a dead end either.
+  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  assert.equal(nav?.getAttribute('data-notify'), null, 'no badge without an installable path');
 });
 
 test('the release-API override redirects the check and bypasses the cache', async () => {
