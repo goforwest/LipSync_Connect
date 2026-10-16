@@ -98,6 +98,11 @@ export function applyDeviceResponse(line) {
     },
     SR: () => log('Device acknowledged restart (SR). Restart in progress…', 'log-info'),
     SE: () => log('Device acknowledged settings commit (SE).', 'log-info'),
+    // BH answers a 13+ value array (the app's health check parses the first
+    // six; the tail is the HID telemetry a bench reads raw). Acknowledge the
+    // response so the command transcript does not log it as unrecognized
+    // noise on every health check.
+    BH: () => {},
     UM: () =>
       log(
         'Device acknowledged update-mode entry (UM). Entering its update loader — the Hub screen shows the "Update mode" message.',
