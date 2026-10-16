@@ -382,3 +382,68 @@ test('the pending entry round-trips through sessionStorage and corrupt storage r
   assert.equal(poisoned?.snapshot?.SS?.toString, 1, 'the poisoned shape is what it is');
   fw.writePending(null);
 });
+
+test('a local-manifest install refreshes the manifest (a rebuild cannot strand the cache)', async () => {
+  // Bench-observed 2026-10-16: the check cached a local manifest, the bench
+  // rebuilt the artifacts (new sha256 on disk), and the Update button then
+  // refused the "mismatched" package — the checksum gate was right, but it
+  // was fed stale coordinates. The install must re-fetch the local manifest
+  // at click time (same-origin, free) so it always describes what is on disk.
+  storage.clear();
+  try {
+    localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json');
+  } catch {}
+  document.getElementById('version').textContent = '4.1.0';
+
+  // The OLD build's manifest — what an earlier check cached.
+  const oldManifest = MANIFEST('4.5.0');
+  oldManifest.files.dfu.sha256 = 'o'.repeat(64);
+  try {
+    localStorage.setItem(
+      'lipsync-fw-check',
+      JSON.stringify({
+        manifest: oldManifest,
+        tagName: null,
+        releaseUrl: null,
+        repo: null,
+        localArtifactBase: 'http://localhost/firmware-files/',
+        checkedAt: Date.now(),
+      }),
+    );
+  } catch {}
+
+  // The REBUILT artifacts: the server now serves a manifest with a new
+  // sha256, and the artifact bytes that match it.
+  const artifact = new Uint8Array(64).fill(7);
+  const { createHash } = await import('node:crypto');
+  const newSha = createHash('sha256').update(artifact).digest('hex');
+  const newManifest = MANIFEST('4.5.0');
+  newManifest.files.dfu.sha256 = newSha;
+
+  fetchCalls = [];
+  fetchImpl = async (url) =>
+    String(url).includes('/firmware-manifest.json')
+      ? { ok: true, status: 200, json: async () => newManifest }
+      : { ok: true, status: 200, arrayBuffer: async () => artifact.buffer.slice(artifact.byteOffset, artifact.byteOffset + artifact.byteLength) };
+
+  await fw.startFirmwareUpdate();
+  await flush();
+
+  // The manifest was re-fetched at install time (the refresh is the fix)…
+  assert.ok(
+    fetchCalls.some((u) => u.includes('/firmware-manifest.json')),
+    'the install re-fetches the local manifest',
+  );
+  // …and the cache now carries the rebuilt build's coordinates, not the
+  // stale ones the check cached.
+  const cached = JSON.parse(localStorage.getItem('lipsync-fw-check'));
+  assert.equal(cached.manifest.files.dfu.sha256, newSha, 'the cache is refreshed to the rebuilt manifest');
+
+  // The artifact download went through the refreshed checksum (garbage
+  // bytes with the right sha pass the gate; the wizard then fails honestly
+  // at package PARSING — far past the mismatch that stranded the bench).
+  const fetchedArtifact = fetchCalls.find((u) => u.includes('/firmware-files/'));
+  assert.ok(fetchedArtifact, 'the artifact downloads from the dev-server route');
+  resetFirmwareUpdateUi();
+  storage.clear();
+});

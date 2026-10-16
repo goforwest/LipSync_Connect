@@ -1963,6 +1963,17 @@ async function cancelWizard(message) {
 /** Resolves the latest release entry, fetching a fresh check if needed. */
 async function resolveLatestRelease() {
   let entry = readCheckCache();
+  // A local-manifest entry's artifacts are rebuilt at will — every
+  // dev/firmware/build-firmware.sh run rewrites dist/ — so a cached manifest
+  // can describe artifacts that no longer exist, and the install would die
+  // at the checksum gate with a confusing error (bench 2026-10-16: check
+  // cached one manifest, the bench rebuilt, the install refused the
+  // "mismatched" package — correctly, but over stale coordinates). The
+  // manifest fetch for a local build is same-origin and free: always take
+  // it fresh at install time.
+  if (entry?.localArtifactBase) {
+    entry = await fetchLatestFirmware();
+  }
   if (!entry?.manifest || !entry.manifest.files?.dfu || !(entry.repo || entry.localArtifactBase)) {
     await checkForFirmwareUpdate();
     entry = readCheckCache();
@@ -2016,7 +2027,10 @@ async function downloadReleasePackage(entry, signal) {
   const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
   const sha256 = await sha256Hex(zipBuffer);
   if (sha256 !== manifest.files.dfu.sha256) {
-    throw new Error('The downloaded firmware package did not match its published checksum.');
+    throw new Error(
+      'The downloaded firmware package did not match its published checksum — the published artifacts may have changed. ' +
+        'Click “Check for updates” and retry the update.',
+    );
   }
   const pkg = await parseDfuPackage(zipBuffer);
   log(`Firmware package ${manifest.files.dfu.fileName} verified (sha256 ${sha256.slice(0, 12)}…).`, 'log-info');
