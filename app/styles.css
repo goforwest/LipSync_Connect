@@ -393,6 +393,7 @@ button.danger {
   outline-offset: 2px;
 }
 input[type='number'],
+input[type='text'],
 select {
   width: 160px;
   padding: 10px 12px;
@@ -817,6 +818,7 @@ summary {
 @media (pointer: coarse) {
   button,
   input[type='number'],
+  input[type='text'],
   select {
     min-height: 52px;
   }
@@ -884,6 +886,7 @@ summary {
     margin-bottom: -2px;
   }
   input[type='number'],
+  input[type='text'],
   select {
     flex: 1 1 140px;
     width: auto;

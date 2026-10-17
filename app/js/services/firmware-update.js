@@ -231,7 +231,10 @@ async function fetchRepoJsonFile(repo, path, { allowMissing = false, signal } = 
   signal?.addEventListener('abort', onOuterAbort);
   const timer = setTimeout(() => ctrl.abort(), FIRMWARE_FETCH_TIMEOUT_MS);
   try {
-    res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' }, signal: ctrl.signal });
+    res = await fetch(url, {
+      headers: { Accept: 'application/vnd.github+json' },
+      signal: ctrl.signal,
+    });
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onOuterAbort);
@@ -651,7 +654,13 @@ export async function restoreSettingsSnapshot(snapshot) {
   if (deviceFirmwareAtLeast(RESTRICTIONS_MIN_FIRMWARE[0], RESTRICTIONS_MIN_FIRMWARE[1], RESTRICTIONS_MIN_FIRMWARE[2])) {
     order.push('SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM');
   }
-  if (deviceFirmwareAtLeast(SWITCH_ACTIONS_MIN_FIRMWARE[0], SWITCH_ACTIONS_MIN_FIRMWARE[1], SWITCH_ACTIONS_MIN_FIRMWARE[2])) {
+  if (
+    deviceFirmwareAtLeast(
+      SWITCH_ACTIONS_MIN_FIRMWARE[0],
+      SWITCH_ACTIONS_MIN_FIRMWARE[1],
+      SWITCH_ACTIONS_MIN_FIRMWARE[2],
+    )
+  ) {
     // External switch actions (4.5.0+) restore last: they are plain packed
     // ints exactly as the snapshot captured them (the base included, or the
     // whole-endpoint factory reset for a 0).
@@ -1125,7 +1134,10 @@ async function attemptTouchOnce(appPort, cancelled, attempt, options = {}) {
     if (recheck === 'open') return { result: 'app-live', wedged: true };
     if (recheck === 'gone') {
       if (await liveBootloaderPortPresent()) return { result: 'touched' };
-      return { result: 'inconclusive', error: 'the LipSync is not responding on the bus — it may be unplugged' };
+      return {
+        result: 'inconclusive',
+        error: 'the LipSync is not responding on the bus — it may be unplugged',
+      };
     }
     return { result: 'inconclusive', error: e?.message };
   }
@@ -1364,7 +1376,12 @@ async function tryTouchDevice(appPort, cancelled, options = {}) {
 async function runFlashWizard({ pkg, targetVersion }) {
   if (wizard) throw new Error('An update is already in progress.');
   if (!serialSession.port) throw new Error('Connect the LipSync before updating its firmware.');
-  wizard = { stage: 'snapshot', target: targetVersion, pkg, abort: new AbortController() };
+  wizard = {
+    stage: 'snapshot',
+    target: targetVersion,
+    pkg,
+    abort: new AbortController(),
+  };
   setWizardVisible(true);
   setWizardStage('backup');
   lockSessionButtons(true);
@@ -1372,7 +1389,10 @@ async function runFlashWizard({ pkg, targetVersion }) {
   // loop watches both so an in-flight attempt exits at its next checkpoint.
   const cancelled = () => !wizard || wizard.abort.signal.aborted;
   try {
-    setWizardStep('Backing up your settings…', { showCancel: true, showBackup: false });
+    setWizardStep('Backing up your settings…', {
+      showCancel: true,
+      showBackup: false,
+    });
     const snapshot = captureSettingsSnapshot();
     wizard.snapshot = snapshot;
     writePending({ target: targetVersion, snapshot, installed: false });
@@ -1676,7 +1696,11 @@ async function continueWizard() {
     // The reconnect step lives or dies by the Connect button: hand the
     // session controls back to the actual session state.
     lockSessionButtons(false);
-    writePending({ target: wizard.target, snapshot: wizard.snapshot, installed: true });
+    writePending({
+      target: wizard.target,
+      snapshot: wizard.snapshot,
+      installed: true,
+    });
     log('Firmware installed. Reconnect to verify and restore settings.', 'log-info');
     setWizardStatus('Firmware update — reconnect the LipSync');
     setWizardStep(
@@ -1702,7 +1726,12 @@ async function continueWizard() {
     // afterwards: the wipe already happened inside cancelWizard.
     if (!wizard) {
       if (e?.name === 'StopWindowError') {
-        writePending({ target: flashTarget, snapshot: flashSnapshot, installed: false, flashStarted: true });
+        writePending({
+          target: flashTarget,
+          snapshot: flashSnapshot,
+          installed: false,
+          flashStarted: true,
+        });
         log(
           'The update was finishing when it was cancelled — it may have completed on its own. Reconnect to find out: your settings will be restored automatically if it finished.',
           'log-info',
@@ -1755,7 +1784,11 @@ async function continueWizard() {
       wizard.stage = 'await-bootloader-port';
       setWizardStatus('Firmware update — choose the update port');
       log(e.message, 'log-err');
-      setWizardStep(e.message, { showContinue: true, showCancel: true, showBackup: true });
+      setWizardStep(e.message, {
+        showContinue: true,
+        showCancel: true,
+        showBackup: true,
+      });
       return;
     }
     if (e?.name === 'PortStallError') {
@@ -1768,7 +1801,11 @@ async function continueWizard() {
       wizard.stage = 'await-bootloader-port';
       setWizardStatus('Firmware update — choose the update port');
       log(e.message, 'log-err');
-      setWizardStep(e.message, { showContinue: true, showCancel: true, showBackup: true });
+      setWizardStep(e.message, {
+        showContinue: true,
+        showCancel: true,
+        showBackup: true,
+      });
       return;
     }
     if (deviceGone(e)) {
@@ -1896,9 +1933,18 @@ async function cancelWizard(message) {
   // outlived the settle window settles its own fate late (the continueWizard
   // catch's !wizard branch) — nothing wipes after this point.
   if (stopWindowHedge || stopWindowCancel) {
-    writePending({ target: cancelTarget, snapshot: cancelSnapshot, installed: false, flashStarted: true });
+    writePending({
+      target: cancelTarget,
+      snapshot: cancelSnapshot,
+      installed: false,
+      flashStarted: true,
+    });
   } else if (flashCompletedDespiteCancel) {
-    writePending({ target: cancelTarget, snapshot: cancelSnapshot, installed: true });
+    writePending({
+      target: cancelTarget,
+      snapshot: cancelSnapshot,
+      installed: true,
+    });
   } else {
     writePending(null);
   }
@@ -2101,7 +2147,12 @@ export async function recoverFromBootloader() {
   if (wizard && wizard.stage !== 'restore-pending') throw new Error('An update is already in progress.');
   yieldRestorePendingPanel();
   const { entry, target } = await resolveLatestRelease();
-  wizard = { stage: 'download', target, abort: new AbortController(), recovery: true };
+  wizard = {
+    stage: 'download',
+    target,
+    abort: new AbortController(),
+    recovery: true,
+  };
   setWizardVisible(true);
   // Nothing to prepare or restart — the device is already in update mode.
   setWizardStage('flash');
@@ -2219,7 +2270,12 @@ async function finishPendingUpdate(pending) {
   // already has one). Cancel also clears the pending entry, so the message
   // must own up to losing the automatic restore.
   const armPendingPanel = () => {
-    if (!wizard) wizard = { stage: 'restore-pending', snapshot: pending.snapshot, abort: new AbortController() };
+    if (!wizard)
+      wizard = {
+        stage: 'restore-pending',
+        snapshot: pending.snapshot,
+        abort: new AbortController(),
+      };
     setWizardVisible(true);
     // The tracker must say where the flow stands — a pending panel IS the
     // verify-&-restore stage, not four gray steps with no active one.
@@ -2320,7 +2376,11 @@ async function finishPendingUpdate(pending) {
       log('Operating mode restored — the device reboots to apply it. Reconnect once more.', 'log-info');
       // Keep the wizard (and its snapshot for the backup button) across the
       // mode-apply reboot; the next device load closes it.
-      wizard = { stage: 'mode-restored', snapshot: pending.snapshot, abort: new AbortController() };
+      wizard = {
+        stage: 'mode-restored',
+        snapshot: pending.snapshot,
+        abort: new AbortController(),
+      };
       setWizardStep(
         'Settings restored. Your operating mode was restored too — the LipSync is restarting. Click Connect one more time.',
         {

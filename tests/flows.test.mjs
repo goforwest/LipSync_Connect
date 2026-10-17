@@ -32,9 +32,11 @@ for (const id of [
   'btnSwitchBt',
   'btnCalibrate',
   'btnDisconnect',
+  'btnSendRaw',
 ]) {
   init(id, 'cmd').disabled = true;
 }
+init('rawCommand');
 init('btnConnect').disabled = false;
 
 const { document: doc, windowListeners } = installGatingDom(els);
@@ -372,4 +374,66 @@ test('a wedged close cannot hang disconnect (bounded like every port operation)'
   } finally {
     setPortCloseTimeoutForTests(PORT_CLOSE_TIMEOUT_MS);
   }
+});
+
+// ---- Raw command console (checklist E3 / upstream #67) --------------------
+
+test('raw command sends EX,0:0 after the handshake; the dump streams into the log', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS'
+      ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }]
+      : text === 'EX,0:0'
+        ? [
+            { delay: 5, line: 'SUCCESS,0:EX,0:BEGIN' },
+            { delay: 6, line: 'SUCCESS,0:SA,0:1,4,19' },
+            { delay: 7, line: 'SUCCESS,0:EX,0:END' },
+          ]
+        : [],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('rawCommand').value = 'EX,0:0';
+  await clickAndDrain('btnSendRaw');
+  detach();
+  assert.deepEqual(sent, ['SETTINGS', 'EX,0:0']);
+});
+
+test('raw command rejects empty and malformed input without touching the wire', async () => {
+  const { sent, detach } = launch(() => []);
+  app.setConnectedUI(true);
+  doc.getElementById('rawCommand').value = '   ';
+  await clickAndDrain('btnSendRaw');
+  doc.getElementById('rawCommand').value = 'hello';
+  await clickAndDrain('btnSendRaw');
+  doc.getElementById('rawCommand').value = 'ex,0:0';
+  await clickAndDrain('btnSendRaw');
+  detach();
+  assert.deepEqual(sent, []);
+});
+
+test('raw state-changing commands keep their confirm: cancel sends nothing', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('rawCommand').value = 'SR,1:1';
+  click('btnSendRaw');
+  await nextTick();
+  click('confirmCancel');
+  await sleep(80);
+  detach();
+  assert.deepEqual(sent, []);
+});
+
+test('raw state-changing commands keep their confirm: ok sends the command', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [{ delay: 5, line: 'SUCCESS,0:SR,1:1' }],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('rawCommand').value = 'SR,1:1';
+  click('btnSendRaw');
+  await nextTick();
+  click('confirmOk');
+  await sleep(80);
+  detach();
+  assert.deepEqual(sent, ['SETTINGS', 'SR,1:1']);
 });

@@ -270,6 +270,17 @@
           <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button
           ><button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
         </div>
+        <div class="row">
+          <label for="rawCommand">Raw command</label
+          ><input
+            type="text"
+            id="rawCommand"
+            placeholder="e.g. EX,0:0"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Raw serial command to send to the device"
+          /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
+        </div>
         <div class="row" id="loadProgressRow" hidden>
           <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
           ><span id="loadProgressLabel">Loading device settings…</span>

@@ -108,4 +108,42 @@ export function bindDeviceOps(guard) {
       if (serialSession.port) await disconnect();
     }),
   );
+
+  // Raw command console (bench 2026-10-17, checklist E3 / upstream #67's
+  // serial half): the firmware's EX,0:0 settings dump exists so a support tech
+  // can capture a device's complete configuration, and the app is the serial
+  // monitor a maker actually has open — but until now there was no way to type
+  // a command into it. A minimal validated one-liner: whatever passes the
+  // wire-shape check goes through the normal queued SETTINGS handshake, and
+  // every response line lands in the log the session export already captures.
+  // Multi-line dumps stream in after the ack (sendCommand completes on the
+  // BEGIN frame; the body arrives unsolicited and the endpoint renderers treat
+  // it as a harmless re-read). State-changing commands that already have a
+  // confirmed button (SR/FR/UM) keep their confirm when typed raw, so the
+  // console cannot become a footgun that skips the safety prompt.
+  const rawCommandInput = $('rawCommand');
+  $('btnSendRaw').addEventListener(
+    'click',
+    guard(async () => {
+      const cmd = String(rawCommandInput.value || '').trim();
+      if (!cmd) throw new Error('Enter a command first — e.g. EX,0:0.');
+      if (!/^[A-Z]{1,4},\d+(?::.*)?$/.test(cmd)) {
+        throw new Error('Not a device command — expected a shape like EX,0:0 or SS,1:8.');
+      }
+      if (/^(FR|SR|UM),1/.test(cmd)) {
+        const confirmed = await showConfirm(
+          'Raw command',
+          `Send ${cmd}? It restarts the device or changes its state (the dedicated buttons do this with the same confirm).`,
+        );
+        if (!confirmed) return;
+      }
+      await sendCommand(cmd);
+    }),
+  );
+  rawCommandInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (!$('btnSendRaw').disabled) $('btnSendRaw').click();
+    }
+  });
 }
