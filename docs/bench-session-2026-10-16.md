@@ -43,12 +43,11 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 
 1. ~~Post-flash stuck boot~~ CLOSED (verified 2026-10-17 across multiple flash cycles).
 2. S1 hardware follow-up on the bench unit: ribbon reseat + continuity test; report to MMC.
-3. Checklist parts E (regression sweep: cursor feel, self-tests, health check, EX dump
-   vs app export, BT/gamepad, Hub menu walk), F (flaky-sensor repro: partially unseat
-   the joystick cable → bounded behavior, BH recovery count climbing, no spontaneous
-   mode changes), G (Android/OTG).
-4. `WM,1:10000` (5-digit window) never exercised on hardware.
-5. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`, include the
+3. Checklist: ~~E1–E5~~ PASSED 2026-10-17 (E3 via the new raw-command console, app 1c2b7bc —
+   all 31 dump values matched the load, no identifier in the dump; WM,1:10000 exercised and
+   restored). Remaining: E6 (BT + gamepad), E7 (4.1.0 app honesty), H (switch remapping,
+   including the 4.5.0→4.5.0 re-flash), F (flaky-sensor repro), G (Android/OTG).
+4. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`, include the
    S1 hardware finding and the enumeration self-heal in the release notes.
 
 ## Open follow-ups

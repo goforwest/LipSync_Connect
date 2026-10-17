@@ -103,6 +103,10 @@ export function applyDeviceResponse(line) {
     // response so the command transcript does not log it as unrecognized
     // noise on every health check.
     BH: () => {},
+    // EX,0:0 frames the raw console's settings dump (BEGIN…END); the body is
+    // plain re-reads the endpoint renderers already handle. Acknowledge the
+    // frames so the dump transcript stays clean (bench 2026-10-17, E3).
+    EX: () => {},
     UM: () =>
       log(
         'Device acknowledged update-mode entry (UM). Entering its update loader — the Hub screen shows the "Update mode" message.',
