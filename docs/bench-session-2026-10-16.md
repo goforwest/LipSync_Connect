@@ -5,22 +5,20 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 
 ## Findings closed today
 
-1. **Post-flash stuck No-USB page — two rounds, now with self-healing (`f4082b5`).**
-   - Round 1 (`184eebc`, flashed + sha-verified): boot-order race — host could enumerate
-     during the LittleFS/settings window when only CDC was registered, locking in a
-     CDC-only device. Fix: `setup()` detaches the bus before anything registers;
-     `beginComOpMode()` attaches once the composite descriptor is complete.
-   - Round 2 (second stuck capture, same build): STILL wedged. Decoded stack semantics:
-     in this core `tud_mounted()` is `cfg_num != 0` — the host had genuinely completed
-     SET_CONFIGURATION (CDC serial worked all boot) while `hidReady` stayed 0, attempts
-     ~50/s, successes 0, until restart. Whatever the host's exact misstep (HID-less
-     config or wedged interrupt endpoint), it never self-corrects.
-   - Current fix (`f4082b5`): `usbCheckConnection` tracks the not-ready stretch and
-     after 3 s forces a re-enumeration (detach → 100 ms → attach), max 3 per episode.
-     A fresh enumeration rebuilds the host's config and TinyUSB's endpoint state, so a
-     wedged boot should clear itself in ~8 s. Witness lines added: `USB-EVT:
-     configured/unconfigured at <millis>` (`tud_mount_cb`/`tud_umount_cb`) plus a print
-     per forced cycle and on recovery — the next exported log carries the host timeline.
+1. **Post-flash stuck No-USB page — FIXED AND VERIFIED (bench 2026-10-17).**
+   - Round 1 (`184eebc`): detach-until-descriptor-complete boot order (host could
+     otherwise lock in a CDC-only enumeration during the LittleFS/settings window).
+   - Round 2 (`f4082b5`): the fix was flashed and sha-verified, yet the wedge recurred
+     once — host completed SET_CONFIGURATION (CDC serial alive; `tud_mounted()` is
+     `cfg_num != 0` in this stack) while `hidReady` stayed 0 all boot. Fix:
+     self-healing re-enumeration in `usbCheckConnection` (3 s not-ready → detach →
+     100 ms → attach, max 3 per episode) plus `USB-EVT: configured/unconfigured`
+     witness hooks. Note: those witness lines fire ~1 s post-boot, before the app
+     opens the port, so they never appear in normal session logs — they remain armed
+     for mid-session episodes.
+   - Verified 2026-10-17: two 4.1.0→4.5.0 flash cycles plus a 4.5.0→4.1.0→4.5.0
+     round trip — every 4.5.0 post-flash boot came up healthy with settings
+     restore completing normally. CLOSED.
 
 2. **Mode lock — CONFIRMED WORKING (bench 2026-10-16 19:54).** `LK,1:1` applied, Hub
    remote walk refused the locked mode rows. Remaining note: the app's remote hub
@@ -29,29 +27,29 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
    behavior, not a firmware defect. Possible future UX fix: a menu-state query or
    re-sync after refusal. Not a 4.5.0 blocker.
 
-3. **S1 (Next) button — under test, likely electrical.** DEBUG,3 live-view lines are
-   consumed by the app's plotting panel and never appear in exported logs, so the
-   log's silence during the DM,1:3 window proves nothing. The user reports no response
-   to S1 in the live view. Discriminating test pending (below). Note: a stuck-PRESSED
-   S1 is ruled out (S1+S2 combo would fire START_MENU; it doesn't).
+3. **S1 (Next) button — HARDWARE FAULT (bench 2026-10-17).** Dead on BOTH 4.1.0 and
+   4.5.0 with the live view (DM,1:3) open: no mainState reaction to S1 presses on
+   either firmware, while S2 works. Two independent firmwares sharing only the pin
+   definition read the same deadness — the S1 switch circuit is open on this unit
+   (switch, ribbon conductor, or solder joint), not a firmware defect. Stuck-PRESSED
+   is ruled out (the S1+S2 combo would fire START_MENU; it doesn't). Bench next:
+   reseat the hub-to-main ribbon cable, then continuity-test the S1 switch pads
+   (pressed vs. released) and compare with S2's line; report to MMC as a unit-level
+   hardware finding — exactly what this validation pass is for. 4.1.0's own
+   debug-mode fragility (device lost during DM,1:3, recovered on replug — the
+   known #75 cluster) is unrelated but worth avoiding on 4.1.0.
 
-## Verify fix (next bench session)
+## Remaining work
 
-1. Flash 4.5.0 `f4082b5` (red Update button; dist rebuilt 13:45).
-2. Post-flash boot: expect at most a brief No-USB page; the log should show
-   `USB-EVT: configured at ~<early ms>` and, if the wedge recurs,
-   `USB forced re-enumeration #N at <ms>` → `USB-EVT: configured at <ms>` →
-   `USB recovered after forced re-enumeration #N`, with BH attempts=successes climbing.
-   If the page STILL sticks with all three re-enumerations spent, export the log —
-   the USB-EVT lines + BH tell the mechanism.
-3. S1 discrimination (healthy boot, all restrictions off):
-   - Open live view (DM,1:3), press S2 (Select) 3× as control — mainState must toggle
-     in the panel. Then S1 3×. If S2 shows and S1 doesn't: electrical — check the hub
-     ribbon cable seating and the switch itself; optionally flash 4.1.0 and repeat
-     (dead S1 there too = hardware for certain).
-   - If S1 DOES show in the panel but no right-click fires in mouse mode, it's the
-     action path — send the log.
-4. LK drift (finding 2): known remote-model limitation, no action for 4.5.0.
+1. ~~Post-flash stuck boot~~ CLOSED (verified 2026-10-17 across multiple flash cycles).
+2. S1 hardware follow-up on the bench unit: ribbon reseat + continuity test; report to MMC.
+3. Checklist parts E (regression sweep: cursor feel, self-tests, health check, EX dump
+   vs app export, BT/gamepad, Hub menu walk), F (flaky-sensor repro: partially unseat
+   the joystick cable → bounded behavior, BH recovery count climbing, no spontaneous
+   mode changes), G (Android/OTG).
+4. `WM,1:10000` (5-digit window) never exercised on hardware.
+5. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`, include the
+   S1 hardware finding and the enumeration self-heal in the release notes.
 
 ## Open follow-ups
 
