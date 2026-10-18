@@ -10,6 +10,7 @@ import { applyDebugData, showDiagPanel, syncLiveButtons } from '../plotting/diag
 import { gaugeDelta } from '../plotting/gauge.js';
 import { plotCorner, plotRawXY, orientFromOutput, cornerState } from '../plotting/plot.js';
 import { updateStepButtons, calibrationIsRunning, applySwitchActionValue } from '../services/settings-service.js';
+import { noteExternalSettingsChange } from '../services/hub-remote.js';
 import { $ } from '../ui/dom.js';
 
 export function applyDeviceResponse(line) {
@@ -115,9 +116,14 @@ export function applyDeviceResponse(line) {
     // FR/CH/RT all emit a value-bearing ack (SUCCESS,0:<EP>,1:<n>); without a
     // handler here each would fall through to the 'Unrecognized device response'
     // log line even though the app issued the command itself. Log them as what
-    // they are so the command log is a faithful transcript.
+    // they are so the command log is a faithful transcript. CH,1 acks only:
+    // CH,0 (the 4.5.1+ menu-state read) is the hub-remote's own sync traffic
+    // and is consumed by its promise — logging every poll would flood the
+    // transcript.
     FR: () => log('Device acknowledged factory reset (FR). Device will restart with defaults…', 'log-info'),
-    CH: () => log('Hub menu press acknowledged (CH,' + r.cmd.slice(3) + ').', 'log-info'),
+    CH: () => {
+      if (r.cmd.startsWith('CH,1')) log('Hub menu press acknowledged (CH,' + r.cmd.slice(3) + ').', 'log-info');
+    },
     RT: () => log('Self-test acknowledged (RT,' + r.cmd.slice(3) + '); narrating steps…', 'log-info'),
   };
   if (updates[endpoint]) updates[endpoint]();
@@ -137,6 +143,11 @@ export function applyDeviceResponse(line) {
     if (isDev) log('Unrecognized device response: ' + r.cmd, 'log-err');
     else unrecognizedResponseLog(r.cmd);
   }
+  // A MANUAL line is a physical Hub-menu change pushed unprompted: the
+  // hub-remote mirror's value screens hold local ESTIMATES of these very
+  // settings, and device truth just replaced them — refresh a visible value
+  // page so the mirror shows what the Hub actually changed.
+  if (r.type === 'MANUAL') noteExternalSettingsChange(endpoint);
   if (!r.cmd.startsWith('DEBUG,')) updateStepButtons();
 }
 

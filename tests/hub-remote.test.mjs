@@ -305,3 +305,232 @@ test('the Info page keeps Version/ID display-only — the cursor never leaves Ba
   await app.disconnect({ quiet: true });
   dev.detach();
 });
+
+// ---- Device-truth re-sync (firmware 4.5.1+, the CH,0:0 endpoint) ----------
+//
+// A simulator faithful enough to reproduce the drift: CH,1 presses ack
+// SUCCESS even when REFUSED (an LK-locked mode row answers with the ~2 s
+// "Mode is locked" page — page 32 on 4.5.1 — whose frozen-input window
+// DROPS later presses, still acking them). State is evaluated lazily at
+// CH,0:0 read time, the way the firmware's scheduled transitions behave.
+function createMenuFirmwareSim({ locked = false } = {}) {
+  const st = { active: 0, page: 0, row: 0, frozenUntil: 0 };
+  // Selectable-row counts per page (LSScreen.h _currentMenuLength values).
+  const LEN = { 0: 5, 1: 2, 3: 4, 31: 2, 5: 11, 51: 2, 54: 4, 551: 2, 57: 2, 59: 3, 60: 5, 61: 4, 611: 3 };
+  const MORE_SELECT = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 0]; // Sound..Back
+  const advanceTransients = () => {
+    const now = Date.now();
+    if (st.page === 32 && now >= st.frozenUntil) {
+      st.page = 3; // finishModeLocked → modeMenu()
+      st.row = 0;
+      st.frozenUntil = 0;
+    }
+    if (st.page === 55 && now >= st.frozenUntil) {
+      st.page = 551; // fullCalibrationConfirmMenu
+      st.row = 0;
+      st.frozenUntil = 0;
+    }
+  };
+  const select = () => {
+    switch (st.page) {
+      case 0:
+        st.page = st.row + 1;
+        st.row = 0;
+        break; // main → exit/calib/mode/speed/more
+      case 3:
+        if (st.row < 3 && locked) {
+          st.page = 32; // modeLockedPage: input frozen ~2 s
+          st.row = 0;
+          st.frozenUntil = Date.now() + 2000;
+        } else if (st.row < 3) {
+          st.page = 31;
+          st.row = 0;
+        } // else: Back → handled below
+        break;
+      case 5:
+        st.page = MORE_SELECT[st.row];
+        st.row = 0;
+        if (st.page === 55) st.frozenUntil = Date.now() + 3000; // the warning page
+        break;
+      case 31:
+      case 551:
+      case 57:
+        if (st.row === 1) {
+          st.page = 0;
+          st.row = 0;
+        } // Back
+        break;
+      case 54:
+        st.page = st.row === 0 ? 541 : 542;
+        st.row = 0;
+        break;
+      case 59:
+      case 60:
+      case 61:
+        if (st.row === LEN[st.page] - 1) {
+          st.page = 5;
+          st.row = 0;
+        }
+        break;
+      case 611:
+        if (st.row === 2) {
+          st.page = 61;
+          st.row = 0;
+        }
+        break;
+      case 1:
+        if (st.row === 1) {
+          st.page = 0;
+          st.row = 0;
+        } // Back → main
+        break;
+    }
+  };
+  return {
+    behavior: (text) => {
+      if (text === 'SETTINGS') return [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }];
+      if (text.startsWith('CH,1:')) {
+        const n = parseInt(text.slice(5), 10);
+        if (st.active && Date.now() < st.frozenUntil && n !== 1) {
+          // dropped in the frozen window — but still acked (the firmware bug
+          // the endpoint exists to see through)
+        } else if (n === 1) {
+          st.active = 1;
+          st.page = 0;
+          st.row = 0;
+        } else if (n === 4) {
+          st.active = 0;
+        } else if (n === 3) {
+          if (st.page in LEN) st.row = (st.row + 1) % LEN[st.page];
+        } else if (n === 2) {
+          if (st.page in { 51: 1, 59: 1, 60: 1, 611: 1 }) {
+            // value screens step values — not modeled; stay put
+          } else {
+            select();
+          }
+        }
+        return [{ delay: 5, line: 'SUCCESS,0:CH,1:' + n }];
+      }
+      if (text === 'CH,0:0') {
+        advanceTransients();
+        return [{ delay: 5, line: `SUCCESS,0:CH,0:${st.active},${st.page},${st.row}` }];
+      }
+      return [{ delay: 5, line: 'SUCCESS,0:' + text }];
+    },
+    state: st,
+  };
+}
+
+// Waits until the simulator's menu traffic settles (a press plus its sync
+// read plus any scheduled transient re-read), then one extra beat for the
+// mirror to reconcile. Device truth settles; polling beats fixed sleeps.
+// Commands are compared newline-stripped: a 4.2.0+ device (like the 4.5.1
+// sim) receives protocol-v2 newline-terminated writes.
+const sentCmds = () => (activeDev ? activeDev.sent.map((s) => s.replace(/\r?\n$/, '')) : []);
+const settle = async (ms = 400) => {
+  for (;;) {
+    const before = activeDev ? activeDev.sent.length : 0;
+    await sleep(120);
+    if (activeDev && activeDev.sent.length === before) break;
+  }
+  await sleep(ms);
+};
+
+test('a 4.5.1 remote re-syncs from device truth after every press', async () => {
+  const sim = createMenuFirmwareSim({ locked: false });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  noteDeviceVersion('4.5.1');
+  await click('btnHubOpen');
+  await settle();
+  assert.equal(header(), 'Main menu');
+  assert.ok(sentCmds().includes('CH,0:0'), 'the menu-state read was issued');
+
+  await next(2); // → Mode row
+  await select(); // enters the Mode page
+  await settle();
+  assert.equal(header(), 'Mode');
+  await select(); // → the change-mode confirm page
+  await settle();
+  // The optimistic advance and the device agree — the sync confirms the
+  // page AND the cursor position from device truth.
+  assert.equal(header(), 'Change mode to MOUSE USB?');
+  assert.equal(selectedLabel(), 'Confirm');
+  // (Pressing Confirm here restarts the device — not modelable in the sim,
+  // and the disconnect path is covered by the close test below.)
+
+  await click('btnHubClose');
+  await settle();
+  assert.equal(wrapHidden(), true);
+  assert.equal(sim.state.active, 0, 'the close reached the device');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('an LK-locked select no longer desyncs the mirror — device truth wins', async () => {
+  const sim = createMenuFirmwareSim({ locked: true });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  noteDeviceVersion('4.5.1');
+  await click('btnHubOpen');
+  await settle();
+  await next(2); // → Mode row
+  await select(); // enters the Mode page (never locked-refused: navigation is open)
+  await settle();
+  assert.equal(header(), 'Mode');
+  assert.equal(selectedLabel(), 'MOUSE USB');
+  await select(); // REFUSED by the lock: device shows the "Mode is locked" page
+  await settle();
+  // The optimistic model went to the confirm page; the sync must correct it
+  // to the locked page the device is actually showing.
+  assert.equal(header(), 'Mode is locked.');
+  assert.match(note(), /Unlock via the app/);
+
+  // A press inside the frozen window is DROPPED by the device but acked
+  // SUCCESS — the classic drift source. The sync keeps the mirror honest.
+  await click('btnHubNext');
+  await settle();
+  assert.equal(header(), 'Mode is locked.'); // still the locked page: the press was dropped
+
+  // The device returns to the Mode page by itself (~2 s dwell): the
+  // scheduled transient re-read lands the mirror on device truth.
+  await sleep(2800);
+  await settle();
+  assert.equal(header(), 'Mode');
+  assert.equal(selectedLabel(), 'MOUSE USB'); // modeMenu redraws at row 0
+  assert.equal(sentCmds().filter((s) => s === 'CH,0:0').length >= 2, true, 'the transient re-read fired');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('older firmware never receives the menu-state read', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  await openMore('4.4.0'); // walks with CH,1 presses only
+  assert.ok(!sentCmds().includes('CH,0:0'), 'CH,0:0 is version-gated and never sent to 4.4.0');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('a MANUAL settings push refreshes a visible value screen', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  el('speedVal').textContent = '5';
+  await openMore('4.4.0');
+  await next(3); // Cursor Speed is main row 3 — reach it from main instead:
+  assert.equal(header(), 'More'); // (already in More from openMore)
+  // Navigate to More ▸ back to main ▸ Cursor Speed: simplest is a fresh Open.
+  await click('btnHubOpen');
+  await settle();
+  await next(3);
+  await select();
+  await settle();
+  assert.equal(header(), 'Speed: 5');
+  // A physical Hub-menu change pushes MANUAL — the mirror's visible value
+  // screen must follow the device, not its own estimate.
+  el('speedVal').textContent = '8';
+  app.handleLine('MANUAL,0:SS,0:8');
+  assert.equal(header(), 'Speed: 8');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
