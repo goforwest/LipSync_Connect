@@ -108,6 +108,12 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 > in-pool reproduction attempt passed — the closed out-of-bounds write vectors
 > are the leading suspect for the real capture, with the loop()-feed kept as
 > belt-and-braces.
+>
+> **2026-10-18, later — CLOSED OUT:** every follow-up was bench-confirmed on
+> hardware and the XENSIV TLx493D migration passed its full protocol (including
+> the battery trade, accepted). The merge landed as `9b947cc`, the old TLV493D
+> fork was removed in the merge, and **V4.5.1 is tagged on the fork**. Final
+> record in `docs/4.5.x-followups.md`.
 
 ## Open follow-ups
 
