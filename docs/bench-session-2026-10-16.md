@@ -99,6 +99,16 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 - Settings file ~383 B vs 4.1.0's 512-byte reader — ~130 B headroom, future hazard.
 - LK remote-control drift — app-side menu-state model, future UX (see finding 2).
 
+> **2026-10-18 update:** all six of the above were resolved (or branched) in the
+> 4.5.x follow-up cycle — see `docs/4.5.x-followups.md` for what shipped per item
+> and what still needs bench confirmation. The LSTimer prints, the settings
+> budget, and the LK drift each have firmware+app fixes on the 4.5.1 line
+> (`firmware-release-pipeline` @ `3e7cc88`); the timer pool now has a host-side
+> test suite (`dev/firmware/lstimer-test/`) and the safe-mode interval death's
+> in-pool reproduction attempt passed — the closed out-of-bounds write vectors
+> are the leading suspect for the real capture, with the loop()-feed kept as
+> belt-and-braces.
+
 ## Open follow-ups
 
 - `ERROR: No free timers` (LSTimer pool, rapid health checks) — likely benign, unfixed.
