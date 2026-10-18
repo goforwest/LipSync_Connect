@@ -37,17 +37,34 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 
 ## Remaining work
 
-1. ~~Post-flash stuck boot~~ CLOSED (verified 2026-10-17 across multiple flash cycles).
+1. ~~Post-flash stuck boot~~ CLOSED (rounds 1-3; the auto-restart `438643c` still awaits its
+   confirming flash - the bench device runs `f4082b5` per the 02:38 UTC package sha).
 2. S1 hardware follow-up on the bench unit: ribbon reseat + continuity test; report to MMC.
-3. Checklist: ~~Part E (E1–E7)~~ PASSED 2026-10-17 in full — E3 via the new
-   raw-command console (app 1c2b7bc), E6 gamepad verified end-to-end through a Web
-   Gamepad tester (OM,0:2; USB-serial alive alongside; macOS's Game Controllers
-   pane doesn't list generic pads — host cosmetic) and BT mouse pairing/tracking,
-   E7 old-firmware honesty on a 4.1.0 round trip; WM,1:10000 exercised and
-   restored. Remaining: H (switch remapping, including the 4.5.0→4.5.0 re-flash),
-   F (flaky-sensor repro), G (Android/OTG).
-4. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`, include the
-   S1 hardware finding and the enumeration self-heal in the release notes.
+3. ~~Checklist Part E~~ PASSED 2026-10-17 in full. **Checklist F runtime half PASSED
+   2026-10-18**: serial alive through the flaky window, pressure marked 2 in BH, app health
+   check shows "1 warning", no spontaneous mode changes or menu walks (#74 held); re-seat +
+   SR recovered with a green health check. Two diagnostic gaps noted: the joystick reads
+   green in BH while its data is garbage (-199/1024 raw), and BH recoveries stayed 0 through
+   the flap - minor, follow-up.
+4. **NEW DEFECT (open): boot with the interface cable unseated = 30 s reset cycle.** The app
+   connects into a ~30 s window, loads ~19 settings (classic endpoints), then silence from
+   `SD,0:0` onward and the port is lost; repeat. Twice at an EXACT 30.0 s cadence
+   (04:02:23->04:02:53, 04:02:58->04:03:28) = the hardware watchdog firing on a starved
+   feed. Unbreakable until the cable is re-seated. Ruled out statically: unbounded Wire
+   (the vendored copy bounds every TWIM wait at 50 ms with wedge recovery + busHealthy
+   hold-off), joystick/pressure/screen backoffs, safe-mode watchdog-timer disabling,
+   safe-mode API filtering. NOT the USB auto-restart (not flashed then; also gated to
+   HID-dead non-safe modes). Shipped `315994b`: degraded-state heartbeat (`HB: ms=...
+   mode=... safe=... wdt=... feed=...` every 5 s; healthy boots silent) plus
+   `g_watchdogLastFeedMs`/`g_watchdogArmed` ground truth. **Next: flash `315994b`, repeat
+   the unseated-boot experiment, read the HB lines** - lines stopping = loop frozen; lines
+   continuing with feed growing past 30 s = feed timer dead; wdt=1 feed=never = watchdog
+   timer never registered (the LSTimer pool has shown "No free timers").
+5. Checklist H (switch remapping) and G (Android/OTG) deferred by the user.
+6. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`; release notes
+   to carry: the enumeration self-heal + auto-restart, the S1 hardware finding, the
+   boot-loop investigation state, LSTimer pool hygiene, the gamepad-mode BH telemetry gap
+   (BH reads mouse counters), and LK remote-control drift.
 
 ## Open follow-ups
 
