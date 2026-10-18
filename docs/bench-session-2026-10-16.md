@@ -5,20 +5,16 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
 
 ## Findings closed today
 
-1. **Post-flash stuck No-USB page — FIXED AND VERIFIED (bench 2026-10-17).**
-   - Round 1 (`184eebc`): detach-until-descriptor-complete boot order (host could
-     otherwise lock in a CDC-only enumeration during the LittleFS/settings window).
-   - Round 2 (`f4082b5`): the fix was flashed and sha-verified, yet the wedge recurred
-     once — host completed SET_CONFIGURATION (CDC serial alive; `tud_mounted()` is
-     `cfg_num != 0` in this stack) while `hidReady` stayed 0 all boot. Fix:
-     self-healing re-enumeration in `usbCheckConnection` (3 s not-ready → detach →
-     100 ms → attach, max 3 per episode) plus `USB-EVT: configured/unconfigured`
-     witness hooks. Note: those witness lines fire ~1 s post-boot, before the app
-     opens the port, so they never appear in normal session logs — they remain armed
-     for mid-session episodes.
-   - Verified 2026-10-17: two 4.1.0→4.5.0 flash cycles plus a 4.5.0→4.1.0→4.5.0
-     round trip — every 4.5.0 post-flash boot came up healthy with settings
-     restore completing normally. CLOSED.
+1. **Post-flash stuck No-USB page — fixed in three rounds, now with auto-restart (`438643c`).**
+   - Round 1 (`184eebc`): detach-until-descriptor-complete boot order.
+   - Round 2 (`f4082b5`): self-healing re-enumeration (3 × detach/attach) — healed two full
+     round trips on 2026-10-17, E1–E7 all passed on it.
+   - Round 3 (2026-10-17 evening, E7 round trip): a wedge survived all three forced
+     re-enumerations — bus cycling alone cannot clear this host state, while a device
+     restart has healed every instance. `438643c` grows the re-enum dark window to 500 ms
+     and, when the budget is spent still HID-dead, performs ONE automatic NVIC restart
+     (once-per-power-cycle guard in a `.noinit` magic word; healthy boots re-arm it).
+     Post-flash worst case: ~20 s to a working device. **Verify on the next flash.**
 
 2. **Mode lock — CONFIRMED WORKING (bench 2026-10-16 19:54).** `LK,1:1` applied, Hub
    remote walk refused the locked mode rows. Remaining note: the app's remote hub
