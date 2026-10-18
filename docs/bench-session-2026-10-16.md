@@ -80,10 +80,13 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
    fully recovers once the cable is re-seated. F1 (unseat while running) passes as
    written; this boot case was beyond the checklist letter - captured for upstream.
 5. Checklist H (switch remapping) and G (Android/OTG) deferred by the user.
-6. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`; release notes
-   to carry: the enumeration self-heal + auto-restart, the S1 hardware finding, the
-   boot-loop investigation state, LSTimer pool hygiene, the gamepad-mode BH telemetry gap
-   (BH reads mouse counters), and LK remote-control drift.
+6. ~~Release~~ DONE 2026-10-18: firmware fork tagged **V4.5.0** (includes the regenerated
+   guide PDFs — LibreOffice headless export from the final .docx; a Word re-export remains
+   welcome for fidelity), upstream comment drafts extended with all 4.5.0 findings
+   (app 964c03d), checklist F ticked with H/G deferred notes. REMAINING HUMAN STEPS:
+   post the drafts from the org account (docs/upstream-issue-comments.md), pass the S1
+   dead-button finding to MMC assembly QA, and LSTimer pool hygiene / gamepad-mode BH
+   telemetry / LK remote drift stay as documented follow-ups.
 
 ## Open follow-ups
 
