@@ -71,6 +71,46 @@ XENSIV TLx493D library remains the deliberate follow-up (it touches the
 joystick read path, so it goes through hardware validation rather than a
 blind swap).
 
+## 4.5.0 USB robustness (relates to #63, #75)
+
+The 2026-10 bench validation chased a rare but reproducible failure: after a
+firmware flash, the host could lock the device into a configuration where
+serial worked but the HID interface never came up — cursor dead, "No USB"
+page truthful and stuck until a manual restart. Firmware 4.5.0 closes it in
+layers: the bus stays dark at boot until the complete USB configuration
+exists (so no host can half-enumerate it), a persistent HID outage now
+forces a re-enumeration (up to 3, bounded), and if even that cannot recover
+the host's state the device spends one automatic restart — the one cure that
+has cleared every observed instance — guarded so it can never loop. A wedged
+boot now self-heals within ~20 s instead of appearing bricked. Two witness
+lines (`USB-EVT: configured/unconfigured`) plus the existing `BH,0:0` HID
+telemetry make any future instance diagnosable from a session log alone.
+
+A second, subtler fix from the same bench session: the watchdog's feed ran
+on a soft timer that demonstrably stops firing in safe-mode boots while the
+main loop stays alive — so an armed 30 s watchdog starved and reset the
+device into safe mode, where the feed died again: a reset cycle the app
+could never connect through. The feed now happens directly in the live loop,
+independent of every timer, leaving the watchdog with its one true job —
+catching a genuinely dead loop. Worst case for any degraded boot is now a
+single reset into a stable, connectable safe mode.
+
+## #74 — Flaky/loose sensor connection: spontaneous mode changes
+
+The ask in this issue — that a flaky sensor connection must never cause
+spontaneous mode changes or menu walks — now has a bench-verified answer in
+4.5.0: with the device running and the interface cable partially unseated,
+serial stays alive, "Pressure sensors not responding" prints once, sip and
+puff disable themselves until the sensor answers again, the `BH,0:0` health
+read marks the sensor degraded, and no mode changes or menu walks occur
+during the flaky window; re-seating recovers without a restart. One known
+limitation is documented rather than hidden: booting with the cable
+deliberately unseated can wedge the serial path a few seconds into an app
+connection (the sensors still ACK at boot, so the device does not know to
+back off); the device still shows its safe-mode/error page, no longer reset
+loops (see the watchdog note above), and fully recovers once the cable is
+re-seated. A keyed connector remains the source fix (see #73).
+
 ## Optional: closeable-now notes
 
 - **#36** (menu stays open after serial-API calibration): fixed in 4.3.0 —
@@ -95,6 +135,21 @@ blind swap).
   settings). The compiled defaults are unchanged, so nothing changes for
   existing users until a caregiver opts in; LipSync Connect exposes it as
   its "External switch actions" card — the per-host mappability the
-  clinician's note asked for (gamepad mode is what an iPad's Switch
-  Control sees). Closeable once 4.5.0 ships and the bench session
-  (checklist part H) confirms the feel.
+  clinician's note asked for (gamepad mode is what an iPad's Switch Control
+  sees). The settings storage, wire protocol, and post-flash restore of all
+  six mappings are bench-verified on 4.5.0; the physical-switch feel pass
+  (bench checklist part H) is still pending on hardware with the jacks
+  populated, so hold the close until that pass or ship noting it.
+
+## For MMC (not upstream posts)
+
+- **Bench-unit hardware finding:** the Next (S1) hub button on our
+  validation unit is electrically dead — no GPIO reaction with two
+  different firmwares (4.1.0 and 4.5.0) while Select (S2) works, ruling out
+  firmware and a stuck-pressed switch (the S1+S2 menu combo would still
+  fire). Suspect the switch itself, its ribbon conductor, or a solder
+  joint; needs continuity testing against the S2 line. Worth a QA check
+  across the assembly batch.
+- **Release mechanics:** the guide `.docx` passes are complete and
+  committed; the PDF regeneration is the maintainer's Word export pass
+  (headers-as-bookmarks, per the repo's existing PDF convention).
