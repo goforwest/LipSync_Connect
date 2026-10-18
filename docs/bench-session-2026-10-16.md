@@ -54,12 +54,19 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
    (the vendored copy bounds every TWIM wait at 50 ms with wedge recovery + busHealthy
    hold-off), joystick/pressure/screen backoffs, safe-mode watchdog-timer disabling,
    safe-mode API filtering. NOT the USB auto-restart (not flashed then; also gated to
-   HID-dead non-safe modes). Shipped `315994b`: degraded-state heartbeat (`HB: ms=...
-   mode=... safe=... wdt=... feed=...` every 5 s; healthy boots silent) plus
-   `g_watchdogLastFeedMs`/`g_watchdogArmed` ground truth. **Next: flash `315994b`, repeat
-   the unseated-boot experiment, read the HB lines** - lines stopping = loop frozen; lines
-   continuing with feed growing past 30 s = feed timer dead; wdt=1 feed=never = watchdog
-   timer never registered (the LSTimer pool has shown "No free timers").
+   HID-dead non-safe modes). Shipped `315994b` (heartbeat witness) -> **CAPTURED AND
+   ROOT-CAUSED**: in the safe-mode boot the HB lines kept printing every 5 s with
+   `mode=3 safe=1 wdt=1` while `feed=` stayed frozen at 4428 ms - the main loop
+   alive, the hardware watchdog armed, but the feed's 5 s soft timer on the shared
+   pollTimer pool never fired again after its first tick. The armed 30 s watchdog
+   starved -> reset -> watchdog flag -> safe mode -> feed died again: the unbreakable
+   30 s cycle. FIXED in `ac90b08`: the feed now happens directly in loop() on every
+   pass (gated on g_watchdogArmed), independent of every timer, backoff and
+   safe-mode path; the pollTimer registration stays as a redundant second feeder.
+   The 05:19:20 capture also proved a safe-mode boot serves the FULL 31-endpoint
+   settings load and a passing health check, so worst case for a wedged-bus boot is
+   now ONE watchdog reset into a stable, connectable safe mode.
+   **Verification pending: repeat the unseated-boot test on `ac90b08`.**
 5. Checklist H (switch remapping) and G (Android/OTG) deferred by the user.
 6. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`; release notes
    to carry: the enumeration self-heal + auto-restart, the S1 hardware finding, the
