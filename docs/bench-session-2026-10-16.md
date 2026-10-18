@@ -66,7 +66,19 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
    The 05:19:20 capture also proved a safe-mode boot serves the FULL 31-endpoint
    settings load and a passing health check, so worst case for a wedged-bus boot is
    now ONE watchdog reset into a stable, connectable safe mode.
-   **Verification pending: repeat the unseated-boot test on `ac90b08`.**
+   **Verified on `ac90b08` (bench 2026-10-18 ~05:50 UTC)**: post-flash boot clean (no
+   stuck page), the 4.5.0->4.5.0 re-flash exercised H6's switch-restore path (all six
+   packed triples re-applied from the 4.5.0 snapshot), runtime cable disruption stayed
+   graceful, and the unbreakable reset cycle is BROKEN - the last two app connects into
+   a degraded boot did not reset the device at all (the loop-feed fix holding). RESIDUAL
+   (documented known limitation, follow-up, not release-blocking): boot with the cable
+   DISRUPTED puts the sensors in a garbage-ACKing state where the app-connect serial
+   path wedges ~4 s into the load (the classic MN..DM-then-SD-silence pattern); no HB
+   lines appear because the degraded flags read false (sensors ACK), and the wedge is
+   temporal, not command-specific (getSapDisabled is a pure settings read). Device
+   shows the safe-mode page with its error code, survives without reset-looping, and
+   fully recovers once the cable is re-seated. F1 (unseat while running) passes as
+   written; this boot case was beyond the checklist letter - captured for upstream.
 5. Checklist H (switch remapping) and G (Android/OTG) deferred by the user.
 6. Release: tag V4.5.0, guide PDFs, post `docs/upstream-issue-comments.md`; release notes
    to carry: the enumeration self-heal + auto-restart, the S1 hardware finding, the
