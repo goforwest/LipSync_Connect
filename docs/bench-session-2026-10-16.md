@@ -34,6 +34,11 @@ Firmware branch: `firmware-release-pipeline` @ `184eebc`. All fixes below are co
    hardware finding — exactly what this validation pass is for. 4.1.0's own
    debug-mode fragility (device lost during DM,1:3, recovered on replug — the
    known #75 cluster) is unrelated but worth avoiding on 4.1.0.
+   > **RESOLVED 2026-10-19:** S1 works again on the bench unit (confirmed
+   > during the 4.5.2 confirmation session) — consistent with the
+   > intermittent-connection theory; the ribbon work during the flaky-bus
+   > sessions likely re-seated it. The unit's history still warrants a line
+   > to MMC assembly QA, their call.
 
 ## Remaining work
 
