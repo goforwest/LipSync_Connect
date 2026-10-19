@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
 
-const { document: doc } = installGatingDom();
+const { document: doc, windowListeners } = installGatingDom();
 const app = await import('../app/js/main.js');
 const {
   loadDeviceInfo,
@@ -107,6 +107,10 @@ const setSelects = (endpoint, cells) => {
     byId(s.selectPrefix + i).value = String(c);
   });
 };
+
+// Fire DOMContentLoaded as the browser would (flows.test.mjs's pattern): the
+// tab-toggle listeners bind inside it, so the tab test needs the real wiring.
+(windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 
 populateSwitchActionSelects();
 
@@ -285,4 +289,37 @@ test('the disconnect reset clears stale mappings so they cannot leak into a new 
   assert.equal(byId('swSA0').value, '');
   assert.equal(byId('btnResetSwitchActions').disabled, true);
   assert.equal(byId('switchActionsNote').textContent, '');
+});
+
+test('the per-jack mode tabs swap the visible mapping grid independently', () => {
+  const tabs = (jack) => doc.querySelectorAll(`.switch-tab[data-jack="${jack}"]`);
+  const panels = (jack) => doc.querySelectorAll(`.switch-mode[data-jack="${jack}"]`);
+  const find = (els, mode) => els.find((el) => el.dataset.mode === mode);
+
+  // Default: Mouse pressed, its panel visible; Gamepad hidden.
+  for (const jack of ['A', 'B', 'C']) {
+    assert.equal(find(tabs(jack), 'mouse').getAttribute('aria-pressed'), 'true');
+    assert.equal(find(tabs(jack), 'gamepad').getAttribute('aria-pressed'), 'false');
+    assert.equal(find(panels(jack), 'mouse').hidden, false);
+    assert.equal(find(panels(jack), 'gamepad').hidden, true);
+  }
+
+  // Switch jack 1 to Gamepad: only jack 1 flips.
+  find(tabs('A'), 'gamepad').dispatch('click');
+  assert.equal(find(tabs('A'), 'gamepad').getAttribute('aria-pressed'), 'true');
+  assert.equal(find(tabs('A'), 'mouse').getAttribute('aria-pressed'), 'false');
+  assert.equal(find(panels('A'), 'gamepad').hidden, false);
+  assert.equal(find(panels('A'), 'mouse').hidden, true);
+  assert.equal(find(panels('B'), 'mouse').hidden, false, 'jack 2 untouched');
+  assert.equal(find(panels('C'), 'gamepad').hidden, true, 'jack 3 untouched');
+
+  // Clicking the already-pressed tab is a no-op (state never desyncs).
+  find(tabs('A'), 'gamepad').dispatch('click');
+  assert.equal(find(panels('A'), 'gamepad').hidden, false);
+  assert.equal(find(tabs('A'), 'gamepad').getAttribute('aria-pressed'), 'true');
+
+  // Switching back restores Mouse.
+  find(tabs('A'), 'mouse').dispatch('click');
+  assert.equal(find(panels('A'), 'mouse').hidden, false);
+  assert.equal(find(panels('A'), 'gamepad').hidden, true);
 });

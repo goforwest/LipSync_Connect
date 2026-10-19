@@ -318,6 +318,27 @@ export function installGatingDom(existingEls = null) {
     b.dataset.section = id;
     return b;
   });
+  // Switch-mode tabs (index.html's sec-switches): three jacks × two modes.
+  // The tab wiring in main.js drives these through querySelectorAll, so the
+  // selector surface must exist for the toggle behavior to be testable.
+  const switchTabs = [];
+  const switchPanels = [];
+  for (const jack of ['A', 'B', 'C']) {
+    for (const mode of ['mouse', 'gamepad']) {
+      const tab = makeEl('button');
+      tab.classList.add('switch-tab');
+      tab.dataset.jack = jack;
+      tab.dataset.mode = mode;
+      tab.setAttribute('aria-pressed', String(mode === 'mouse'));
+      switchTabs.push(tab);
+      const panel = makeEl('div');
+      panel.classList.add('switch-mode');
+      panel.dataset.jack = jack;
+      panel.dataset.mode = mode;
+      panel.hidden = mode !== 'mouse';
+      switchPanels.push(panel);
+    }
+  }
   // RT buttons are class="cmd" (disabled-by-default until connected), like real markup.
   const cmdBtnLeds = makeEl('button');
   cmdBtnLeds.id = 'btnTestLeds';
@@ -350,6 +371,11 @@ export function installGatingDom(existingEls = null) {
       if (sel === '.section-card') return sections;
       if (sel === '.section-card.needs-conn') return sections.filter((s) => s.classList.contains('needs-conn'));
       if (sel === '.circle-trigger' || sel === '.circle-trigger[data-section]') return navs;
+      if (sel === '.switch-tab') return switchTabs;
+      const tabJack = sel.match(/^\.switch-tab\[data-jack="(.+)"\]$/);
+      if (tabJack) return switchTabs.filter((t) => t.dataset.jack === tabJack[1]);
+      const panelJack = sel.match(/^\.switch-mode\[data-jack="(.+)"\]$/);
+      if (panelJack) return switchPanels.filter((p) => p.dataset.jack === panelJack[1]);
       if (sel === 'button.cmd') return [...els.values()].filter((e) => e && e.classList?.contains('cmd'));
       return [];
     },

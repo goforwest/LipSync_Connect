@@ -570,6 +570,20 @@ window.addEventListener('DOMContentLoaded', () => {
         await resetSwitchActions();
       }),
     );
+    // Per-jack Mouse/Gamepad segmented toggle: one mode's mapping grid is
+    // visible at a time; the pressed tab is the whole state (aria-pressed,
+    // same pattern as the live-view toggles).
+    document.querySelectorAll('.switch-tab').forEach((/** @type {any} */ tab) => {
+      tab.addEventListener('click', () => {
+        if (tab.getAttribute('aria-pressed') === 'true') return;
+        document.querySelectorAll(`.switch-tab[data-jack="${tab.dataset.jack}"]`).forEach((/** @type {any} */ b) =>
+          b.setAttribute('aria-pressed', String(b === tab)),
+        );
+        document.querySelectorAll(`.switch-mode[data-jack="${tab.dataset.jack}"]`).forEach((/** @type {any} */ p) => {
+          p.hidden = p.dataset.mode !== tab.dataset.mode;
+        });
+      });
+    });
 
     $('btnReadPressure').addEventListener(
       'click',

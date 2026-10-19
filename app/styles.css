@@ -534,28 +534,73 @@ progress {
   color: var(--muted);
 }
 
-/* External switch actions (sec-switches): one block per jack, two rows
-   (mouse/gamepad mode) of three labeled selects. */
+/* External switch actions (sec-switches): one card per jack. A Mouse/Gamepad
+   segmented toggle picks which mapping grid shows; each hold window is a
+   colored chip (the input-window ladder's zone colors — green short, yellow
+   long, red very-long) above its action select, so the mapping reads as
+   hold-duration → action at a glance. */
 .switch-jack h3 {
   margin: 14px 0 2px;
   font-size: 1rem;
 }
-.switch-row {
-  flex-wrap: wrap;
+.switch-head {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.switch-mode-label {
-  min-width: 8.5em;
-  color: var(--muted);
+.switch-tabs {
+  display: inline-flex;
+  gap: 4px;
+}
+.switch-tab {
+  padding: 6px 16px;
+  min-height: 36px;
   font-size: 0.85rem;
-}
-.switch-row label {
-  font-size: 0.85rem;
+  border-radius: 999px;
+  background: transparent;
   color: var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--border);
 }
-.switch-row select {
-  min-width: 9em;
+.switch-tab:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+}
+.switch-tab[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--btn-text);
+  box-shadow: none;
+}
+.switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.switch-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.switch-cell select {
+  width: 100%;
+}
+.hold-chip {
+  align-self: flex-start;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.hold-chip--short {
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+.hold-chip--long {
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.hold-chip--max {
+  background: color-mix(in srgb, var(--danger) 30%, transparent);
 }
 .hub-screen-note {
   margin: 8px 0 0;
@@ -1068,6 +1113,10 @@ summary {
   line-height: 1.4;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
   max-width: 420px;
+  /* The toast floats over page content — it must never eat a click aimed at
+     the content beneath (observed: it sat on the Log card's Share button and
+     swallowed the press). Only the close button is interactive. */
+  pointer-events: none;
 }
 #notification[hidden] {
   display: none;
@@ -1109,6 +1158,8 @@ summary {
   min-height: unset;
   min-width: unset;
   transition: background 0.15s ease;
+  /* The toast body is pointer-transparent; the × is the one live target. */
+  pointer-events: auto;
 }
 #notification .notif-close:hover {
   background: rgba(255, 255, 255, 0.35);

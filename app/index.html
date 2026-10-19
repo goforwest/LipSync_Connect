@@ -587,66 +587,138 @@
           you pick an action.
         </p>
         <div class="switch-jack" role="group" aria-label="Switch 1">
-          <h3>Switch 1</h3>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swSAlabel">Mouse mode</span>
-            <label for="swSA0">Short hold</label>
-            <select id="swSA0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSA1">Long hold</label>
-            <select id="swSA1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSA2">Very long hold</label>
-            <select id="swSA2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-head">
+            <h3>Switch 1</h3>
+            <div class="switch-tabs" role="group" aria-label="Switch 1 mapping mode">
+              <button type="button" class="switch-tab" data-jack="A" data-mode="mouse" aria-pressed="true">
+                Mouse
+              </button>
+              <button type="button" class="switch-tab" data-jack="A" data-mode="gamepad" aria-pressed="false">
+                Gamepad
+              </button>
+            </div>
           </div>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swGAlabel">Gamepad mode</span>
-            <label for="swGA0">Short hold</label>
-            <select id="swGA0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGA1">Long hold</label>
-            <select id="swGA1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGA2">Very long hold</label>
-            <select id="swGA2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-mode" data-jack="A" data-mode="mouse">
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swSA0">Short hold</label>
+                <select id="swSA0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swSA1">Long hold</label>
+                <select id="swSA1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swSA2">Very long hold</label>
+                <select id="swSA2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
+          </div>
+          <div class="switch-mode" data-jack="A" data-mode="gamepad" hidden>
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swGA0">Short hold</label>
+                <select id="swGA0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swGA1">Long hold</label>
+                <select id="swGA1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swGA2">Very long hold</label>
+                <select id="swGA2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
           </div>
         </div>
         <div class="switch-jack" role="group" aria-label="Switch 2">
-          <h3>Switch 2</h3>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swSBlabel">Mouse mode</span>
-            <label for="swSB0">Short hold</label>
-            <select id="swSB0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSB1">Long hold</label>
-            <select id="swSB1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSB2">Very long hold</label>
-            <select id="swSB2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-head">
+            <h3>Switch 2</h3>
+            <div class="switch-tabs" role="group" aria-label="Switch 2 mapping mode">
+              <button type="button" class="switch-tab" data-jack="B" data-mode="mouse" aria-pressed="true">
+                Mouse
+              </button>
+              <button type="button" class="switch-tab" data-jack="B" data-mode="gamepad" aria-pressed="false">
+                Gamepad
+              </button>
+            </div>
           </div>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swGBlabel">Gamepad mode</span>
-            <label for="swGB0">Short hold</label>
-            <select id="swGB0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGB1">Long hold</label>
-            <select id="swGB1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGB2">Very long hold</label>
-            <select id="swGB2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-mode" data-jack="B" data-mode="mouse">
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swSB0">Short hold</label>
+                <select id="swSB0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swSB1">Long hold</label>
+                <select id="swSB1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swSB2">Very long hold</label>
+                <select id="swSB2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
+          </div>
+          <div class="switch-mode" data-jack="B" data-mode="gamepad" hidden>
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swGB0">Short hold</label>
+                <select id="swGB0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swGB1">Long hold</label>
+                <select id="swGB1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swGB2">Very long hold</label>
+                <select id="swGB2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
           </div>
         </div>
         <div class="switch-jack" role="group" aria-label="Switch 3">
-          <h3>Switch 3</h3>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swSClabel">Mouse mode</span>
-            <label for="swSC0">Short hold</label>
-            <select id="swSC0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSC1">Long hold</label>
-            <select id="swSC1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swSC2">Very long hold</label>
-            <select id="swSC2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-head">
+            <h3>Switch 3</h3>
+            <div class="switch-tabs" role="group" aria-label="Switch 3 mapping mode">
+              <button type="button" class="switch-tab" data-jack="C" data-mode="mouse" aria-pressed="true">
+                Mouse
+              </button>
+              <button type="button" class="switch-tab" data-jack="C" data-mode="gamepad" aria-pressed="false">
+                Gamepad
+              </button>
+            </div>
           </div>
-          <div class="row switch-row">
-            <span class="switch-mode-label" id="swGClabel">Gamepad mode</span>
-            <label for="swGC0">Short hold</label>
-            <select id="swGC0" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGC1">Long hold</label>
-            <select id="swGC1" disabled aria-describedby="switchActionsNote"></select>
-            <label for="swGC2">Very long hold</label>
-            <select id="swGC2" disabled aria-describedby="switchActionsNote"></select>
+          <div class="switch-mode" data-jack="C" data-mode="mouse">
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swSC0">Short hold</label>
+                <select id="swSC0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swSC1">Long hold</label>
+                <select id="swSC1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swSC2">Very long hold</label>
+                <select id="swSC2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
+          </div>
+          <div class="switch-mode" data-jack="C" data-mode="gamepad" hidden>
+            <div class="switch-grid">
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--short" for="swGC0">Short hold</label>
+                <select id="swGC0" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--long" for="swGC1">Long hold</label>
+                <select id="swGC1" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+              <div class="switch-cell">
+                <label class="hold-chip hold-chip--max" for="swGC2">Very long hold</label>
+                <select id="swGC2" disabled aria-describedby="switchActionsNote"></select>
+              </div>
+            </div>
           </div>
         </div>
         <div class="row">
