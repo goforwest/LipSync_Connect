@@ -255,6 +255,20 @@ window.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => openSectionById(btn.dataset.section));
   });
 
+  // In-card close buttons (one per section header): mirror the nav toggle,
+  // then hand focus back to the section's circle trigger — the card turns
+  // inert as it closes, and focus left inside it would fall back to <body>.
+  document.querySelectorAll('.card-close').forEach((/** @type {any} */ btn) => {
+    btn.addEventListener('click', () => {
+      const sectionId = btn.dataset.close;
+      if (getOpenSection() === sectionId) closeCurrentSection();
+      const trigger = /** @type {HTMLElement|null} */ (
+        document.querySelector(`.circle-trigger[data-section="${sectionId}"]`)
+      );
+      if (trigger && typeof trigger.focus === 'function') trigger.focus({ preventScroll: true });
+    });
+  });
+
   // Single Escape handler
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;

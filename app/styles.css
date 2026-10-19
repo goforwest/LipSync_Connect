@@ -1547,17 +1547,50 @@ html.dark-mode .guide-card {
   }
 }
 
-.section-card h2 {
+/* Card header row: the section title plus an in-card close button. The head
+   carries the underline + spacing the bare h2 used to draw, so the × sits
+   on the same baseline as the title. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 20px 24px 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.section-card h2 {
+  margin: 0;
+  flex: 1;
   font-size: 1rem;
   font-weight: 700;
   color: var(--text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
 }
-.section-card > *:not(h2):not(.hint) {
+/* Quiet square close affordance — the nav trigger stays the keyboard path;
+   this is the point-of-need exit for pointer users (and it hands focus back
+   to the trigger so AT users are not stranded on <body> when the card goes
+   inert). */
+.card-close {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.card-close:hover:not(:disabled) {
+  background: var(--value-bg);
+  border-color: var(--border);
+  color: var(--text);
+}
+.section-card > *:not(.card-head):not(.hint) {
   margin: 12px 24px;
 }
 .section-card > .hint {
@@ -1931,4 +1964,55 @@ html.dark-mode .appearance-popup {
   color: var(--muted);
   min-width: 3.5em;
   text-align: right;
+}
+
+/* ---- Increased contrast (macOS/Windows "increase contrast") ---- */
+/* Widen control borders and thicken the focus ring; the palette itself is
+   left alone so light/dark themes both keep their identity. */
+@media (prefers-contrast: more) {
+  .section-card.open,
+  .value,
+  input[type='number'],
+  input[type='text'],
+  select,
+  .diag-key,
+  .health-cell,
+  .selftest-panel,
+  .diag-group,
+  #fwWizard {
+    border-width: 2px;
+  }
+  :where(button, select, input, summary, a):focus-visible {
+    outline-width: 4px;
+  }
+}
+
+/* ---- Forced colors (Windows High Contrast mode) ---- */
+/* The engine flattens author colors to system ones: a borderless primary
+   button's background collapses to ButtonFace exactly like the panel behind
+   it, so every control gets an explicit edge. */
+@media (forced-colors: active) {
+  button,
+  select,
+  input[type='number'],
+  input[type='text'],
+  .diag-key,
+  .toggle {
+    border: 1px solid ButtonText;
+  }
+  button:disabled {
+    border-color: GrayText;
+  }
+  .circle-trigger[aria-disabled='true'] {
+    border-color: GrayText;
+  }
+  /* The open section's trigger would lose its "current" distinction when
+     the accent flattens; use the system highlight pair instead. */
+  .circle-trigger.active {
+    background: Highlight;
+    color: HighlightText;
+  }
+  #notification {
+    border: 1px solid ButtonText;
+  }
 }

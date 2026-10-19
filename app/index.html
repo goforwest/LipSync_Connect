@@ -247,7 +247,17 @@
 
     <main id="main-content" tabindex="-1">
       <section class="section-card" id="sec-device" aria-label="Device Information">
-        <h2>Device Information</h2>
+        <div class="card-head">
+          <h2>Device Information</h2>
+          <button
+            type="button"
+            class="card-close"
+            data-close="sec-device"
+            aria-label="Close Device Information section"
+          >
+            &times;
+          </button>
+        </div>
         <div class="row"><label>Model</label><span class="value" id="model">&mdash;</span></div>
         <div class="row"><label>Firmware version</label><span class="value" id="version">&mdash;</span></div>
         <div class="row"><label>Device ID</label><span class="value" id="deviceId">&mdash;</span></div>
@@ -292,7 +302,12 @@
       </section>
 
       <section class="section-card" id="sec-cursor" aria-label="Cursor">
-        <h2>Cursor</h2>
+        <div class="card-head">
+          <h2>Cursor</h2>
+          <button type="button" class="card-close" data-close="sec-cursor" aria-label="Close Cursor section">
+            &times;
+          </button>
+        </div>
         <div class="row">
           <label>Cursor speed level</label>
           <button
@@ -376,7 +391,12 @@
       </section>
 
       <section class="section-card" id="sec-sip" aria-label="Sip and Puff">
-        <h2>Sip &amp; Puff</h2>
+        <div class="card-head">
+          <h2>Sip &amp; Puff</h2>
+          <button type="button" class="card-close" data-close="sec-sip" aria-label="Close Sip and Puff section">
+            &times;
+          </button>
+        </div>
         <div class="row">
           <label for="sipInput">Sip threshold (2–150 hPa)</label>
           <span class="value" id="sipVal">&mdash;</span>
@@ -495,7 +515,17 @@
       </section>
 
       <section class="section-card" id="sec-restrictions" aria-label="Input restrictions">
-        <h2>Input restrictions</h2>
+        <div class="card-head">
+          <h2>Input restrictions</h2>
+          <button
+            type="button"
+            class="card-close"
+            data-close="sec-restrictions"
+            aria-label="Close Input restrictions section"
+          >
+            &times;
+          </button>
+        </div>
         <p class="hint" id="restrictionsNote"></p>
         <div class="row check-row">
           <input type="checkbox" id="sapDisabled" disabled aria-describedby="restrictionsNote" />
@@ -536,7 +566,17 @@
       </section>
 
       <section class="section-card" id="sec-switches" aria-label="External switch actions">
-        <h2>External switch actions</h2>
+        <div class="card-head">
+          <h2>External switch actions</h2>
+          <button
+            type="button"
+            class="card-close"
+            data-close="sec-switches"
+            aria-label="Close External switch actions section"
+          >
+            &times;
+          </button>
+        </div>
         <p class="hint" id="switchActionsNote"></p>
         <p class="hint">
           Map each assistive-switch jack to the function its short, long and very-long holds trigger — independently of
@@ -617,7 +657,12 @@
       </section>
 
       <section class="section-card" id="sec-joystick" aria-label="Joystick">
-        <h2>Joystick</h2>
+        <div class="card-head">
+          <h2>Joystick</h2>
+          <button type="button" class="card-close" data-close="sec-joystick" aria-label="Close Joystick section">
+            &times;
+          </button>
+        </div>
         <div class="row">
           <label for="innerDeadzone">Inner deadzone</label><span class="value" id="innerDeadzoneVal">&mdash;</span
           ><input
@@ -715,7 +760,12 @@
       </section>
 
       <section class="section-card" id="sec-feedback" aria-label="Feedback">
-        <h2>Feedback</h2>
+        <div class="card-head">
+          <h2>Feedback</h2>
+          <button type="button" class="card-close" data-close="sec-feedback" aria-label="Close Feedback section">
+            &times;
+          </button>
+        </div>
         <div class="row">
           <label for="soundMode">Sound feedback</label><span class="value" id="soundModeVal">&mdash;</span
           ><select id="soundMode">
@@ -766,7 +816,12 @@
       </section>
 
       <section class="section-card" id="sec-bluetooth" aria-label="Bluetooth Configuration" data-feature="bluetooth">
-        <h2>Bluetooth</h2>
+        <div class="card-head">
+          <h2>Bluetooth</h2>
+          <button type="button" class="card-close" data-close="sec-bluetooth" aria-label="Close Bluetooth section">
+            &times;
+          </button>
+        </div>
         <div class="row"><label>BLE device name</label><span class="value" id="btName">&mdash;</span></div>
         <div class="row"><label>Status</label><span class="value" id="btStatus">&mdash;</span></div>
         <div class="row"><button type="button" id="btnSwitchBt" disabled>Switch to Bluetooth</button></div>
@@ -790,7 +845,17 @@
       </section>
 
       <section class="section-card" id="sec-diagnostics" aria-label="Device diagnostics">
-        <h2>Device diagnostics</h2>
+        <div class="card-head">
+          <h2>Device diagnostics</h2>
+          <button
+            type="button"
+            class="card-close"
+            data-close="sec-diagnostics"
+            aria-label="Close Device diagnostics section"
+          >
+            &times;
+          </button>
+        </div>
         <div class="diag-group">
           <p class="diag-title">Health check</p>
           <div class="row">
@@ -933,7 +998,12 @@
       </section>
 
       <section class="section-card" id="sec-maintenance" aria-label="Maintenance">
-        <h2>Maintenance</h2>
+        <div class="card-head">
+          <h2>Maintenance</h2>
+          <button type="button" class="card-close" data-close="sec-maintenance" aria-label="Close Maintenance section">
+            &times;
+          </button>
+        </div>
         <div class="row">
           <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Soft reset</button>
           <button type="button" class="cmd danger" id="btnFactoryReset" disabled>Factory reset</button>
@@ -942,7 +1012,12 @@
       </section>
 
       <section class="section-card" id="sec-firmware" aria-label="Firmware update">
-        <h2>Firmware</h2>
+        <div class="card-head">
+          <h2>Firmware</h2>
+          <button type="button" class="card-close" data-close="sec-firmware" aria-label="Close Firmware section">
+            &times;
+          </button>
+        </div>
         <div class="fw-check-rows">
           <div class="row">
             <label>Installed version</label><span class="value" id="fwCurrentVersion">&mdash;</span>
@@ -1000,7 +1075,17 @@
       </section>
 
       <section class="section-card" id="sec-help" aria-label="Help and troubleshooting">
-        <h2>Help &amp; troubleshooting</h2>
+        <div class="card-head">
+          <h2>Help &amp; troubleshooting</h2>
+          <button
+            type="button"
+            class="card-close"
+            data-close="sec-help"
+            aria-label="Close Help and troubleshooting section"
+          >
+            &times;
+          </button>
+        </div>
         <div class="notice">
           Connect via USB, click <strong>Connect</strong>, select your LipSync from the browser dialog, and wait for all
           values to load (~2 seconds on firmware 4.2.0+, up to ~30 seconds on older firmware). Change one setting at a
@@ -1229,7 +1314,10 @@
         </details>
       </section>
       <section class="section-card" id="sec-log" aria-label="Log">
-        <h2>Log</h2>
+        <div class="card-head">
+          <h2>Log</h2>
+          <button type="button" class="card-close" data-close="sec-log" aria-label="Close Log section">&times;</button>
+        </div>
         <div class="row">
           <button type="button" id="btnDownloadLog" class="secondary">Download log</button
           ><button type="button" id="btnShareLog" class="secondary">Share log</button

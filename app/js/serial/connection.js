@@ -72,6 +72,9 @@ export async function connect() {
   // teardowns check this generation and must never close what we claim.
   portGeneration.current++;
   $('btnConnect').disabled = true;
+  // Loading state spans the OS port picker and the settings load — the
+  // spinner keeps the button from looking dead-while-busy; finally clears it.
+  $('btnConnect').classList.add('btn--loading');
   showGuide();
   setConnectStage('requesting');
   try {
@@ -166,6 +169,8 @@ export async function connect() {
     log('Connection failed: ' + e.message, 'log-err');
     showConnectionError('Connection failed: ' + e.message + '. Check cable and try again.', connect);
     await disconnect({ preserveBanner: true });
+  } finally {
+    $('btnConnect').classList.remove('btn--loading');
   }
 }
 
