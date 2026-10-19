@@ -260,6 +260,10 @@ main {
   margin: 0 auto;
   padding: 20px;
   display: grid;
+  /* Bounded single column: with the implicit auto track, a wide min-content
+     child (e.g. a long unbreakable log line) stretched the track past the
+     viewport and horizontal-scrolled the whole app on narrow screens. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
   scroll-margin-top: 72px;
 }
@@ -430,6 +434,10 @@ progress {
   font-family: ui-monospace, monospace;
   font-size: 0.92rem;
   white-space: pre-wrap;
+  /* Long serial lines (CA read-backs are 60+ chars with no spaces) must wrap
+     instead of forcing the log box — and with it the old auto grid track —
+     past the viewport. */
+  overflow-wrap: break-word;
   color: var(--log-text);
   line-height: 1.6;
 }
