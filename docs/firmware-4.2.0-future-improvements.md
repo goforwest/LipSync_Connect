@@ -55,56 +55,59 @@ so nothing ships that any user must relearn. (4) The load summary now counts
 attempted settings, and the app's load grew to 31 tasks (18 base + 7
 gated 4.4.0 + 6 gated 4.5.0).
 
-## Upstream issue map — open issues (42)
+## Upstream issue map — open issues (43)
 
-Dispositions reflect the 2026-10-14 pass (firmware 4.3.0 + app): items
-marked ✅ are code-complete pending the 4.3.0 hardware validation session.
+Dispositions reflect the 2026-10-19 state: firmware 4.5.2 is tagged and
+bench-confirmed, and the 2026-10-16/17/18/19 bench sessions validated
+checklist parts A-F. Items marked ✅ are shipped and (unless the row says
+otherwise) hardware-verified; the closeable ones wait only on posting the
+paste-ready drafts in `docs/upstream-issue-comments.md`.
 
-| # | Title (short) | Disposition |
-|---|---|---|
-| 87 | Easier mouthpiece replacement | ✅ docs pass 2026-10-14 (replacement steps + consumable sourcing; mechanical redesign not asked) |
-| 86 | Cursor acceleration | ✅ item 9 done in 4.3.0 (feel validation pending, then closeable) |
-| 85 | ESP32 feasibility evaluation | ✅ feasibility call written 2026-10-14 (roadmap Research section): feasible but a full platform migration — defer; three-spike gate if forced |
-| 84 | Screw clearance hole diameter | mechanical |
-| 83 | Static shock killed hub | **item 10** |
-| 82 | Update error codes in User Guide | ✅ docs pass 2026-10-14 (bitfield rows corrected + explained) |
-| 80 | Clean up unused branches | docs backlog (chore; 48 remote branches counted 2026-10-14) |
-| 79 | Maker Guide: programming issues | ✅ docs pass 2026-10-14 |
-| 78 | Space in file path breaks compile | ✅ docs pass 2026-10-14 (Seeed core limitation + remedy documented) |
-| 77 | Sip-and-puff menu lockout | ✅ item 11 done in 4.4.0 (MA restriction; closeable after hardware validation) |
-| 76 | Mouthpiece cleaning/replacement docs | ✅ docs pass 2026-10-14 (hygiene, cleaning, BOM sourcing) |
-| 75 | Watchdog activates after factory reset | ✅ fixed in 4.2.0 (see community notes) |
-| 74 | LipSync changing mode by itself | **item 12** (likely fixed by 4.2.0; verify on hardware) |
-| 73 | Wrong/reversed interface cable → error lights, stuck boot | ✅ 4.2.0 survives it; **item 7** fixes at source |
-| 72 | Mouse flipped — joystick orientation docs | ✅ docs pass 2026-10-14 (User Guide troubleshooting + Maker Guide magnet step) |
-| 71 | Sip/puff swapped — host left-handed note | ✅ docs pass 2026-10-14 (troubleshooting entry) |
-| 70 | Print issues on middle-housing threads | mechanical |
-| 69 | Mounting-part filename length | mechanical |
-| 68 | Lock out unwanted mode changes | ✅ item 11 done in 4.4.0 (LK mode lock; closeable after hardware validation) |
-| 67 | Easy way to share device settings | ✅ item 13 done in the app 2026-10-14 ("Export settings") + the serial EX,0:0 dump in the firmware — closeable |
-| 65 | Magnetometer orientation in Maker Guide | ✅ docs pass 2026-10-14 (step qualified; calibration's limits named) |
-| 64 | Faulty-sensor troubleshooting in Maker Guide | ✅ docs pass 2026-10-14 (PV/JV/DM/BH/EX write-up against 4.2.0+ diagnostics) |
-| 63 | USB error message persists after reboot | ✅ amplifier in 4.2.0 + residual (item 14b) in 4.3.0 — closeable |
-| 62 | Adjustable input time thresholds | ✅ item 15 done in 4.4.0 (WS/WL/WM windows; closeable after hardware validation) |
-| 61 | Audio cue for scroll/drag mode | ✅ item 16 audio half done in 4.3.0 ("All" tier; validate, then closeable) |
-| 59 | Reversed RJ11 interface cable wiring | **item 10** (cable hardening) |
-| 58 | Hard sip / hard puff inputs | **item 15** — blocked on feel validation with affected users (see item 15's note) |
-| 56 | "Python not found" compile error | docs backlog (upstream core; workaround known) |
-| 54 | Mechanical drift / center hysteresis | **item 17** |
-| 44 | Toggle cursor movement during sip/puff | ✅ item 11 done in 4.4.0 (CF cursor hold; closeable after hardware validation) |
-| 43 | LED feedback keyed to input state, not action | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier (closeable after the hardware validation it ships for) |
-| 37 | TLV493D library deprecated | ✅ item 1 done in 4.4.0 (bounded vendored fork; item 2's XENSIV migration is the deliberate follow-up) |
-| 36 | Menu stays open after serial-API calibration | ✅ item 14a done in 4.3.0 — closeable |
-| 33 | Debug mode documentation incomplete | ✅ docs pass 2026-10-14 (packets corrected; DEBUG,2's 4th value is the sensor offset) |
-| 26 | Labels on bottom of Hub PCB | docs backlog (PCB rev) |
-| 24 | Sled component print failure | mechanical |
-| 22 | Sip/puff threshold levels UX | ✅ item 15 done in 4.4.0 (10-level Hub-menu scale; closeable after hardware validation) |
-| 21 | Ability to disable sip and puff | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it; closeable after hardware validation) |
-| 20 | Switches as independent inputs | ✅ done in 4.5.0 (item 11's remap follow-up — see its note; closeable after hardware validation) |
-| 19 | Unreliable STEMMA-Dupont connection | **item 10** |
-| 16 | Switch between multiple Bluetooth devices | ✅ feasibility call written 2026-10-14 (roadmap Research section): buildable above Bluefruit; needs a multi-host bench spike |
-| 15 | Hub slides around (feet/velcro) | mechanical |
-| 9 | Very long sips/puffs impossible for some users | ✅ mostly item 15: adjustable windows shrink every hold; hard inputs (#58) remain for the rest |
+| #   | Title (short)                                             | Disposition                                                                                                                                                                                                                                                                            |
+| --- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 87  | Easier mouthpiece replacement                             | ✅ docs pass 2026-10-14 (replacement steps + consumable sourcing; mechanical redesign not asked)                                                                                                                                                                                       |
+| 86  | Cursor acceleration                                       | ✅ done in 4.3.0; E1 feel verified on hardware (bench 2026-10-17) — closeable                                                                                                                                                                                                          |
+| 85  | ESP32 feasibility evaluation                              | ✅ feasibility call written 2026-10-14 (roadmap Research section): feasible but a full platform migration — defer; three-spike gate if forced                                                                                                                                          |
+| 84  | Screw clearance hole diameter                             | mechanical                                                                                                                                                                                                                                                                             |
+| 83  | Static shock killed hub                                   | **item 10**                                                                                                                                                                                                                                                                            |
+| 82  | Update error codes in User Guide                          | ✅ docs pass 2026-10-14 (bitfield rows corrected + explained)                                                                                                                                                                                                                          |
+| 80  | Clean up unused branches                                  | docs backlog (chore; 48 remote branches counted 2026-10-14)                                                                                                                                                                                                                            |
+| 79  | Maker Guide: programming issues                           | ✅ docs pass 2026-10-14                                                                                                                                                                                                                                                                |
+| 78  | Space in file path breaks compile                         | ✅ docs pass 2026-10-14 (Seeed core limitation + remedy documented)                                                                                                                                                                                                                    |
+| 77  | Sip-and-puff menu lockout                                 | ✅ item 11 done in 4.4.0; B2 verified on hardware — closeable                                                                                                                                                                                                                          |
+| 76  | Mouthpiece cleaning/replacement docs                      | ✅ docs pass 2026-10-14 (hygiene, cleaning, BOM sourcing)                                                                                                                                                                                                                              |
+| 75  | Watchdog activates after factory reset                    | ✅ fixed in 4.2.0; the 4.5.0 feed-from-live-loop fix broke the bench-reproduced safe-mode starved-feeder 30 s reset cycle — closeable                                                                                                                                                  |
+| 74  | LipSync changing mode by itself                           | ✅ item 12 verified on hardware 2026-10-18 (checklist F: no spontaneous mode changes or menu walks through the flaky window; the boot-with-unseated-cable wedge is a documented known limitation, not a mode change) — closeable                                                       |
+| 73  | Wrong/reversed interface cable → error lights, stuck boot | ✅ 4.2.0 survives it; degraded-boot behavior bench-verified on 4.5.0 (safe-mode page, no reset loop, full recovery); **item 7** (keyed connector) fixes at source — closeable                                                                                                          |
+| 72  | Mouse flipped — joystick orientation docs                 | ✅ docs pass 2026-10-14 (User Guide troubleshooting + Maker Guide magnet step)                                                                                                                                                                                                         |
+| 71  | Sip/puff swapped — host left-handed note                  | ✅ docs pass 2026-10-14 (troubleshooting entry)                                                                                                                                                                                                                                        |
+| 70  | Print issues on middle-housing threads                    | mechanical                                                                                                                                                                                                                                                                             |
+| 69  | Mounting-part filename length                             | mechanical                                                                                                                                                                                                                                                                             |
+| 68  | Lock out unwanted mode changes                            | ✅ item 11 done in 4.4.0; B3 verified on hardware (bench 2026-10-16) and the LK remote-drift follow-up fixed + bench-confirmed in 4.5.1 (CH,0:0) — closeable                                                                                                                           |
+| 67  | Easy way to share device settings                         | ✅ item 13 done in the app 2026-10-14 ("Export settings") + the serial EX,0:0 dump in the firmware — closeable                                                                                                                                                                         |
+| 65  | Magnetometer orientation in Maker Guide                   | ✅ docs pass 2026-10-14 (step qualified; calibration's limits named)                                                                                                                                                                                                                   |
+| 64  | Faulty-sensor troubleshooting in Maker Guide              | ✅ docs pass 2026-10-14 (PV/JV/DM/BH/EX write-up against 4.2.0+ diagnostics)                                                                                                                                                                                                           |
+| 63  | USB error message persists after reboot                   | ✅ amplifier in 4.2.0 + stale-page in 4.3.0 + the bench-chased 4.5.0 USB-robustness round (dark bus at boot, bounded re-enumeration, one guarded auto-restart) — closeable                                                                                                             |
+| 62  | Adjustable input time thresholds                          | ✅ item 15 done in 4.4.0; C1–C3 feel + validation verified on hardware — closeable                                                                                                                                                                                                     |
+| 61  | Audio cue for scroll/drag mode                            | ✅ item 16 audio half done in 4.3.0; E-sweep verified on hardware — closeable                                                                                                                                                                                                          |
+| 59  | Reversed RJ11 interface cable wiring                      | **item 10** (cable hardening)                                                                                                                                                                                                                                                          |
+| 58  | Hard sip / hard puff inputs                               | **item 15** — blocked on feel validation with affected users (see item 15's note)                                                                                                                                                                                                      |
+| 56  | "Python not found" compile error                          | docs backlog (upstream core; workaround known)                                                                                                                                                                                                                                         |
+| 54  | Mechanical drift / center hysteresis                      | **item 17**                                                                                                                                                                                                                                                                            |
+| 44  | Toggle cursor movement during sip/puff                    | ✅ item 11 done in 4.4.0 (CF cursor hold); B4 verified on hardware — closeable                                                                                                                                                                                                         |
+| 43  | LED feedback keyed to input state, not action             | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier; D1–D3 verified on hardware — closeable                                                                                                                                                                          |
+| 37  | TLV493D library deprecated                                | ✅ fully closed: the XENSIV TLx493D migration merged (firmware 9b947cc, 2026-10-18/19) and BENCH-VALIDATED — JV parity, four-corner calibration, z-latch, cursor feel, flaky-bus, battery trade closed as moot (no internal battery); the old TLV493D-A1B6 fork is removed — closeable |
+| 36  | Menu stays open after serial-API calibration              | ✅ item 14a done in 4.3.0 — closeable                                                                                                                                                                                                                                                  |
+| 33  | Debug mode documentation incomplete                       | ✅ docs pass 2026-10-14 (packets corrected; DEBUG,2's 4th value is the sensor offset)                                                                                                                                                                                                  |
+| 26  | Labels on bottom of Hub PCB                               | docs backlog (PCB rev)                                                                                                                                                                                                                                                                 |
+| 24  | Sled component print failure                              | mechanical                                                                                                                                                                                                                                                                             |
+| 22  | Sip/puff threshold levels UX                              | ✅ item 15 done in 4.4.0 (10-level Hub-menu scale); C4 verified on hardware — closeable                                                                                                                                                                                                |
+| 21  | Ability to disable sip and puff                           | ✅ item 11 done in 4.4.0 (SD; the Hub menu/API/app all expose it); B1 verified on hardware — closeable                                                                                                                                                                                 |
+| 20  | Switches as independent inputs                            | ✅ done in 4.5.0 (item 11's remap follow-up); storage/wire/post-flash-restore bench-verified via the 4.5.0→4.5.0 flash; the physical-jack feel pass (checklist H) deferred for lack of populated-switch hardware — close after H or ship noting it                                     |
+| 19  | Unreliable STEMMA-Dupont connection                       | **item 10**                                                                                                                                                                                                                                                                            |
+| 16  | Switch between multiple Bluetooth devices                 | ✅ feasibility call written 2026-10-14 (roadmap Research section): buildable above Bluefruit; needs a multi-host bench spike                                                                                                                                                           |
+| 15  | Hub slides around (feet/velcro)                           | mechanical                                                                                                                                                                                                                                                                             |
+| 9   | Very long sips/puffs impossible for some users            | ✅ mostly item 15: adjustable windows shrink every hold (C1 feel verified on hardware); hard inputs (#58) remain for the rest                                                                                                                                                          |
 
 ### Closed issues — verified history
 
@@ -338,7 +341,7 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
 > design.** The mechanical half is clear (peak-pressure tracking per sap
 > episode in `LSPressure::updateState`, a hard-sip/hard-puff threshold
 > pair, and a post-release classification that can route to its own
-> action rows), but *which actions* hard inputs trigger is an accessibility
+> action rows), but _which actions_ hard inputs trigger is an accessibility
 > decision that must be made with affected users — the whole point (#9)
 > is an alternative route to "the menu and actions", and inventing the
 > mapping offline risks shipping the wrong gesture language to people who
@@ -359,20 +362,20 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
 > `buzzer.modeEngageTone()` plays one short cue when scroll or drag
 > engages (scroll chirps higher than drag so the two are distinguishable
 > by ear), gated to the "All" sound tier so "Basic" users hear nothing
-  new.
+> new.
 >
 > **Done (2026-10-14, firmware 4.4.0) — the LED half, as an opt-in
-  tier.** Re-keying the default would have changed semantics for every
-  existing user, so the input-state feedback ships as light mode tier 3
-  (LM=3): while any input is held the LEDs show the window — green in
-  the short window, yellow after crossing into the long, red in the
-  very-long — and on release they return to default instead of blinking
-  the action; the window was the message. Existing tiers behave exactly
-  as before, restricted inputs still show nothing, and the app's
-  light-feedback select offers "Input state (4.4.0+)" so a caregiver
-  can flip it on the bench. **Validation with affected users — the
-  point of the deferral — belongs to the 4.4.0 hardware session; if it
-  lands well, #43 closes with the tier documented in the User Guide.**
+> tier.** Re-keying the default would have changed semantics for every
+> existing user, so the input-state feedback ships as light mode tier 3
+> (LM=3): while any input is held the LEDs show the window — green in
+> the short window, yellow after crossing into the long, red in the
+> very-long — and on release they return to default instead of blinking
+> the action; the window was the message. Existing tiers behave exactly
+> as before, restricted inputs still show nothing, and the app's
+> light-feedback select offers "Input state (4.4.0+)" so a caregiver
+> can flip it on the bench. **Validation with affected users — the
+> point of the deferral — belongs to the 4.4.0 hardware session; if it
+> lands well, #43 closes with the tier documented in the User Guide.**
 
 ### 17. Mechanical drift investigation (upstream #54)
 
@@ -619,54 +622,51 @@ the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
 > `docs/upstream-issue-comments.md` — posting them from the org account
 > is the maintainer action that closes this item.
 
-## Blocked / maintainer action (2026-10-15 state of the leftovers)
+## Blocked / maintainer action (2026-10-19 state of the leftovers)
 
-Everything above is done or carries its own Done/deferral note. What
-remains, and exactly why:
+Everything above is done or carries its own Done/deferral note. The
+2026-10-16/17/18/19 bench sessions validated checklist parts A-F
+(restrictions, timing windows + level scale, LED tier, regression sweep,
+flaky-sensor repro, update path) and closed the 4.5.x follow-up backlog
+(`docs/4.5.x-followups.md` — all five items shipped, bench-confirmed,
+V4.5.1/V4.5.2 tagged). What remains, and exactly why:
 
-- **Hardware validation session (one bench day with a 4.4.0 unit, plus
-  the 4.5.0 part-H addendum once that line builds) closes most of the
-  rest.** Items 11/15/16 shipped code-complete but feel-gated: the
-  restrictions (#21/#44/#68/#77), the timing windows and level scale
-  (#62/#22/#9), and the input-state LED tier (#43) each need their
-  "does it feel right with a real user" pass before their upstream
-  issues close; item 12 (#74, spontaneous mode changes) is verification
-  only — reproduce a flaky sensor against 4.2.0+ and confirm the
-  health-gated inputs prevent the phantom-menu walk; the switch-remap
-  surface (#20, 4.5.0) needs its per-jack/mode/window feel pass
-  (checklist part H); and the
-  firmware-update doc's item 6 (Android/OTG flash path + the UM entry)
-  is simulator-proven and needs its one hardware session. The settle-free
-  restore check from item 2's root-cause note belongs to the same day.
+- **One more bench window, two deferred parts.** Checklist part G
+  (Android/OTG flash session) needs an Android phone + OTG adapter —
+  simulator-proven only. Checklist part H (the switch-remap physical-jack
+  feel pass) needs populated-switch hardware; the mapping storage, wire
+  protocol and post-flash restore ARE bench-verified via the 4.5.0→4.5.0
+  re-flash, so #20 closes after H or ships noting it (the upstream draft
+  says exactly that).
 - **Feel-design decision before code: #58 hard sip/puff** (which actions
   hard inputs trigger is an accessibility decision to make WITH affected
-  users — see item 15's note). (#20's switch-remap table sat in this
-  bucket until the 2026-10-15 fresh-eye round argued it out — the
-  clinician's ask is remappability itself, a settings surface over the
-  existing vocabulary with byte-identical defaults, not a new gesture
-  language — and it shipped as firmware 4.5.0 + the app's Switches
-  card; see item 11's note. It now waits on the same hardware
-  validation as every other code-complete item.)
+  users — see item 15's note).
 - **An affected unit: item 17 (#54 mechanical drift).** The firmware
   mitigation (median-of-N center sampling, hysteresis-aware center
   acceptance) is sketched in the item but iterating it blind against a
-  mechanical problem would be guessing.
+  mechanical problem would be guessing. New evidence from the 4.5.x
+  cycle: the firmware re-centers the joystick on every boot by design,
+  which explains one class of "boot-to-boot neutral drift" reports — but
+  the hysteresis class still needs the unit.
 - **Hardware redesign, not firmware: items 7 and 10** (keyed/polarized
   interface connector; soldered sensor connections + ESD/TVS protection
   on the interface lines) — these remove the reversed-cable and
   static-shock failure classes at the source; **#26** (PCB labels)
   rides the same next PCB rev.
-- **Maintainer/community action: item 8** — post the drafts in
-  `docs/upstream-issue-comments.md` (then #73/#75/#63/#37 and the
-  closeable notes can close); **#80** — delete the ~48 stale remote
-  branches upstream.
-- **Word-side doc export:** the .docx working documents carry the docs
-  pass; regenerating the PDFs and folding the 4.3.0/4.4.0 endpoints into
-  the serial-command tables happen with the 4.4.0 release prep.
-- **Deliberate deferrals:** item 2 (XENSIV migration — subsumes the
-  vendored fork's role only when hardware validation can accompany it),
-  item 6's protocol-v3 (nothing to do; v2 already shipped), and the two
-  research calls above (ESP32: do not schedule; multi-BT: spike-first).
+- **Maintainer/community action (the only human steps left):** publish
+  the V4.5.2 artifacts from `dev/firmware/dist/` to the update-check
+  path (4.5.1 was never published and is superseded); post the drafts in
+  `docs/upstream-issue-comments.md` from the org account (then
+  #73/#75/#63/#74/#37 and the closeable notes — #36/#67/#61/#86, plus
+  the bench-validated #21/#22/#43/#44/#62/#68/#77 — can close); pass the
+  S1 intermittent-button finding to MMC assembly QA; **#80** — delete
+  the ~48 stale remote branches upstream. A Word re-export of the guide
+  PDFs (LibreOffice exports shipped with V4.5.0) remains welcome for
+  fidelity, not blocking.
+- **Deliberate deferrals, unchanged:** item 6's protocol-v3 (nothing to
+  do; v2 shipped) and the two research calls (ESP32: do not schedule;
+  multi-BT: spike-first). The XENSIV migration is no longer a deferral —
+  it shipped and bench-validated (see #37's row).
 
 ## Deliberately not "fixed" (recorded so nobody "fixes" them by accident)
 
