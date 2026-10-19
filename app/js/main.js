@@ -18,6 +18,7 @@ import { serialApi } from './serial/transport.js';
 import { sendCommand } from './serial/commands.js';
 
 import { gaugeDelta, recalcGaugeRange, gaugeMarks } from './plotting/gauge.js';
+import { initWindowLadders } from './plotting/windows.js';
 
 import { setValue } from './ui/values.js';
 import { bindModeSwitch } from './services/mode-switch.js';
@@ -339,6 +340,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   openSectionById('sec-help');
   updateConnectionGating();
+  initWindowLadders();
 
   // Service worker registration
   const canRegisterServiceWorker =

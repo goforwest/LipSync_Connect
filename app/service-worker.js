@@ -1,4 +1,4 @@
-const CACHE = 'lipsync-connect-v27';
+const CACHE = 'lipsync-connect-v28';
 const ASSETS = [
   './',
   './index.html',
@@ -43,6 +43,7 @@ const ASSETS = [
   './js/serial/dfu/dfu-package.js',
   './js/plotting/plot.js',
   './js/plotting/gauge.js',
+  './js/plotting/windows.js',
   './js/plotting/diag.js',
   './manifest.json',
   './assets/mmc_logo.jpeg',

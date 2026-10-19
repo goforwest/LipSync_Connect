@@ -6,6 +6,7 @@ import { parsePoint } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
 import { plotDot, toScreen, orientFromOutput, scheduleRenderPlot, plotState } from './plot.js';
 import { gaugeDelta } from './gauge.js';
+import { paintWindowSweep, windowBoundaries } from './windows.js';
 import { serialSession } from '../serial/session.js';
 import { log } from '../services/log.js';
 
@@ -14,6 +15,8 @@ export function showDiagPanel(mode) {
     const el = $(id);
     if (el) el.hidden = String(mode) !== m;
   });
+  // A fresh panel must never inherit the previous stream's hold fill.
+  paintWindowSweep(0, false);
   // Keep the rolling technical log silent for AT always — announcements go
   // through #srStatus. Prevents 10 Hz debug streams from flooding screen readers.
   const logEl = $('log');
@@ -108,6 +111,7 @@ export function applyDebugData(mode, value) {
     if (sip && sip.classList) sip.classList.toggle('on', p[0] === 1);
     if (puff && puff.classList) puff.classList.toggle('on', p[0] === 2);
     setDiagSubState('diagSapTime', p);
+    paintWindowSweep(Number.isFinite(p[2]) ? p[2] : 0, p[0] !== 0 && p[1] === 1);
     noteSapHold(p);
   }
 }
@@ -134,8 +138,13 @@ function noteSapHold(p) {
     const name = sapHoldMain === 2 ? 'Puff' : 'Sip';
     const verb = sub === 2 ? 'released' : 'hold ended';
     const logged = Number.isFinite(ms) && sub === 2 ? ms : sapHoldPeakMs;
+    // The window reference must match the device's configured WS/WL/WM
+    // boundaries (the action words are the default mapping). Pre-4.4.0
+    // firmware keeps its compiled-in 0–1000/1000–3000/3000–8000 windows via
+    // windowBoundaries' legacy fallback.
+    const [w1, w2, w3] = windowBoundaries();
     log(
-      `${name} ${verb} — device measured the hold at ${logged} ms (window: 0-1000 click, 1000-3000 drag/scroll, 3000-8000 menu/middle).`,
+      `${name} ${verb} — device measured the hold at ${logged} ms (windows: 0–${w1} click, ${w1}–${w2} drag/scroll, ${w2}–${w3} menu/middle).`,
       'log-info',
     );
     sapHoldPeakMs = 0;

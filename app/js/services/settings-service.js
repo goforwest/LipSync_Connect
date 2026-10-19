@@ -20,6 +20,7 @@ import { announceStatus } from '../ui/a11y.js';
 import { setStatus } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { updateMeter } from '../plotting/gauge.js';
+import { refreshWindowLadders } from '../plotting/windows.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
@@ -146,6 +147,7 @@ export function applyTimingWindowValue(endpoint, value) {
   }
   const btn = $('btnSet' + w.endpoint);
   if (btn) btn.disabled = false;
+  refreshWindowLadders();
 }
 
 /**

@@ -472,6 +472,19 @@
           &rarr; scroll/menu, very long &rarr; more). Requires firmware 4.4.0+. The Hub menu offers the same settings
           under Sip & Puff &rarr; Timing.
         </p>
+        <div class="win-ladder-wrap">
+          <div
+            class="win-ladder"
+            id="winLadder"
+            role="img"
+            aria-label="Input window timeline — waiting for the timing windows to load."
+          ></div>
+          <div class="win-scale" id="winScale" aria-hidden="true"></div>
+        </div>
+        <p class="hint">
+          The timeline shows your three windows to scale: green = short, yellow = long, red = very-long &mdash; the
+          same colors the small light next to the USB-C port shows while you hold.
+        </p>
         <div class="error" id="sapError" role="alert"></div>
         <div class="row">
           <label>Live pressure</label>
@@ -954,6 +967,13 @@
               <span class="diag-key" id="diagSip">SIP</span><span class="diag-key" id="diagPuff">PUFF</span
               ><span class="value">Held: <span id="diagSapTime">&mdash;</span></span>
             </div>
+            <div
+              class="win-ladder"
+              id="winLadderDiag"
+              role="img"
+              aria-label="Input window timeline with live hold progress."
+            ></div>
+            <div class="win-scale" id="winScaleDiag" aria-hidden="true"></div>
           </div>
         </div>
         <div class="diag-group">
@@ -1319,11 +1339,28 @@
             type="text"
             id="rawCommand"
             placeholder="e.g. EX,0:0"
+            list="rawCommandList"
             autocomplete="off"
             spellcheck="false"
             aria-label="Raw serial command to send to the device"
           /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
         </div>
+        <!-- Suggests the read-only commands every firmware answers; state-changing
+             commands stay out on purpose (their dedicated buttons confirm first). -->
+        <datalist id="rawCommandList">
+          <option value="EX,0:0">Full settings dump</option>
+          <option value="PV,0:0">Read pressure</option>
+          <option value="JV,0:0">Read joystick</option>
+          <option value="IN,0:0">Neutral position</option>
+          <option value="CA,0:0">Calibration values</option>
+          <option value="VN,0:0">Firmware version</option>
+          <option value="SS,0:0">Cursor speed</option>
+          <option value="ST,0:0">Sip threshold</option>
+          <option value="PT,0:0">Puff threshold</option>
+          <option value="IZ,0:0">Inner deadzone</option>
+          <option value="OZ,0:0">Outer deadzone</option>
+          <option value="DM,0:0">Live diagnostic output</option>
+        </datalist>
         <p class="hint">
           Advanced: send a raw serial command — e.g. EX,0:0 for a full settings dump. The response lands in the log
           below; commands that restart the device still ask before sending.
