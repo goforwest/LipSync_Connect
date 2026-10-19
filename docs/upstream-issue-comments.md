@@ -128,6 +128,52 @@ back off); the device still shows its safe-mode/error page, no longer reset
 loops (see the watchdog note above), and fully recovers once the cable is
 re-seated. A keyed connector remains the source fix (see #73).
 
+## Two-way Hub remote — proposed `CH,5` menu-state push (new firmware work)
+
+The LipSync Connect remote Hub mirror is one-way today in exactly one
+place: app-driven presses reconcile from device truth (4.5.1+'s
+`CH,0:0` read after every press), but *physical* navigation — Next/
+Select on the Hub, joystick-driven menu steps, the inactivity timeout —
+redraws the OLED with no serial traffic, so a mirror left open drifts
+until the next app press or a manual Open-resync. Settings changes made
+on the Hub already push as `MANUAL` lines; the menu *position* is the
+one state that never rides the wire unprompted.
+
+Proposal: on every Hub menu redraw while a serial session is open, emit
+
+    MANUAL,0:CH,5:<active>,<pageId>,<row>
+
+— the exact triple `CH,0:0` already answers with (active flag, the
+LSScreen.h page id, the selectable-row cursor), in a `MANUAL` frame
+with sequence 0. Everything about the wire safety is already proven in
+the tree:
+
+- `MANUAL` + device-initiated is the 4.5.2 initiator contract — the
+  same shape as the boot re-center's `MANUAL,0:IN,1` — so a push can
+  never falsely resolve a pending command waiter (the app gates
+  SUCCESS-gated flows on the ack type and treats MANUAL pushes as
+  readouts; its straggler-ack contract test pins the boot case).
+- The value is human-paced (one line per redraw; menus redraw on
+  navigation and scheduled transitions, not in a loop), so there is no
+  flood risk and no new rate limiting.
+- The app side is deliberately trivial because the reconciliation
+  already exists: `applyMenuState()` — the same function the press
+  polls feed — consumes the push unchanged, so the mirror follows
+  device presses, opens when the physical menu opens, and closes on
+  the inactivity timeout. It is implemented, tested, and shipping in
+  the app now; a firmware build that starts emitting the line makes
+  the remote both-ways with zero app changes.
+- Older firmware simply never sends the line — the app's own
+  press-then-poll behavior stands unchanged (and `CH,0:0` itself stays
+  version-gated at 4.5.1).
+
+Implementation pointer: the natural hook is wherever LSScreen redraws
+(activeMenu state transitions and cursor moves), gated on the serial
+session being open, emitting at most once per redraw — the OLED update
+path is already the rate limiter. A `VN`-independent emission rule is
+fine: hosts that do not know `CH,5` ignore it as an unrecognized MANUAL
+readout (the reference app logs nothing and reconciles).
+
 ## Optional: closeable-now notes
 
 - **#36** (menu stays open after serial-API calibration): fixed in 4.3.0 —

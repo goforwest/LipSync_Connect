@@ -482,8 +482,8 @@
           <div class="win-scale" id="winScale" aria-hidden="true"></div>
         </div>
         <p class="hint">
-          The timeline shows your three windows to scale: green = short, yellow = long, red = very-long &mdash; the
-          same colors the small light next to the USB-C port shows while you hold.
+          The timeline shows your three windows to scale: green = short, yellow = long, red = very-long &mdash; the same
+          colors the small light next to the USB-C port shows while you hold.
         </p>
         <div class="error" id="sapError" role="alert"></div>
         <div class="row">
@@ -1362,10 +1362,12 @@
             activate items.
           </p>
           <p class="hint">
-            The device never reports its menu state over serial, so the mirror is driven locally by the presses you
-            send. Physical button presses, joystick-driven calibration prompts, and the Hub&#8217;s inactivity timeout
-            can make it drift from the real display — select <strong>Open</strong> again to resync (the Hub always
-            reopens at the main menu).
+            The mirror follows the presses you send, confirmed from the device&rsquo;s own menu state on firmware
+            4.5.1+. Physical button presses, joystick-driven calibration prompts, and the Hub&rsquo;s inactivity timeout
+            are not pushed over serial, so they can make the mirror drift from the real display — select
+            <strong>Open</strong>
+            again to resync (the Hub always reopens at the main menu). Firmware that pushes its menu state
+            (<kbd>CH,5</kbd>) closes this gap: the mirror will follow physical navigation too.
           </p>
           <p class="hint">
             Settings changed through the Hub menu do not update the app&#8217;s displayed values — click

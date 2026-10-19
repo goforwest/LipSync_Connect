@@ -16,7 +16,7 @@ import { applyDebugData, showDiagPanel, syncLiveButtons } from '../plotting/diag
 import { gaugeDelta } from '../plotting/gauge.js';
 import { plotCorner, plotRawXY, orientFromOutput, cornerState } from '../plotting/plot.js';
 import { updateStepButtons, calibrationIsRunning, applySwitchActionValue } from '../services/settings-service.js';
-import { noteExternalSettingsChange } from '../services/hub-remote.js';
+import { noteExternalSettingsChange, applyHubMenuPush } from '../services/hub-remote.js';
 import { $ } from '../ui/dom.js';
 
 export function applyDeviceResponse(line) {
@@ -134,6 +134,14 @@ export function applyDeviceResponse(line) {
     // transcript.
     FR: () => log('Device acknowledged factory reset (FR). Device will restart with defaults…', 'log-info'),
     CH: () => {
+      // Two-way Hub remote (protocol proposal: docs/upstream-issue-comments.md):
+      // a MANUAL CH,5 line is the device pushing its live menu state after a
+      // PHYSICAL redraw — the mirror follows it; nothing was requested, so
+      // there is no transcript line to log.
+      if (r.type === 'MANUAL' && r.cmd === 'CH,5') {
+        applyHubMenuPush(r.value);
+        return;
+      }
       if (r.cmd.startsWith('CH,1')) log('Hub menu press acknowledged (CH,' + r.cmd.slice(3) + ').', 'log-info');
     },
     RT: () => log('Self-test acknowledged (RT,' + r.cmd.slice(3) + '); narrating steps…', 'log-info'),

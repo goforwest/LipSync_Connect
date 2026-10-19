@@ -724,6 +724,22 @@ function syncMenuFromDevice() {
     });
 }
 
+// TWO-WAY HUB REMOTE — the firmware's menu-state PUSH (protocol proposal in
+// docs/upstream-issue-comments.md): MANUAL,0:CH,5:<active>,<pageId>,<row>,
+// emitted on every physical menu redraw (Next/Select on the device,
+// joystick-driven steps, the inactivity timeout) while a serial session is
+// open. Same triple as the CH,0:0 read, so applyMenuState is the entire
+// reconciliation: the mirror follows presses this app never sent, opens
+// when the device menu opens, and closes when it times out. MANUAL + seq 0
+// keeps the 4.5.2 initiator contract (a device-initiated push can never
+// resolve a pending command waiter — the re-center precedent), and firmware
+// that never sends the line changes nothing: the app's own press-then-poll
+// sync stands.
+/** @param {string} value "active,pageId,row" */
+export function applyHubMenuPush(value) {
+  applyMenuState(value);
+}
+
 // MANUAL pushes (a physical Hub-menu change) must refresh a visible value
 // screen: the local copies are estimates, device truth just replaced them.
 // Called from applyDeviceResponse for every MANUAL line (serial/device.js).

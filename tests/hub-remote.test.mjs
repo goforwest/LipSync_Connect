@@ -534,3 +534,66 @@ test('a MANUAL settings push refreshes a visible value screen', async () => {
   await app.disconnect({ quiet: true });
   dev.detach();
 });
+
+// ---- Two-way Hub remote: the CH,5 menu-state push --------------------------
+// The one-way gap this closes: physical Next/Select presses (and the
+// joystick-driven steps and the inactivity timeout) redraw the Hub with no
+// app traffic, so the mirror used to drift until the next app press. A
+// push-capable firmware reports every redraw as MANUAL,0:CH,5:<a>,<p>,<r> —
+// the app-side contract these tests pin. Older firmware simply never sends
+// the line; its press-then-poll behavior is covered above.
+
+test('firmware menu-state pushes reconcile the mirror with no app traffic', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.5.1');
+  await click('btnHubOpen');
+  await settle();
+  assert.equal(header(), 'Main menu');
+
+  // Someone navigates the physical Hub: Next×2, Select → the Mode page, row 1.
+  // The push alone must land the mirror there — no CH,1 press is issued.
+  const sentBefore = sentCmds().length;
+  app.handleLine('MANUAL,0:CH,5:1,3,1');
+  assert.equal(header(), 'Mode');
+  assert.equal(selectedLabel(), 'MOUSE BT');
+  assert.equal(sentCmds().length, sentBefore, 'the push reconciled the mirror without any app command');
+
+  // The device menu times out while the mirror is open: the push closes it.
+  app.handleLine('MANUAL,0:CH,5:0,0,0');
+  assert.equal(wrapHidden(), true);
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('a push while the mirror is closed reopens it — the app follows the device', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.5.1');
+  assert.equal(wrapHidden(), true); // mirror closed, menu unused
+
+  // The Hub menu is opened and driven physically: the mirror must appear and
+  // track — that is the both-ways remote.
+  app.handleLine('MANUAL,0:CH,5:1,5,0'); // More menu, cursor on Sound
+  assert.equal(wrapHidden(), false);
+  assert.equal(header(), 'More');
+  assert.equal(selectedLabel(), 'Sound');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('a pushed unmapped page shows the honest notice instead of a guess', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.5.1');
+  await click('btnHubOpen');
+  await settle();
+  app.handleLine('MANUAL,0:CH,5:1,999,0'); // a page id the mirror predates
+  assert.match(note(), /does not render/);
+  assert.match(note(), /Select Open to resync/);
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
