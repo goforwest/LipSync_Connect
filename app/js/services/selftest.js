@@ -112,6 +112,21 @@ export function openSelfTestPanel(mode) {
   panel.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
   announceStatus((mode === 'led' ? 'LED' : 'Buzzer') + ' test started. Live progress is now visible below.');
 }
+/**
+ * 'Test Complete' terminator: the sequence finished, so the final bullet —
+ * still 'active' from its own narration — turns green with the rest instead
+ * of staying highlighted until the panel hides.
+ */
+export function markSelfTestStepsDone() {
+  if (!selfTestMode) return;
+  const items = $('selfTestSteps')?.children;
+  if (!items) return;
+  for (const li of items) {
+    li.classList.remove('active', 'pending');
+    li.classList.add('done');
+  }
+}
+
 export function closeSelfTestPanel(completed) {
   const panel = $('selfTestPanel');
   if (!panel) return;

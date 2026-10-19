@@ -33,3 +33,13 @@ export function fmtApiFloat(v) {
   const s = Number(v).toFixed(2);
   return s.length === 5 ? s + '0' : s;
 }
+
+// hPa thresholds display at 2 decimals everywhere (matches the input step
+// 0.25 and the device's GET format). A SET's echo carries fmtApiFloat's
+// line-length padding ("20.00" → "20.000") — a wire artifact, not a
+// display format; this normalizes it so the readout doesn't flip between
+// "20.00" (loaded) and "20.000" (just set) for the same value.
+export function fmtHpa(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(2) : String(v);
+}

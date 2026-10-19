@@ -4,7 +4,13 @@
 import { parseResponse } from './protocol.js';
 import { serialBus } from './session.js';
 import { log, noisyLineLog, unrecognizedResponseLog } from '../services/log.js';
-import { maybeUnlockSelfTest, getSelfTestState, advanceSelfTest, closeSelfTestPanel } from '../services/selftest.js';
+import {
+  maybeUnlockSelfTest,
+  getSelfTestState,
+  advanceSelfTest,
+  closeSelfTestPanel,
+  markSelfTestStepsDone,
+} from '../services/selftest.js';
 import { ENDPOINT_RENDERERS } from '../services/registry.js';
 import { applyDebugData, showDiagPanel, syncLiveButtons } from '../plotting/diag.js';
 import { gaugeDelta } from '../plotting/gauge.js';
@@ -174,6 +180,7 @@ export function handleLine(line) {
   if (getSelfTestState().mode) {
     advanceSelfTest(line); // narrated step lines land here (unparsed by the protocol layer)
     if (line.trim() === 'Test Complete') {
+      markSelfTestStepsDone(); // the finished sequence's last bullet completes with the rest
       closeSelfTestPanel(true);
       return; // narration is not data corruption — bypass the "undecodable" logger
     }

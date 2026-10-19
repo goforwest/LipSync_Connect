@@ -122,8 +122,9 @@ test('a failed endpoint renders ERR and a recovery hint', async () => {
   assert.ok(errCell.classList.contains('err'));
   assert.equal(errCell.getAttribute('aria-label'), 'Scroll level failed to load');
   assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 18 settings failed to load/);
-  // The rest of the load still landed.
-  assert.equal(doc.getElementById('sipVal').textContent, '12');
+  // The rest of the load still landed. (ST/PT render at fmtHpa's 2 decimals —
+  // the device sent a bare "12".)
+  assert.equal(doc.getElementById('sipVal').textContent, '12.00');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });

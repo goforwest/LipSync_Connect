@@ -6,6 +6,7 @@ import { registerEndpointRenderer } from '../services/registry.js';
 import { applyRestrictionValue, applyTimingWindowValue } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
+import { fmtHpa } from '../utils/format.js';
 import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
 import { plotRing, plotNeutral } from '../plotting/plot.js';
 import { modeState } from '../state/modes.js';
@@ -46,13 +47,15 @@ export const ENDPOINT_RENDERERS = {
   },
   AV: (v) => setValue('accelVal', v),
   ST: (v) => {
-    setValue('sipVal', v);
-    if (document.activeElement !== $('sipInput')) $('sipInput').value = v;
+    const shown = fmtHpa(v);
+    setValue('sipVal', shown);
+    if (document.activeElement !== $('sipInput')) $('sipInput').value = shown;
     recalcGaugeRange();
   },
   PT: (v) => {
-    setValue('puffVal', v);
-    if (document.activeElement !== $('puffInput')) $('puffInput').value = v;
+    const shown = fmtHpa(v);
+    setValue('puffVal', shown);
+    if (document.activeElement !== $('puffInput')) $('puffInput').value = shown;
     recalcGaugeRange();
   },
   IZ: (v) => {

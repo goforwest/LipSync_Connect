@@ -9,7 +9,7 @@ import {
   WINDOW_SETTINGS,
   SWITCH_SETTINGS,
 } from './config/constants.js';
-import { debounce, fmtApiFloat } from './utils/format.js';
+import { debounce, fmtApiFloat, fmtHpa } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
 import { announceStatus } from './ui/a11y.js';
@@ -402,7 +402,9 @@ window.addEventListener('DOMContentLoaded', () => {
           try {
             const v = requireNumber('sipInput', 2, 149.99, 'Sip threshold');
             const r = await sendCommand('ST,1:' + fmtApiFloat(v));
-            setValue('sipVal', r.value ?? v);
+            // fmtHpa: the SET echo carries the wire-format padding; show the
+            // 2-decimal form the loaded values use.
+            setValue('sipVal', fmtHpa(r.value ?? v));
             recalcGaugeRange();
           } catch (e) {
             $('sapError').textContent = e.message;
@@ -422,7 +424,7 @@ window.addEventListener('DOMContentLoaded', () => {
           try {
             const v = requireNumber('puffInput', 2, 149.99, 'Puff threshold');
             const r = await sendCommand('PT,1:' + fmtApiFloat(v));
-            setValue('puffVal', r.value ?? v);
+            setValue('puffVal', fmtHpa(r.value ?? v));
             recalcGaugeRange();
           } catch (e) {
             $('sapError').textContent = e.message;
