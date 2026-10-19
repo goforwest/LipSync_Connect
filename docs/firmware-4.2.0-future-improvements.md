@@ -95,7 +95,7 @@ paste-ready drafts in `docs/upstream-issue-comments.md`.
 | 56  | "Python not found" compile error                          | docs backlog (upstream core; workaround known)                                                                                                                                                                                                                                         |
 | 54  | Mechanical drift / center hysteresis                      | **item 17**                                                                                                                                                                                                                                                                            |
 | 44  | Toggle cursor movement during sip/puff                    | ✅ item 11 done in 4.4.0 (CF cursor hold); B4 verified on hardware — closeable                                                                                                                                                                                                         |
-| 43  | LED feedback keyed to input state, not action             | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier; D1–D3 verified on hardware — closeable                                                                                                                                                                          |
+| 43  | LED feedback keyed to input state, not action             | ✅ item 16 done: audio in 4.3.0, LED in 4.4.0 as the opt-in LM=3 tier; D1/D3 verified on hardware 2026-10-19 — colors render on the micro LED only (the face LEDs are single-color); the with-users pass answers where the window signal belongs — closeable after that pass |
 | 37  | TLV493D library deprecated                                | ✅ fully closed: the XENSIV TLx493D migration merged (firmware 9b947cc, 2026-10-18/19) and BENCH-VALIDATED — JV parity, four-corner calibration, z-latch, cursor feel, flaky-bus, battery trade closed as moot (no internal battery); the old TLV493D-A1B6 fork is removed — closeable |
 | 36  | Menu stays open after serial-API calibration              | ✅ item 14a done in 4.3.0 — closeable                                                                                                                                                                                                                                                  |
 | 33  | Debug mode documentation incomplete                       | ✅ docs pass 2026-10-14 (packets corrected; DEBUG,2's 4th value is the sensor offset)                                                                                                                                                                                                  |
@@ -373,9 +373,21 @@ The biggest user-value cluster: input timing is hardcoded and rigid.
 > the action; the window was the message. Existing tiers behave exactly
 > as before, restricted inputs still show nothing, and the app's
 > light-feedback select offers "Input state (4.4.0+)" so a caregiver
-> can flip it on the bench. **Validation with affected users — the
-> point of the deferral — belongs to the 4.4.0 hardware session; if it
-> lands well, #43 closes with the tier documented in the User Guide.**
+> can flip it on the bench.
+>
+> **Bench-verified (2026-10-19, checklist D1/D3) — with a hardware
+> finding that sharpens the with-users question.** The traffic light
+> works live and follows the user's windows — but the colors render only
+> on the micro LED next to the USB-C port, the Hub's single RGB LED;
+> the three face LEDs are physically single-color, so LSOutput drives
+> them by brightness alone and they glow steady red through every
+> window. The first bench user's honest read was "the LEDs are always
+> red" — the window signal lives on the smallest LED on the device while
+> the big face strip buries it. The with-users pass now has a concrete
+> question to answer: keep the face LEDs steady, drive only the micro
+> LED (unambiguous), or encode the window on the face LEDs as a blink
+> rate/count (a shape is renderable where a color is not). The app hint
+> names the micro LED so a user flipping the tier knows where to look.
 
 ### 17. Mechanical drift investigation (upstream #54)
 
