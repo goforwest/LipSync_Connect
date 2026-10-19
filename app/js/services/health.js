@@ -32,6 +32,8 @@ function firmwareAtLeast(version) {
 }
 let healthStepState = {}; // id -> 'running' | 'ok' | 'warn' | 'err'
 
+const STATE_WORDS = { ok: 'OK', warn: 'Warning', err: 'Failed', running: 'Checking' };
+
 function setHealthStep(id, state, detail) {
   // state detail, e.g. 'ok' + detail desc optional
   healthStepState[id] = state;
@@ -39,9 +41,11 @@ function setHealthStep(id, state, detail) {
   if (!cell) return;
   cell.setAttribute('data-state', state);
   const icon = state === 'ok' ? '✓' : state === 'warn' ? '⚠' : state === 'err' ? '✗' : state === 'running' ? '⏳' : '';
-  cell.textContent = icon
-    ? icon + ' ' + (detail || HEALTH_STEPS.find((s) => s.id === id)?.label || '')
-    : detail || HEALTH_STEPS.find((s) => s.id === id)?.label || '';
+  const label = detail || HEALTH_STEPS.find((s) => s.id === id)?.label || '';
+  cell.textContent = icon ? icon + ' ' + label : label;
+  // The ✓/⚠/✗/⏳ glyphs read as emoji names — the label gives screen readers
+  // the same state the colors carry visually.
+  cell.setAttribute('aria-label', (STATE_WORDS[state] ? STATE_WORDS[state] + ': ' : '') + label);
   if (state === 'running') cell.setAttribute('aria-current', 'step');
   else cell.removeAttribute('aria-current');
 }
@@ -77,6 +81,7 @@ export function clearHealthResults() {
     if (!cell) continue;
     cell.removeAttribute('data-state');
     cell.removeAttribute('aria-current');
+    cell.removeAttribute('aria-label');
     cell.textContent = '';
   }
   const summary = $('healthSummary');
