@@ -62,14 +62,31 @@ display is being gated as unhealthy.
 
 ## #37 — TLV493D library deprecated
 
-Tracked and actioned in two steps: firmware 4.4.0 vendors the deprecated
-library as a bounded fork pinned into CI/local builds (the same pattern
-as the patched Wire — a failed sensor wake-up no longer busy-waits, and
-the measurement delay is clamped), which removes the library as an
-unbounded-latency risk on the 20 ms joystick poll. The migration to the
-XENSIV TLx493D library remains the deliberate follow-up (it touches the
-joystick read path, so it goes through hardware validation rather than a
-blind swap).
+Actioned in two steps, both shipped. Firmware 4.4.0 vendored the deprecated
+library as a bounded fork pinned into CI/local builds (the same pattern as
+the patched Wire — a failed sensor wake-up no longer busy-waits, and the
+measurement delay is clamped), which removed the library as an
+unbounded-latency risk on the 20 ms joystick poll. Firmware 4.5.1 completed
+the migration to the XENSIV TLx493D library — vendored unmodified upstream
+v1.1.2, provenance in the copy — and it went through full hardware
+validation before merge, exactly because it touches the live joystick read
+path: raw-value parity against the old library confirmed on silicon (the
+same 0.098 mT/LSB scale, corner magnitudes within hand-placement variance,
+no axis or sign changes), a fresh four-corner calibration, the
+magnet-direction latch stable across five restarts, and an unseated-cable
+flaky-bus episode handled gracefully. One pleasant surprise from the
+successor's gen-1 code: the A1B6 default is master-controlled continuous
+measurement, so the 20 ms poll is a single bounded I2C read with no
+wake/write/wait cycle at all — strictly cheaper per poll than the bounded
+fork, with every transaction still under the patched Wire's 50 ms bound.
+
+A note for anyone weighing the same migration: the continuous measurement
+draws the sensor at mA-scale instead of µA-scale between reads. That would
+matter to a battery-powered design; it is moot for the LipSync, which has
+no internal cell (the device is host-powered via USB, or phone-powered over
+USB-OTG for mobile use — the case our User Guide already steers to an
+external power source). Worth checking your own power architecture before
+choosing between the access modes.
 
 ## 4.5.0 USB robustness (relates to #63, #75)
 

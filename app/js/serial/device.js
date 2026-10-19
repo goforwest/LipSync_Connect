@@ -73,11 +73,17 @@ export function applyDeviceResponse(line) {
     GC: () => applySwitchActionValue('GC', r.value),
     IN: () => {
       ENDPOINT_RENDERERS.IN(r.value);
-      // Only claim the neutral was "updated" for a user-triggered IN,1:1
-      // (the standalone reset button). When a full calibration is in flight the
-      // neutral line is the last firmware-led step; the calibration state
-      // machine owns the status text then.
-      if (r.cmd === 'IN,1' && !calibrationIsRunning())
+      // Only claim the neutral was "updated" for a user-triggered IN,1:1 —
+      // the standalone reset button, whose ack is a SUCCESS (firmware 4.5.2:
+      // the ack type follows the initiator). Device-initiated centers (the
+      // boot auto-center, the Hub-menu Center Reset, the calibration's
+      // internal re-center) push the same line as MANUAL: the readout still
+      // refreshes from it, but it is not an answer to anything the app
+      // asked, so no "updated" status and no waiter may match it. When a
+      // full calibration is in flight the neutral line is the last
+      // firmware-led step; the calibration state machine owns the status
+      // text then.
+      if (r.type === 'SUCCESS' && r.cmd === 'IN,1' && !calibrationIsRunning())
         $('calStatus').textContent = 'Neutral position updated on device.';
     },
     PV: () => {

@@ -197,6 +197,10 @@ test('full calibration runs CA,1:1 → CA corners 2..4 → IN,1 → CA,0:0 read-
   app.setConnectedUI(true);
   click('btnCalibrate');
   // Corner-1 ack arrives via sendCommand; corners 2..4 arrive as extra lines.
+  // The step-5 re-center line is MANUAL on firmware 4.5.2+ (device-initiated
+  // center): the calibration's step-5 waiter matches on parse ok, which is
+  // true for MANUAL — the flow must complete on it exactly as it did on the
+  // old SUCCESS shape (pre-4.5.2 firmware).
   await sleep(200);
   app.handleLine('SUCCESS,0:CA,2:12.00|12.00');
   await sleep(50);
@@ -204,7 +208,7 @@ test('full calibration runs CA,1:1 → CA corners 2..4 → IN,1 → CA,0:0 read-
   await sleep(50);
   app.handleLine('SUCCESS,0:CA,4:-12.00|-12.00');
   await sleep(50);
-  app.handleLine('SUCCESS,0:IN,1:0.00|0.00');
+  app.handleLine('MANUAL,0:IN,1:0.00|0.00');
   await sleep(2); // verify the in-flight status message arrives (not yet completion text)
   assert.match(doc.getElementById('calStatus').textContent, /hold the mouthpiece still/);
   await sleep(120); // in-await → read-back sendCommand
@@ -212,6 +216,44 @@ test('full calibration runs CA,1:1 → CA corners 2..4 → IN,1 → CA,0:0 read-
   assert.deepEqual(sent, ['SETTINGS', 'CA,1:1', 'SETTINGS', 'CA,0:0']);
   assert.match(doc.getElementById('calStatus').textContent, /Calibration complete/);
   assert.equal(doc.getElementById('dotC1').hidden, false);
+});
+
+test('a boot-straggler MANUAL center line never resolves a pending IN,1:1', async () => {
+  // The 4.5.2 wire-hygiene contract, end to end: the firmware's
+  // device-initiated centers (boot auto-center, Hub-menu Center Reset) push
+  // MANUAL,0:IN,1 — same data, but a command waiter must never match it.
+  // The failure this guards: on ≤4.5.1 firmware the boot auto-center could
+  // land an UNSOLICITED SUCCESS,0:IN,1 while the app's center-reset request
+  // was in flight, falsely resolving the waiter with the boot center's
+  // value. Simulate the straggler arriving between the request and its real
+  // ack: the reset must resolve on the ACK's value only, and the
+  // "Neutral position updated on device." status (reserved for requested
+  // resets) must come from the ack, never the push.
+  let manualPushed = false;
+  const { sent, detach } = launch((text) => {
+    if (text === 'SETTINGS') return [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }];
+    if (text === 'IN,1:1') {
+      // The device's boot auto-center completes mid-exchange (straggler)…
+      if (!manualPushed) {
+        manualPushed = true;
+        return [
+          { delay: 2, line: 'MANUAL,0:IN,1:9.99|-9.99' },
+          { delay: 8, line: 'SUCCESS,0:IN,1:1.23|-1.55' },
+        ];
+      }
+      return [{ delay: 5, line: 'SUCCESS,0:IN,1:1.23|-1.55' }];
+    }
+    return [];
+  });
+  app.setConnectedUI(true);
+  await clickAndDrain('btnInit', { settleMs: 150 });
+  detach();
+  assert.deepEqual(sent, ['SETTINGS', 'IN,1:1']);
+  // The request resolved on the real ack, not the straggler.
+  assert.equal(doc.getElementById('calStatus').textContent, 'Neutral position set to 1.23|-1.55.');
+  assert.equal(doc.getElementById('neutralVal').textContent, '1.23|-1.55');
+  assert.ok(!doc.getElementById('calStatus').textContent.includes('9.99'));
+  assert.ok(!doc.getElementById('neutralVal').textContent.includes('9.99'));
 });
 
 test('full calibration flags a corner the firmware silently defaulted (±13)', async () => {
@@ -237,6 +279,8 @@ test('full calibration flags a corner the firmware silently defaulted (±13)', a
   await sleep(50);
   app.handleLine('SUCCESS,0:CA,4:-11.00|-11.00');
   await sleep(50);
+  // Step-5 line in the PRE-4.5.2 shape (SUCCESS): kept deliberately so both
+  // wire generations stay covered — the waiter matches on parse ok.
   app.handleLine('SUCCESS,0:IN,1:0.00|0.00');
   await sleep(120);
   detach();
