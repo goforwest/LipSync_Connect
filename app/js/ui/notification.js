@@ -24,8 +24,8 @@ export function showNotification(msg, isWarning = false) {
     e.stopPropagation();
     dismiss();
   };
-  el.onclick = (e) => {
-    if (e.target === el) dismiss();
-  };
+  // No body-click dismissal: the toast is pointer-transparent so it never
+  // steals a click aimed at the content it floats over (its × still closes,
+  // and the auto-dismiss timer runs regardless).
   notifTimer = setTimeout(dismiss, 8000);
 }

@@ -15,7 +15,8 @@
     "format:check": "prettier --config .prettierrc --check ../app/js/ ../app/styles.css ../app/index.html",
     "typecheck": "tsc -p tsconfig.json",
     "test": "cd .. && node --test \"tests/*.test.mjs\"",
-    "test:e2e": "node ../tests/e2e/precache-real-browser.test.mjs"
+    "test:e2e": "node ../tests/e2e/precache-real-browser.test.mjs",
+    "test:browser-audit": "node browser-audit/run.mjs"
   },
   "devDependencies": {
     "eslint": "^10.8.0",
