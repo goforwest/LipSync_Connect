@@ -822,12 +822,16 @@ summary {
   select {
     min-height: 52px;
   }
+  /* Taller tap target only — display:inline-block here used to strip the
+     disclosure marker (::marker needs list display), leaving touch users
+     with no expand/collapse arrow on the help topics. */
   summary {
-    display: inline-block;
     padding: 12px 0;
   }
   #notification {
-    bottom: 16px;
+    /* Above the 64px gear (bottom 20px + 16px gap) — at the very bottom the
+       round button overlapped and blocked the toast's close button. */
+    bottom: 100px;
     right: 16px;
     left: 16px;
     max-width: none;
@@ -926,7 +930,9 @@ summary {
 /* ---- Toast notification ---- */
 #notification {
   position: fixed;
-  bottom: 24px;
+  /* Sits above the floating gear button (56px + 24px offset + 16px gap):
+     anchored to the same corner, the gear covered the close button. */
+  bottom: 96px;
   right: 24px;
   z-index: 200;
   display: flex;
@@ -1019,7 +1025,9 @@ dialog p {
   position: absolute;
   top: -100%;
   left: 16px;
-  z-index: 100;
+  /* Above the sticky header (z-index 100): the two used to tie, and the
+     later-in-DOM header won — the focused skip link rendered underneath it. */
+  z-index: 110;
   background: var(--panel);
   color: var(--text);
   padding: 8px 14px;
@@ -1116,15 +1124,19 @@ html.dark-mode .guide-backdrop {
 html.dark-mode .guide-card {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
+@media (max-width: 900px) {
+  /* The one-line card fits from ~900px up; below that the nowrap text
+     pushed it past the viewport's left edge. */
+  .guide-card p {
+    white-space: normal;
+  }
+}
 @media (max-width: 700px) {
   .guide-card {
     top: calc(44px + 8px);
     right: 12px;
     padding: 12px 16px;
     gap: 10px;
-  }
-  .guide-card p {
-    white-space: normal;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1247,14 +1259,19 @@ html.dark-mode .guide-card {
 /* ---- Section cards (collapsible) ---- */
 .section-card {
   background: var(--panel);
-  border: 1px solid var(--border);
+  /* Border width is 0 while collapsed: a closed card's 2px of border leaked
+     through max-height:0 as invisible slivers, stacking up to 24px of dead
+     space that shifted the open card's top edge depending on which cards sat
+     above it in DOM order. The border animates in with the card instead. */
+  border: 0 solid var(--border);
   border-radius: 12px;
   overflow: clip;
   max-height: 0;
   opacity: 0;
   transition:
     max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.25s ease;
+    opacity 0.25s ease,
+    border-width 0.15s ease;
   margin: 0;
 }
 .section-card + .section-card {
@@ -1263,6 +1280,7 @@ html.dark-mode .guide-card {
 .section-card.open {
   opacity: 1;
   padding-bottom: 20px;
+  border-width: 1px;
 }
 /* Serial-dependent cards are de-emphasized until a device connects */
 .section-card.card-off.open {
@@ -1276,7 +1294,6 @@ html.dark-mode .guide-card {
   background: var(--panel);
   color: var(--muted);
   border-color: var(--border);
-  transform: none;
 }
 
 /* ---- Self-test live narration panel (LED / buzzer) ---- */
