@@ -45,7 +45,10 @@ export const ENDPOINT_RENDERERS = {
     setValue('scrollVal', v);
     updateMeter('scrollMeter', v);
   },
-  AV: (v) => setValue('accelVal', v),
+  AV: (v) => {
+    setValue('accelVal', v);
+    updateMeter('accelMeter', v);
+  },
   ST: (v) => {
     const shown = fmtHpa(v);
     setValue('sipVal', shown);

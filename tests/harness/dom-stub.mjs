@@ -53,7 +53,10 @@ function stubElement() {
       return children[children.length - 1] ?? null;
     },
     addEventListener() {},
-    classList: { add() {}, remove() {}, toggle() {} },
+    // contains() must exist (not just add/remove/toggle): updateMeter branches
+    // on it for the bipolar meter, and a missing method throws inside the
+    // endpoint renderers, killing the line-waiter for the whole response.
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     querySelectorAll(sel) {
       return sel === 'span' ? children.filter((c) => c.tagName === 'SPAN') : [];
     },

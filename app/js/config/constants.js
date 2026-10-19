@@ -176,9 +176,10 @@ export const STEP_TARGETS = {
   speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
   scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
   // Acceleration (AV) is bipolar: -10 (slowest, most precise) .. 10 (fastest);
-  // 0 is the linear no-op default. No meter — the 10-segment meter is a
-  // 0..10 display, and the numeric value carries the sign.
-  accel: { endpoint: 'AV', valueId: 'accelVal', min: -10, max: 10 },
+  // 0 is the linear no-op default. Its meter is the one center-zero variant
+  // (meter--bipolar): 20 segments, |value| lit from the center outward, sign
+  // picks the side — 0 lights nothing, matching the "0 = off" hint.
+  accel: { endpoint: 'AV', valueId: 'accelVal', meter: 'accelMeter', min: -10, max: 10 },
   brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
 };
 

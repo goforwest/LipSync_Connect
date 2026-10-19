@@ -280,17 +280,6 @@
           <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button
           ><button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
         </div>
-        <div class="row">
-          <label for="rawCommand">Raw command</label
-          ><input
-            type="text"
-            id="rawCommand"
-            placeholder="e.g. EX,0:0"
-            autocomplete="off"
-            spellcheck="false"
-            aria-label="Raw serial command to send to the device"
-          /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
-        </div>
         <div class="row" id="loadProgressRow" hidden>
           <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
           ><span id="loadProgressLabel">Loading device settings…</span>
@@ -381,6 +370,7 @@
           >
             +
           </button>
+          <span class="meter meter--bipolar" id="accelMeter" aria-hidden="true"></span>
           <span
             class="hint row-hint"
             title="Reshapes the deflection-to-speed curve. 0 is linear; positive values move faster at gentle deflections; negative values trade speed for precision. Full deflection always keeps full speed."
@@ -1323,6 +1313,21 @@
           ><button type="button" id="btnShareLog" class="secondary">Share log</button
           ><button type="button" id="btnClearLog" class="secondary">Clear log</button>
         </div>
+        <div class="row">
+          <label for="rawCommand">Raw command</label
+          ><input
+            type="text"
+            id="rawCommand"
+            placeholder="e.g. EX,0:0"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Raw serial command to send to the device"
+          /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
+        </div>
+        <p class="hint">
+          Advanced: send a raw serial command — e.g. EX,0:0 for a full settings dump. The response lands in the log
+          below; commands that restart the device still ask before sending.
+        </p>
         <div id="log" role="log" aria-live="off" aria-label="Command log"></div>
       </section>
     </main>

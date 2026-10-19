@@ -9,16 +9,32 @@ let gaugeLastDelta = null;
 export function updateMeter(id, value) {
   const el = $(id);
   if (!el || !el.querySelectorAll) return;
+  // The bipolar variant (cursor acceleration, -10..10) renders 20 segments
+  // around a center zero instead of the plain left-anchored 0..10 fill.
+  const bipolar = el.classList.contains('meter--bipolar');
+  const total = bipolar ? METER_SEGMENTS * 2 : METER_SEGMENTS;
   let segments = el.querySelectorAll('span');
-  while (segments.length < METER_SEGMENTS) {
+  while (segments.length < total) {
     el.appendChild(document.createElement('span'));
     segments = el.querySelectorAll('span');
   }
-  while (segments.length > METER_SEGMENTS) {
+  while (segments.length > total) {
     el.removeChild(el.lastElementChild);
     segments = el.querySelectorAll('span');
   }
-  segments.forEach((seg, i) => seg.classList.toggle('on', i < Number(value)));
+  if (!bipolar) {
+    segments.forEach((seg, i) => seg.classList.toggle('on', i < Number(value)));
+    return;
+  }
+  const v = Number(value);
+  const mag = Number.isFinite(v) ? Math.min(Math.abs(v), METER_SEGMENTS) : 0;
+  segments.forEach((seg, i) => {
+    // The center zero sits between segments METER_SEGMENTS-1 and
+    // METER_SEGMENTS; distance 1 is adjacent to it, growing outward.
+    const dist = i < METER_SEGMENTS ? METER_SEGMENTS - i : i - METER_SEGMENTS + 1;
+    const negativeSide = i < METER_SEGMENTS;
+    seg.classList.toggle('on', dist <= mag && v < 0 === negativeSide);
+  });
 }
 
 function setGaugeFill(el, delta) {

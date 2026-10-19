@@ -831,6 +831,28 @@ footer p {
   background: linear-gradient(180deg, var(--info), var(--mmc-blue));
   border-color: transparent;
 }
+/* Center-zero meter (cursor acceleration, -10..10): 20 segments fill from
+   the middle outward, so it is narrower per segment to stay row-sized, and
+   a tick marks the zero the same way the pressure gauge marks neutral. */
+.meter--bipolar {
+  position: relative;
+  gap: 3px;
+}
+.meter--bipolar span {
+  width: 10px;
+}
+.meter--bipolar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: var(--muted);
+  opacity: 0.55;
+}
 
 /* ---- Mobile & touch refinements ---- */
 button,
@@ -939,6 +961,9 @@ summary {
   .meter span {
     width: 12px;
     height: 20px;
+  }
+  .meter--bipolar span {
+    width: 8px;
   }
   footer {
     padding: 8px 16px 24px;
