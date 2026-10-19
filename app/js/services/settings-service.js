@@ -462,7 +462,11 @@ export async function loadDeviceInfo() {
     if (el.textContent === '…') {
       el.textContent = 'ERR';
       el.classList.add('err');
-      el.setAttribute('aria-label', `${VALUE_LABELS[id] ?? id} failed to load`);
+      // aria-label carries the news for screen readers; the title mirrors it
+      // as a hover tooltip so sighted users also learn why a value reads ERR.
+      const label = `${VALUE_LABELS[id] ?? id} failed to load`;
+      el.setAttribute('aria-label', label);
+      el.setAttribute('title', label);
     }
   });
   if (progBar) progBar.value = progBar.max;

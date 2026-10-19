@@ -7,15 +7,21 @@ import { $ } from './dom.js';
 export function setLoadingPlaceholders() {
   VALUE_IDS.forEach((id) => {
     const el = $(id);
-    el.textContent = '\u2026';
+    el.textContent = '…';
     el.classList.remove('err');
     el.classList.add('loading');
-    if (typeof el.removeAttribute === 'function') el.removeAttribute('aria-label');
+    if (typeof el.removeAttribute === 'function') {
+      el.removeAttribute('aria-label');
+      el.removeAttribute('title');
+    }
   });
 }
 export function setValue(id, text) {
   const el = $(id);
   el.textContent = text;
   el.classList.remove('loading', 'err');
-  if (typeof el.removeAttribute === 'function') el.removeAttribute('aria-label');
+  if (typeof el.removeAttribute === 'function') {
+    el.removeAttribute('aria-label');
+    el.removeAttribute('title');
+  }
 }

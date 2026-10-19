@@ -125,6 +125,10 @@ body {
 a {
   color: var(--info);
 }
+/* Brand-tinted text selection in both themes. */
+::selection {
+  background: color-mix(in srgb, var(--info) 25%, transparent);
+}
 header {
   display: flex;
   align-items: center;
@@ -404,6 +408,17 @@ select {
   font-size: 1rem;
   min-height: 48px;
 }
+/* Immediate invalid feedback once the user has actually interacted with a
+   field (:user-invalid, not :invalid, so empty untouched inputs stay calm).
+   The full message still arrives on Set/blur — this is the early cue. */
+input:user-invalid {
+  border-color: var(--danger);
+}
+/* Brand-colored progress bars (settings load, firmware flash). */
+progress {
+  accent-color: var(--accent);
+  color: var(--accent);
+}
 #log {
   background: var(--log-bg);
   border: 1px solid var(--border);
@@ -416,6 +431,11 @@ select {
   white-space: pre-wrap;
   color: var(--log-text);
   line-height: 1.6;
+}
+/* Empty-state hint so a first-run user sees the log is where activity lands. */
+#log:empty::before {
+  content: 'No log activity yet — connect a LipSync and entries will appear here.';
+  color: var(--log-info);
 }
 .log-tx {
   color: var(--log-tx);
@@ -950,6 +970,19 @@ summary {
 }
 #notification[hidden] {
   display: none;
+}
+@keyframes notifIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+#notification:not([hidden]) {
+  animation: notifIn 0.2s ease;
 }
 #notification.warning {
   background: var(--info);
@@ -1578,13 +1611,13 @@ html.dark-mode .guide-card {
   transition: transform 0.2s ease;
 }
 .toggle:hover:not(:disabled) {
-  background: var(--border);
+  background: color-mix(in srgb, var(--text) 20%, var(--border));
 }
 .toggle[aria-pressed='true'] {
   background: var(--success);
 }
 .toggle[aria-pressed='true']:hover:not(:disabled) {
-  background: var(--success);
+  background: color-mix(in srgb, var(--success) 80%, #000);
 }
 .toggle[aria-pressed='true']::after {
   transform: translateX(24px);
@@ -1718,7 +1751,9 @@ html.dark-mode .floating-gear {
 .popup-colors {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 16px;
+  /* 12px column gap leaves room for full words like "Background" next to
+     the 36px swatch in both the 280px popup and its mobile width. */
+  gap: 6px 12px;
 }
 .pc-row {
   display: flex;
@@ -1759,7 +1794,7 @@ html.dark-mode .appearance-popup {
 @media (max-width: 560px) {
   .appearance-popup {
     right: 16px;
-    width: 260px;
+    width: min(288px, calc(100vw - 32px));
   }
   .appearance-popup::after,
   .appearance-popup::before {
