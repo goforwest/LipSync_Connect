@@ -3,7 +3,6 @@
 // updateConnectionGating (in connection-ui.js) reads the open card via
 // getOpenSection() but never mutates which card is open — that is this
 // module's single source of truth.
-import { announceStatus } from './a11y.js';
 import { showNotification } from './notification.js';
 import { prefersReducedMotion } from './motion.js';
 
@@ -65,15 +64,16 @@ export function getOpenSection() {
 export function openSectionById(id) {
   const btn = document.querySelector(`.circle-trigger[data-section="${id}"]`);
   if (btn && btn.classList.contains('dimmed')) {
-    const message =
+    // The title tooltip only exists for pointer-hover; a tap on a touch
+    // device would otherwise look like a dead control. The polite toast
+    // covers both audiences — no separate srStatus write, or screen readers
+    // would hear the same sentence twice.
+    showNotification(
       id === 'sec-device'
         ? 'Connect to a LipSync first to load device settings.'
-        : 'Connect to a LipSync first to use this section.';
-    announceStatus(message);
-    // The title tooltip only exists for pointer-hover; a tap on a touch
-    // device would otherwise look like a dead control. Same message, as a
-    // polite toast.
-    showNotification(message, true);
+        : 'Connect to a LipSync first to use this section.',
+      true,
+    );
     return;
   }
   if (openSection === id) {
