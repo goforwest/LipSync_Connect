@@ -4,6 +4,7 @@
 // getOpenSection() but never mutates which card is open — that is this
 // module's single source of truth.
 import { announceStatus } from './a11y.js';
+import { showNotification } from './notification.js';
 import { prefersReducedMotion } from './motion.js';
 
 let openSection = null; // id of the currently-open section card (null when none)
@@ -64,11 +65,15 @@ export function getOpenSection() {
 export function openSectionById(id) {
   const btn = document.querySelector(`.circle-trigger[data-section="${id}"]`);
   if (btn && btn.classList.contains('dimmed')) {
-    announceStatus(
+    const message =
       id === 'sec-device'
         ? 'Connect to a LipSync first to load device settings.'
-        : 'Connect to a LipSync first to use this section.',
-    );
+        : 'Connect to a LipSync first to use this section.';
+    announceStatus(message);
+    // The title tooltip only exists for pointer-hover; a tap on a touch
+    // device would otherwise look like a dead control. Same message, as a
+    // polite toast.
+    showNotification(message, true);
     return;
   }
   if (openSection === id) {

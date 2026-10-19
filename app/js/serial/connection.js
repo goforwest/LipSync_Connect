@@ -178,6 +178,9 @@ export async function disconnect(options = {}) {
   const preserveBanner = options && options.preserveBanner === true;
   const quiet = options && options.quiet === true;
   serialSession.disconnecting = true;
+  // A wedged OS close can hold this button's work for seconds (bounded
+  // close timeout) — show the spinner so it doesn't look unresponsive.
+  $('btnDisconnect').classList.add('btn--loading');
   clearTimeout(loadDoneTimerRef.current);
   try {
     serialSession.readerGeneration++;
@@ -224,6 +227,7 @@ export async function disconnect(options = {}) {
       serialSession.port = null;
     }
   } finally {
+    $('btnDisconnect').classList.remove('btn--loading');
     setConnectStage(null);
     clearTimeout(readWatchdog.timer);
     readWatchdog.timer = null;
