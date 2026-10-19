@@ -8,6 +8,10 @@ export function showNotification(msg, isWarning = false) {
   const el = $('notification');
   if (!el) return;
   el.classList.toggle('warning', !!isWarning);
+  // Errors interrupt (assertive); advisory notes (the contrast warning) are
+  // polite — the container's static role="alert" is swapped per message.
+  el.setAttribute('role', isWarning ? 'status' : 'alert');
+  el.setAttribute('aria-live', isWarning ? 'polite' : 'assertive');
   el.innerHTML =
     '<span class="notif-msg"></span><button class="notif-close" aria-label="Dismiss notification">&times;</button>';
   el.querySelector('.notif-msg').textContent = msg;

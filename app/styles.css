@@ -277,8 +277,9 @@ main {
 /* Checkbox rows (input restrictions): the control leads, the label follows,
    and the inline hint sits under the label text at muted weight. */
 .check-row input[type='checkbox'] {
-  width: 22px;
-  height: 22px;
+  /* 24px = the WCAG 2.5.8 AA target-size floor; was 22. */
+  width: 24px;
+  height: 24px;
   accent-color: var(--accent);
   flex: none;
   margin-left: 2px;
@@ -1621,13 +1622,13 @@ html.dark-mode .guide-card {
 /* ---- Toggle switch (used in popup) ---- */
 .toggle {
   position: relative;
-  width: 52px;
-  height: 28px;
-  border-radius: 14px;
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
   background: var(--border);
   cursor: pointer;
-  min-width: 52px;
-  min-height: 28px;
+  min-width: 56px;
+  min-height: 32px;
   padding: 0;
   border: none;
   transition: background 0.2s ease;
@@ -1635,13 +1636,14 @@ html.dark-mode .guide-card {
 .toggle::after {
   content: '';
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #fff;
   transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 .toggle:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text) 20%, var(--border));
@@ -1800,13 +1802,14 @@ html.dark-mode .floating-gear {
 }
 .pc-row input[type='color'] {
   width: 36px;
-  height: 28px;
+  height: 36px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--field);
   cursor: pointer;
-  min-height: 28px;
+  min-height: 36px;
+  flex: none;
 }
 .pc-row input[type='color']::-webkit-color-swatch-wrapper {
   padding: 1px;

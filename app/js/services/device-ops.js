@@ -63,6 +63,9 @@ export function bindDeviceOps(guard) {
         !(await showConfirm(
           'Factory reset',
           '<strong>This restores ALL settings to defaults.</strong> The device will restart with default settings. Reconnect afterwards.',
+          // Destructive: wipes calibration too — Cancel takes focus so a
+          // reflexive Enter cannot fire it.
+          { danger: true },
         ))
       )
         return;
@@ -134,6 +137,7 @@ export function bindDeviceOps(guard) {
         const confirmed = await showConfirm(
           'Raw command',
           `Send ${cmd}? It restarts the device or changes its state (the dedicated buttons do this with the same confirm).`,
+          { danger: true },
         );
         if (!confirmed) return;
       }

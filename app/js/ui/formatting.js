@@ -29,7 +29,14 @@ export function renderSafeFormatting(html) {
   return walk(safe);
 }
 
-export function showConfirm(title, bodyHTML) {
+/**
+ * @param {string} title
+ * @param {string} bodyHTML
+ * @param {{danger?: boolean}} [opts] danger: a destructive action — focus
+ *   lands on Cancel so a reflexive Enter press cannot trigger it, and the
+ *   user must move to confirm.
+ */
+export function showConfirm(title, bodyHTML, opts = {}) {
   const dialog = $('confirmDialog');
   const titleEl = $('confirmTitle');
   const bodyEl = $('confirmBody');
@@ -57,10 +64,17 @@ export function showConfirm(title, bodyHTML) {
       e.preventDefault();
       focusables[next].focus();
     };
+    // A click that lands on the dialog element itself (its padding or the
+    // ::backdrop) reads as "click away" — resolve as a cancel, like almost
+    // every native dialog the user has met.
+    const onBackdrop = (e) => {
+      if (e.target === dialog) dialog.close();
+    };
     const done = (result) => {
       if (resolved) return;
       resolved = true;
       dialog.removeEventListener('keydown', onKeydown);
+      dialog.removeEventListener('click', onBackdrop);
       dialog.close();
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
@@ -71,12 +85,18 @@ export function showConfirm(title, bodyHTML) {
     };
     const onOk = () => done(true);
     const onCancel = () => done(false);
-    const onClose = () => done(false);
+    // The dialog's close event dispatches as a task, not synchronously — a
+    // close queued by a previous confirm must not settle this one the instant
+    // it opens. Only a close of the actually-open dialog resolves here.
+    const onClose = () => {
+      if (!dialog.open) done(false);
+    };
     okBtn.addEventListener('click', onOk);
     cancelBtn.addEventListener('click', onCancel);
     dialog.addEventListener('close', onClose);
     dialog.addEventListener('keydown', onKeydown);
+    dialog.addEventListener('click', onBackdrop);
     dialog.showModal();
-    okBtn.focus();
+    (opts.danger ? cancelBtn : okBtn).focus();
   });
 }

@@ -265,7 +265,9 @@ window.addEventListener('DOMContentLoaded', () => {
       const trigger = /** @type {HTMLElement|null} */ (
         document.querySelector(`.circle-trigger[data-section="${sectionId}"]`)
       );
-      if (trigger && typeof trigger.focus === 'function') trigger.focus({ preventScroll: true });
+      // No preventScroll here: the card the user was reading is gone, so
+      // scrolling back up with the trigger is the natural landing.
+      if (trigger && typeof trigger.focus === 'function') trigger.focus();
     });
   });
 
@@ -273,6 +275,13 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (document.querySelector('dialog[open]')) return;
+    // The connection guide outranks a section: while the port picker hint is
+    // up, Escape should clear the overlay the user is looking at.
+    const guide = $('connectGuide');
+    if (guide && !guide.hidden) {
+      hideGuide();
+      return;
+    }
     if (popup && popup.classList.contains('open')) {
       closePopup();
       return;
@@ -296,6 +305,10 @@ window.addEventListener('DOMContentLoaded', () => {
       closeCurrentSection();
     }
   });
+
+  // Clicking the guide's dim backdrop dismisses it — same as its Dismiss
+  // button; there is nothing else to do behind the overlay while it is up.
+  document.querySelector('.guide-backdrop')?.addEventListener('click', hideGuide);
 
   // Header scroll shadow
   const headerEl = $('appHeader');

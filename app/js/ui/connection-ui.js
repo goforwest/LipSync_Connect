@@ -109,6 +109,8 @@ export function setConnectedUI(connected) {
   // a disconnect or command timeout mid-load would otherwise leave the header
   // stuck on "Connected" with no port, which the enable-state didn't catch.
   setStatus(connected ? 'Loading…' : 'Not connected', connected);
+  // Tab/breadcrumb state for when the app is backgrounded mid-session.
+  document.title = connected ? 'LipSync Connect — Connected' : 'LipSync Connect';
   updateConnectionGating();
   if (!connected) {
     syncModeBtn();
