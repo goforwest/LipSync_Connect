@@ -20,8 +20,7 @@ const INSTANCES = [
   { ladderId: 'winLadderDiag', scaleId: 'winScaleDiag', sweep: true },
 ];
 
-const readWindowValues = () =>
-  WINDOW_SETTINGS.map((w) => Number(($(w.valueId)?.textContent || '').trim()));
+const readWindowValues = () => WINDOW_SETTINGS.map((w) => Number(($(w.valueId)?.textContent || '').trim()));
 
 const windowsLoaded = (vals) => vals.length === 3 && vals.every((v) => Number.isFinite(v) && v > 0);
 
