@@ -128,3 +128,32 @@ test('a failed endpoint renders ERR and a recovery hint', async () => {
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
+
+test('the status pill updates once for a whole load, not once per endpoint', async () => {
+  launch(true); // SL fails: realistic partial load ending 'Connected — 1 setting failed'
+  // Spy on the live region: record every write without changing behavior.
+  const status = doc.getElementById('status');
+  const writes = [];
+  let current = status.textContent;
+  Object.defineProperty(status, 'textContent', {
+    configurable: true,
+    get: () => current,
+    set: (v) => {
+      writes.push(String(v));
+      current = v;
+    },
+  });
+  await loadDeviceInfo();
+  await sleep(30); // drain the final queued replies
+  Object.defineProperty(status, 'textContent', { configurable: true, writable: true, value: current });
+  const loadingWrites = writes.filter((t) => t.includes('loading'));
+  assert.equal(
+    loadingWrites.length,
+    1,
+    'one status write for the whole load (per-endpoint chatter is a live-region flood): ' + JSON.stringify(writes),
+  );
+  assert.equal(loadingWrites[0], 'Connected — loading settings…');
+  assert.ok(writes.includes('Connected — 1 setting failed'), JSON.stringify(writes));
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});

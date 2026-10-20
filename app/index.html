@@ -411,7 +411,7 @@
         <div class="diag-group">
           <p class="diag-title">Thresholds</p>
           <div class="row">
-            <label>Sip threshold (2–150 hPa)</label>
+            <label>Sip threshold (2–149.99 hPa)</label>
             <button
               type="button"
               class="cmd secondary"
@@ -456,7 +456,7 @@
             </button>
           </div>
           <div class="row">
-            <label>Puff threshold (2–150 hPa)</label>
+            <label>Puff threshold (2–149.99 hPa)</label>
             <button
               type="button"
               class="cmd secondary"
@@ -503,7 +503,7 @@
           <details class="exact-values">
             <summary>Set exact threshold values&hellip;</summary>
             <div class="row">
-              <label for="sipInput">Exact sip value (2–150 hPa)</label>
+              <label for="sipInput">Exact sip value (2–149.99 hPa)</label>
               <input
                 type="number"
                 id="sipInput"
@@ -518,7 +518,7 @@
               <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
             </div>
             <div class="row">
-              <label for="puffInput">Exact puff value (2–150 hPa)</label>
+              <label for="puffInput">Exact puff value (2–149.99 hPa)</label>
               <input
                 type="number"
                 id="puffInput"
@@ -1110,12 +1110,12 @@
         <details class="exact-values">
           <summary>Set exact deadzone values&hellip;</summary>
           <div class="row">
-            <label for="innerDeadzone">Exact inner deadzone value (0.01&ndash;1)</label>
+            <label for="innerDeadzone">Exact inner deadzone value (0.01&ndash;0.99)</label>
             <input
               type="number"
               id="innerDeadzone"
               min="0.01"
-              max="1"
+              max="0.99"
               step="0.01"
               inputmode="decimal"
               autocomplete="off"
@@ -1124,12 +1124,12 @@
             <button type="button" class="cmd" id="btnSetInnerDeadzone" disabled>Set</button>
           </div>
           <div class="row">
-            <label for="outerDeadzone">Exact outer deadzone value (0.01&ndash;1)</label>
+            <label for="outerDeadzone">Exact outer deadzone value (0.01&ndash;0.99)</label>
             <input
               type="number"
               id="outerDeadzone"
               min="0.01"
-              max="1"
+              max="0.99"
               step="0.01"
               inputmode="decimal"
               autocomplete="off"
@@ -1138,7 +1138,7 @@
             <button type="button" class="cmd" id="btnSetOuterDeadzone" disabled>Set</button>
           </div>
         </details>
-        <p class="hint">Range 0.01&ndash;1.0. Inner &lt; outer. Rings update when set.</p>
+        <p class="hint">Range 0.01&ndash;0.99 (the device cannot hold 1.0). Inner &lt; outer. Rings update when set.</p>
         <div class="error" id="formError" role="alert"></div>
         <div class="row">
           <label>Live joystick</label>
@@ -1930,7 +1930,7 @@
         <div class="popup-colors">
           <div class="pc-row">
             <label for="colorAccent">Accent</label
-            ><input type="color" id="colorAccent" value="#EE343F" title="Primary button &amp; nav color" />
+            ><input type="color" id="colorAccent" value="#BE2A32" title="Primary button &amp; nav color" />
           </div>
           <div class="pc-row">
             <label for="colorAccent2">Hover</label

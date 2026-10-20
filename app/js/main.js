@@ -27,14 +27,7 @@ import { loadDeviceInfo } from './services/settings-service.js';
 
 import { connect, disconnect } from './serial/connection.js';
 import { serialSession } from './serial/session.js';
-import {
-  readCalibration,
-  setDeadzone,
-  setSimpleSetting,
-  requireNumber,
-  clampInput,
-  step,
-} from './services/settings-service.js';
+import { readCalibration, setDeadzone, setSimpleSetting, requireNumber, step } from './services/settings-service.js';
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
 import { showNotification } from './ui/notification.js';
@@ -512,7 +505,6 @@ window.addEventListener('DOMContentLoaded', () => {
       guard(
         async () => {
           $('sapError').textContent = '';
-          clampInput('sipInput', 2, 149.99, 'sipVal');
           try {
             const v = requireNumber('sipInput', 2, 149.99, 'Sip threshold');
             const r = await sendCommand('ST,1:' + fmtApiFloat(v));
@@ -534,7 +526,6 @@ window.addEventListener('DOMContentLoaded', () => {
       guard(
         async () => {
           $('sapError').textContent = '';
-          clampInput('puffInput', 2, 149.99, 'puffVal');
           try {
             const v = requireNumber('puffInput', 2, 149.99, 'Puff threshold');
             const r = await sendCommand('PT,1:' + fmtApiFloat(v));
@@ -548,8 +539,11 @@ window.addEventListener('DOMContentLoaded', () => {
         { quiet: true },
       ),
     );
-    $('sipInput').addEventListener('blur', () => clampInput('sipInput', 2, 149.99, 'sipVal'));
-    $('puffInput').addEventListener('blur', () => clampInput('puffInput', 2, 149.99, 'puffVal'));
+    // Exact-value fields are validated only at Set: an empty or out-of-range
+    // draft stays in the field and the Set click explains itself inline —
+    // nothing is written (and no boundary value silently substituted) until
+    // the typed value is one the device can hold. The readout beside the
+    // field always shows the value actually in force.
 
     // Practice peaks + suggest-from-practice: the peaks track in
     // plotting/gauge.js off every pressure frame; these three buttons are the
@@ -633,10 +627,14 @@ window.addEventListener('DOMContentLoaded', () => {
           { quiet: true },
         ),
       );
-      $(w.inputId).addEventListener('blur', () => clampInput(w.inputId, w.min, w.max, w.valueId));
+      // Typing a valid value clears a stale inline error (the windows never
+      // had this — an ordering refusal used to survive any edit).
+      $(w.inputId).addEventListener('input', () => {
+        const v = Number($(w.inputId).value);
+        if ($('sapError').textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max)))
+          $('sapError').textContent = '';
+      });
     });
-    $('innerDeadzone').addEventListener('blur', () => clampInput('innerDeadzone', 0.01, 1, 'innerDeadzoneVal'));
-    $('outerDeadzone').addEventListener('blur', () => clampInput('outerDeadzone', 0.01, 1, 'outerDeadzoneVal'));
     $('sipInput').addEventListener('input', () => {
       const v = Number($('sipInput').value);
       if ($('sapError').textContent && (!Number.isFinite(v) || (v >= 2 && v <= 149.99))) $('sapError').textContent = '';
@@ -649,11 +647,13 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     $('innerDeadzone').addEventListener('input', () => {
       const v = Number($('innerDeadzone').value);
-      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 1))) $('formError').textContent = '';
+      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 0.99)))
+        $('formError').textContent = '';
     });
     $('outerDeadzone').addEventListener('input', () => {
       const v = Number($('outerDeadzone').value);
-      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 1))) $('formError').textContent = '';
+      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 0.99)))
+        $('formError').textContent = '';
     });
     $('btnReadCalibration').addEventListener('click', guard(readCalibration));
     $('btnSetInnerDeadzone').addEventListener(

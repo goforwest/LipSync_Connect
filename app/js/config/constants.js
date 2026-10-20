@@ -199,8 +199,11 @@ export const STEP_TARGETS = {
   // short < long < max ordering contract.
   st: { endpoint: 'ST', valueId: 'sipVal', min: 2, max: 149.99, step: 0.25, hpa: true },
   pt: { endpoint: 'PT', valueId: 'puffVal', min: 2, max: 149.99, step: 0.25, hpa: true },
-  iz: { endpoint: 'IZ', valueId: 'innerDeadzoneVal', min: 0.01, max: 1, step: 0.01 },
-  oz: { endpoint: 'OZ', valueId: 'outerDeadzoneVal', min: 0.01, max: 1, step: 0.01 },
+  // Deadzone ceiling is 0.99, not 1.0: the firmware's GET normalizes a stored
+  // deadzone of >= 1.0 back to its defaults, so a "successful" 1.00 write
+  // would silently revert on the next load (and could leave inner > outer).
+  iz: { endpoint: 'IZ', valueId: 'innerDeadzoneVal', min: 0.01, max: 0.99, step: 0.01 },
+  oz: { endpoint: 'OZ', valueId: 'outerDeadzoneVal', min: 0.01, max: 0.99, step: 0.01 },
   ws: { endpoint: 'WS', valueId: 'w1Val', min: 200, max: 2500, step: 50 },
   wl: { endpoint: 'WL', valueId: 'w2Val', min: 400, max: 6000, step: 50 },
   wm: { endpoint: 'WM', valueId: 'w3Val', min: 1000, max: 10000, step: 50 },

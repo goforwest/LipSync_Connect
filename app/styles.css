@@ -16,6 +16,13 @@
   --danger-fill: #b3261e;
   --info-fill: #0072ce;
   --border: #d7dde2;
+  /* Control boundaries carry the WCAG 1.4.11 load (inputs are field-colored,
+     so the border is the only edge) — darker than the decorative --border. */
+  --field-border: #7f8c97;
+  /* Text-bearing state colors, separate from the surface colors above:
+     warn text on --value-bg must clear AA (the amber --warning alone is 3.1:1). */
+  --warning-text: #9a6200;
+  --accent2-text: #be2a32;
   --field: #ffffff;
   --value-bg: #f0f3f5;
   --success: #1e7d46;
@@ -45,6 +52,9 @@
     --danger-fill: #8f1d17;
     --info-fill: #0b5cab;
     --border: #2c3a50;
+    --field-border: #5f7189;
+    --warning-text: #ffb74d;
+    --accent2-text: #e4525a;
     --field: #0d1117;
     --value-bg: #0d1117;
     --success: #4fc08d;
@@ -87,6 +97,9 @@ html.dark-mode {
   --danger-fill: #8f1d17;
   --info-fill: #0b5cab;
   --border: #2c3a50;
+  --field-border: #5f7189;
+  --warning-text: #ffb74d;
+  --accent2-text: #e4525a;
   --field: #0d1117;
   --value-bg: #0d1117;
   --success: #4fc08d;
@@ -414,14 +427,16 @@ select {
   padding: 10px 12px;
   background: var(--field);
   color: var(--text);
-  border: 1px solid var(--border);
+  /* --field-border, not --border: the field fill matches the panel, so this
+     1px edge is the only thing identifying the control (WCAG 1.4.11). */
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   font-size: 1rem;
   min-height: 48px;
 }
 /* Immediate invalid feedback once the user has actually interacted with a
    field (:user-invalid, not :invalid, so empty untouched inputs stay calm).
-   The full message still arrives on Set/blur — this is the early cue. */
+   The full message still arrives on Set — this is the early cue. */
 input:user-invalid {
   border-color: var(--danger);
 }
@@ -1917,8 +1932,8 @@ html.dark-mode .guide-card {
   color: var(--success);
 }
 .health-cell[data-state='warn'] {
-  border-color: color-mix(in srgb, var(--warning, #c77700) 50%, transparent);
-  color: var(--warning, #c77700);
+  border-color: color-mix(in srgb, var(--warning-text, #9a6200) 50%, transparent);
+  color: var(--warning-text, #9a6200);
 }
 .health-cell[data-state='err'] {
   border-color: var(--danger);
@@ -2358,11 +2373,13 @@ html.dark-mode .appearance-popup {
     opacity: 0.6;
   }
 }
-/* The available version pops when an update is waiting. */
+/* The available version pops when an update is waiting. --accent2-text: the
+   dark --accent2 is a button fill (white text on it), too dark for text on
+   the dark page — this token keeps the red while clearing AA. */
 #fwLatestVersion.fw-new {
-  color: var(--accent2);
+  color: var(--accent2-text);
   font-weight: 700;
-  border-color: var(--accent2);
+  border-color: var(--accent2-text);
 }
 /* While the wizard runs, the check rows recede and only the panel matters. */
 #sec-firmware[data-wizard] .fw-check-rows {

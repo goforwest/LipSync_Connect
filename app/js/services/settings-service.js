@@ -449,6 +449,11 @@ export async function loadDeviceInfo() {
     log('Loading timed out overall; some values may be missing.', 'log-err');
   }, LOAD_TOTAL_TIMEOUT);
   const timingSamples = [];
+  // One status update for the whole load, not one per endpoint: #status is a
+  // live region, and 31 queued "loading 5/31…" re-announcements bury the
+  // actual outcome for screen-reader users. Per-endpoint progress stays on
+  // the progress bar (and its label), which speak only when focused.
+  setStatus('Connected — loading settings…', true);
   for (let i = 0; i < tasks.length; i++) {
     if (!serialSession.port || loadAborted) break;
     // Version-gated task (e.g. the 4.4.0+ restriction and timing endpoints):
@@ -461,7 +466,6 @@ export async function loadDeviceInfo() {
       else markRestrictionsUnavailable();
       continue;
     }
-    setStatus(`Connected — loading ${i + 1}/${tasks.length}…`, true);
     if (progBar) progBar.value = i + 1;
     attempted++;
     const remaining =
@@ -695,28 +699,15 @@ export async function readCalibration() {
   $('calStatus').textContent = 'Calibration values refreshed.';
 }
 
-// Input coercion/validation for numeric fields. protocol's fmtApiFloat pads
-// values to the wire length the firmware validator accepts.
+// Input coercion for numeric fields. protocol's fmtApiFloat pads values to
+// the wire length the firmware validator accepts. Validation happens at Set
+// (the single write gate) — drafts are never silently rewritten into
+// boundary values on blur or before a write.
 export function requireNumber(id, min, max, label) {
   const value = Number($(id).value);
   if (!Number.isFinite(value) || value < min || value > max)
     throw new Error(`${label} must be between ${min} and ${max}.`);
   return value;
-}
-export function clampInput(id, min, max, fallbackId) {
-  const el = $(id);
-  const value = Number(el.value);
-  if (!Number.isFinite(value)) {
-    const fallback = Number($(fallbackId).textContent);
-    el.value = Number.isFinite(fallback) ? fallback : min;
-    el.reportValidity();
-    return;
-  }
-  const clamped = Math.max(min, Math.min(max, value));
-  if (clamped !== value) {
-    el.value = clamped;
-    el.reportValidity();
-  }
 }
 
 export async function setDeadzone(kind) {
@@ -725,8 +716,14 @@ export async function setDeadzone(kind) {
   const inputEl = $(isInner ? 'innerDeadzone' : 'outerDeadzone');
   const fallbackId = isInner ? 'innerDeadzoneVal' : 'outerDeadzoneVal';
   const otherValId = isInner ? 'outerDeadzoneVal' : 'innerDeadzoneVal';
-  clampInput(inputEl.id, 0.01, 1, fallbackId);
-  const value = requireNumber(inputEl.id, 0.01, 1, isInner ? 'Inner deadzone' : 'Outer deadzone');
+  // Ceiling is 0.99, not 1.0: the firmware's GET normalizes a stored deadzone
+  // of >= 1.0 back to its defaults, so 1.00 would "succeed" on the wire and
+  // then silently revert (possibly leaving inner > outer) on the next load.
+  const value0 = requireNumber(inputEl.id, 0.01, 0.99, isInner ? 'Inner deadzone' : 'Outer deadzone');
+  // Snap to the 0.01 grid the device echoes: a typed 0.1234 would otherwise
+  // be stored and echoed back as 0.12, failing the echo match after the
+  // write already landed. The steppers live on the same grid.
+  const value = Math.round(value0 * 100) / 100;
   const otherText = $(otherValId).textContent;
   const otherVal = Number(otherText);
   if (!Number.isFinite(otherVal))

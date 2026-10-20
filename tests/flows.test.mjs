@@ -495,3 +495,56 @@ test("raw command longer than the firmware's 11-character line cap is refused", 
   );
   doc.getElementById('rawCommand').value = 'EX,0:0';
 });
+
+// ---- Exact-value typed Set: the single write gate ----
+// An empty or out-of-range draft must never be silently rewritten into a
+// boundary value and sent: the Set click refuses inline, the wire stays
+// quiet, and the draft stays in the field for the user to fix.
+
+test('typed threshold Set refuses empty and out-of-range drafts without a wire write', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS'
+      ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }]
+      : [{ delay: 5, line: `SUCCESS,0:${text.slice(0, 4)}:${text.slice(5)}` }],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('sapError').textContent = '';
+  const before = sent.length;
+  doc.getElementById('sipInput').value = '';
+  await clickAndDrain('btnSetSip');
+  assert.match(doc.getElementById('sapError').textContent, /between 2 and 149\.99/);
+  doc.getElementById('sipInput').value = '500';
+  await clickAndDrain('btnSetSip');
+  assert.match(doc.getElementById('sapError').textContent, /between 2 and 149\.99/);
+  detach();
+  assert.equal(sent.length, before, 'an invalid draft never reaches the wire');
+});
+
+test('typed deadzone Set snaps to the 0.01 grid and refuses the 1.0 ceiling', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS'
+      ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }]
+      : [{ delay: 5, line: `SUCCESS,0:${text.slice(0, 4)}:${text.slice(5)}` }],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('innerDeadzoneVal').textContent = '0.05';
+  doc.getElementById('outerDeadzoneVal').textContent = '0.95';
+  doc.getElementById('formError').textContent = '';
+  // Off-grid drafts snap to the grid the device echoes — 0.1234 cannot
+  // round-trip (the firmware would store and echo 0.12), so the app sends
+  // 0.12 instead of writing a value it would then report as failed.
+  doc.getElementById('innerDeadzone').value = '0.1234';
+  await clickAndDrain('btnSetInnerDeadzone');
+  assert.ok(sent.some((t) => t.includes('IZ,1:0.12')), JSON.stringify(sent));
+  assert.ok(!sent.some((t) => t.includes('0.1234')), JSON.stringify(sent));
+  assert.equal(doc.getElementById('innerDeadzoneVal').textContent, '0.12');
+  // 1.00 "succeeds" on the wire but the firmware normalizes >= 1.0 back to
+  // its defaults on read — the app refuses it up front.
+  const sentBefore = sent.length;
+  doc.getElementById('formError').textContent = '';
+  doc.getElementById('innerDeadzone').value = '1';
+  await clickAndDrain('btnSetInnerDeadzone');
+  assert.match(doc.getElementById('formError').textContent, /between 0\.01 and 0\.99/);
+  detach();
+  assert.equal(sent.length, sentBefore, 'the unholdable 1.00 never reaches the wire');
+});
