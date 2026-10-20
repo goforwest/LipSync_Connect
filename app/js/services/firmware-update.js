@@ -16,6 +16,7 @@ import { handleBeforeUnload, setStatus } from '../ui/connection-ui.js';
 import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
 import { setWriteConfirmSuppressed } from './confirm.js';
+import { updateReadiness } from './readiness.js';
 import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
@@ -363,6 +364,7 @@ function setUpdateButton(entry, deviceVersion) {
     if (available) nav.setAttribute('data-notify', 'firmware-update');
     else nav.removeAttribute('data-notify');
   }
+  updateReadiness(); // the strip derives from this button's state
 }
 
 function describeCheckedAgo(checkedAt) {

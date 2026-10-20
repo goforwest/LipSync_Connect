@@ -1119,6 +1119,55 @@ summary {
     padding: 8px 16px 24px;
   }
 }
+/* ---- Readiness strip (services/readiness.js) ----
+   Post-connect orientation: "All set ✓" or jump-link chips for the things
+   worth looking at. First element inside main, above the cards. */
+.readiness-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.readiness-strip[hidden] {
+  display: none;
+}
+.ready-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  min-height: 40px;
+  font-size: 0.9rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+.ready-chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+button.ready-chip:hover {
+  border-color: var(--accent);
+}
+.ready-chip--ok {
+  background: color-mix(in srgb, var(--success) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+.ready-chip--ok::before {
+  background: var(--success);
+}
+.ready-chip--info::before {
+  background: var(--info);
+}
+.ready-chip--warn::before {
+  background: var(--warning);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

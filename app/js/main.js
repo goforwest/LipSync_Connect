@@ -42,6 +42,7 @@ import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
+import { updateReadiness } from './services/readiness.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -147,6 +148,7 @@ const clearSessionUi = () => {
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   hideWriteConfirm(); // a stale Undo must never point at a dead session
+  updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
 };
 

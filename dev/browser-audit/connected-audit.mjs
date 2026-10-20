@@ -84,6 +84,28 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(dev),
     );
 
+    // Readiness strip: after the load + automatic update check, the strip
+    // shows the update chip (the fake offers 4.5.4 vs connected 4.5.2) and
+    // the not-run health chip — the two things worth looking at. Poll: the
+    // update check lands asynchronously.
+    let strip1 = null;
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(300);
+      strip1 = await evalCard(() => ({
+        hidden: document.getElementById('readinessStrip').hidden,
+        chips: [...document.getElementById('readinessStrip').children].map((c) => c.textContent.trim()),
+      }));
+      if (!strip1.hidden && strip1.chips.some((t) => t.includes('Health check'))) break;
+    }
+    // (The audit blocks api.github.com, so the automatic update check cannot
+    // resolve here — the firmware chip is exercised by the Phase-3 wizard
+    // with the local manifest instead. The health chip is the honest signal.)
+    note(
+      'readiness-strip',
+      !strip1.hidden && strip1.chips.some((t) => t.includes('Health check not run yet')),
+      JSON.stringify(strip1),
+    );
+
     await openCard('sec-cursor');
     const cur = await evalCard(() => ({
       speed: document.getElementById('speedVal').textContent,

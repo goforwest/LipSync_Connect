@@ -7,6 +7,7 @@ import { announceStatus } from '../ui/a11y.js';
 import { setCmdButtons } from '../ui/connection-ui.js';
 import { validFiniteList } from '../utils/format.js';
 import { log } from './log.js';
+import { updateReadiness } from './readiness.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 
@@ -181,6 +182,7 @@ export async function runDiagnostics() {
       }
     }
     $('healthSummary').textContent = findings.length ? 'Needs attention' : 'Passed';
+    updateReadiness();
     // On a clean pass, show a short confirmation and fade it out gently — the
     // header summary ("Passed") plus the ✓ cells carry the lasting state,
     // and an empty notice collapses to zero padding/border.
@@ -206,6 +208,7 @@ export async function runDiagnostics() {
     );
   } catch (e) {
     $('healthSummary').textContent = 'Error';
+    updateReadiness();
     healthEl.textContent = 'Diagnostics failed: ' + e.message;
     // Mark any still-running step as errored so the user sees exactly where it stopped
     for (const s of HEALTH_STEPS) {

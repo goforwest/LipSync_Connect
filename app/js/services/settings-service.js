@@ -22,6 +22,7 @@ import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
 import { updateMeter } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
+import { updateReadiness } from './readiness.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
@@ -476,7 +477,10 @@ export async function loadDeviceInfo() {
   });
   if (progBar) progBar.value = progBar.max;
   if (progLabel) progLabel.textContent = 'Done';
-  if (gen === loadGeneration && serialSession.port) setStatus('Connected', true);
+  if (gen === loadGeneration && serialSession.port) {
+    setStatus('Connected', true);
+    updateReadiness(); // the strip derives from state that just landed
+  }
   if (progRow) {
     clearTimeout(loadDoneTimer);
     loadDoneTimerRef.current = null;
