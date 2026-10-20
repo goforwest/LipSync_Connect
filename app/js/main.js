@@ -43,6 +43,7 @@ import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
+import { bindProfiles } from './services/profiles.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -443,6 +444,7 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnRunDiagnostics').addEventListener('click', guard(runDiagnostics));
     bindDeviceOps(guard);
     bindWriteConfirm(); // the inline write-confirm chip's Undo button
+    bindProfiles(); // named per-user settings profiles (Device card)
     bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
     $('btnSetDebug').addEventListener(

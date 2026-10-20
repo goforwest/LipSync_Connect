@@ -122,6 +122,19 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(taskJump),
     );
 
+    // User profiles: save the current settings under a name.
+    await openCard('sec-device');
+    await page.fill('#profileName', 'Audit profile');
+    await page.click('#btnSaveProfile');
+    await page.waitForTimeout(400);
+    const profSaved = await evalCard(() => ({
+      rows: [...document.querySelectorAll('#profileList .profile-row')].map((r) =>
+        r.querySelector('.profile-name').textContent,
+      ),
+      empty: document.getElementById('profileEmpty').hidden,
+    }));
+    note('profile-save', profSaved.rows.includes('Audit profile') && profSaved.empty, JSON.stringify(profSaved));
+
     await openCard('sec-cursor');
     const cur = await evalCard(() => ({
       speed: document.getElementById('speedVal').textContent,
@@ -216,6 +229,17 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       minus: document.querySelector('[data-target="speed"][data-step="-1"]').disabled,
     }));
     note('stepper-max', atMax.speed === '10' && atMax.plus === true && atMax.minus === false, JSON.stringify(atMax));
+
+    // Profile apply writes the saved settings back — the profile was saved
+    // at speed 7; the max push left it at 10.
+    await openCard('sec-device');
+    await page.click('.profile-apply');
+    await page.waitForTimeout(1800);
+    const profApplied = await evalCard(() => ({
+      speed: document.getElementById('speedVal').textContent,
+      rows: document.querySelectorAll('#profileList .profile-row').length,
+    }));
+    note('profile-apply', profApplied.speed === '7' && profApplied.rows === 1, JSON.stringify(profApplied));
 
     await openCard('sec-switches');
     const sw = await evalCard(() => ({

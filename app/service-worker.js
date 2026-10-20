@@ -1,4 +1,4 @@
-const CACHE = 'lipsync-connect-v35';
+const CACHE = 'lipsync-connect-v36';
 const ASSETS = [
   './',
   './index.html',
@@ -35,6 +35,7 @@ const ASSETS = [
   './js/services/settings-service.js',
   './js/services/confirm.js',
   './js/services/readiness.js',
+  './js/services/profiles.js',
   './js/services/device-ops.js',
   './js/services/calibration.js',
   './js/services/health.js',

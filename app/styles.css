@@ -1119,6 +1119,32 @@ summary {
     padding: 8px 16px 24px;
   }
 }
+/* ---- User profiles (Device card) ---- */
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.profile-name {
+  font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 8em;
+}
+.profile-date {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 /* ---- Task-based entry (Help card's Common tasks) ---- */
 .task-list {
   display: flex;

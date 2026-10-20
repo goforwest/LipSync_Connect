@@ -289,6 +289,27 @@
           Full refresh takes ~2 seconds on firmware 4.2.0+ (up to ~30 seconds on older firmware). Values appear as they
           load.
         </p>
+        <div class="diag-group">
+          <p class="diag-title">User profiles</p>
+          <p class="hint">
+            Thresholds, speeds, timing, restrictions, and switch mappings are individual &mdash; save the current
+            settings as a named profile (per person), and apply a profile to a shared or newly configured device.
+            Calibration is not included; it belongs to the physical joystick.
+          </p>
+          <div class="row">
+            <label for="profileName">Profile name</label>
+            <input
+              type="text"
+              id="profileName"
+              maxlength="40"
+              autocomplete="off"
+              aria-label="Name for a new settings profile"
+            />
+            <button type="button" class="cmd secondary" id="btnSaveProfile" disabled>Save profile</button>
+          </div>
+          <div id="profileList" class="profile-list" aria-label="Saved profiles"></div>
+          <p class="hint" id="profileEmpty">No saved profiles yet.</p>
+        </div>
       </section>
 
       <section class="section-card" id="sec-cursor" aria-label="Cursor">
