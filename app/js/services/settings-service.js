@@ -19,6 +19,7 @@ import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { setStatus } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
+import { fmtApiFloat, fmtHpa } from '../utils/format.js';
 import { updateMeter } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
@@ -166,10 +167,12 @@ export async function setTimingWindow(endpoint, valueMs) {
     throw new Error(`${w.label} must be between ${w.min} and ${w.max} ms.`);
   // The full triple with the new value in place; ordering is only checked
   // when both siblings have loaded (the firmware still guards it either way).
+  // > 0, not just finite: an unloaded readout parses empty as 0, which would
+  // false-refuse a step before its siblings arrive.
   const triple = WINDOW_SETTINGS.map((x) =>
     x.endpoint === endpoint ? valueMs : Number(($(x.valueId)?.textContent || '').trim()),
   );
-  if (triple.every((v) => Number.isFinite(v)) && !(triple[0] < triple[1] && triple[1] < triple[2]))
+  if (triple.every((v) => Number.isFinite(v) && v > 0) && !(triple[0] < triple[1] && triple[1] < triple[2]))
     throw new Error('Timing windows must stay ordered: short < long < max.');
   const resp = await sendCommand(`${endpoint},1:${valueMs}`);
   applyTimingWindowValue(endpoint, resp.value ?? valueMs);
@@ -530,14 +533,33 @@ export async function step(target, delta) {
   pendingSteps.add(target);
   updateStepButtons();
   try {
-    const cur = parseInt($(cfg.valueId).textContent, 10);
-    if (isNaN(cur)) return;
-    const next = cur + delta;
+    const cur = parseFloat(String($(cfg.valueId)?.textContent ?? '').trim());
+    if (!Number.isFinite(cur)) return;
+    // Float steps accumulate binary drift (0.01 is not representable); snap
+    // to the step's own grid so 0.07 + 0.01 is exactly 0.08, never 0.08000…1.
+    const stepSize = cfg.step ?? 1;
+    let next = Math.round((cur + delta * stepSize) / stepSize) * stepSize;
+    next = Number(next.toFixed(4));
     if (next < cfg.min || next > cfg.max) return;
-    const r = await sendCommand(cfg.endpoint + ',1:' + next);
+    if (cfg.endpoint === 'WS' || cfg.endpoint === 'WL' || cfg.endpoint === 'WM') {
+      // The window steppers delegate to the validated write: setTimingWindow
+      // owns the short < long < max ordering contract, and its refusal
+      // message is the honest answer to a step that cannot land.
+      try {
+        await setTimingWindow(cfg.endpoint, next);
+      } catch (e) {
+        const err = $('sapError');
+        if (err) err.textContent = e.message;
+      }
+      return;
+    }
+    // Floats ride the wire as fmtApiFloat (the exact same format the
+    // typed-value Set buttons send); ints go as plain decimals.
+    const wire = stepSize < 1 ? fmtApiFloat(next) : String(next);
+    const r = await sendCommand(cfg.endpoint + ',1:' + wire);
     const result = Number(r.value ?? next);
-    setValue(cfg.valueId, result);
-    updateMeter(cfg.meter, result);
+    setValue(cfg.valueId, cfg.hpa ? fmtHpa(result) : result);
+    if (cfg.meter) updateMeter(cfg.meter, result);
   } catch (e) {
     log(e.message, 'log-err');
   } finally {
@@ -554,12 +576,12 @@ export function updateStepButtons() {
       b.disabled = true;
       return;
     }
-    const val = parseInt($(cfg.valueId).textContent, 10);
-    if (isNaN(val)) {
+    const val = parseFloat(String($(cfg.valueId)?.textContent ?? '').trim());
+    if (!Number.isFinite(val)) {
       b.disabled = true;
       return;
     }
-    const delta = parseInt(b.dataset.step, 10);
+    const delta = parseFloat(b.dataset.step) * (cfg.step ?? 1);
     b.disabled = val + delta < cfg.min || val + delta > cfg.max;
   });
 }

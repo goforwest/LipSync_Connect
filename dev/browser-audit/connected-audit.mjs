@@ -139,12 +139,23 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       markLeft: document.getElementById('gaugeSipMark').style.left,
       scaleLabel: document.getElementById('gaugeSipLabel').textContent,
     }));
+    await page.click('[data-target="st"][data-step="1"]');
+    await page.waitForTimeout(500);
+    note(
+      'threshold-stepper',
+      (await evalCard(() => document.getElementById('sipVal').textContent)) === '12.75',
+      'sip 12.50 + 0.25 via the stepper',
+    );
+    await page.click('#btnWriteUndo');
+    await page.waitForTimeout(500);
+
     note(
       'sip-values',
       sip.sipVal === '12.50' && sip.puffVal === '25.00' && sip.sipInput === '12.50' && sip.markLeft !== '' && sip.scaleLabel.includes('hPa'),
       JSON.stringify(sip),
     );
 
+    await page.click('text=Set exact threshold values');
     await page.fill('#sipInput', '20');
     await page.click('#btnSetSip');
     await page.waitForTimeout(600);
@@ -445,6 +456,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('cal-done', calDone.status.includes('Calibration complete') && calDone.done >= 6 && calDone.cornerDots === 4, JSON.stringify(calDone));
 
     await openCard('sec-sip');
+    await page.click('text=Set exact window values');
     await page.fill('#w1Input', '600');
     await page.click('#btnSetWS');
     await page.waitForTimeout(600);

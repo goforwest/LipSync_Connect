@@ -189,6 +189,21 @@ export const STEP_TARGETS = {
   // picks the side — 0 lights nothing, matching the "0 = off" hint.
   accel: { endpoint: 'AV', valueId: 'accelVal', meter: 'accelMeter', min: -10, max: 10 },
   brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
+  // ---- Float and window steppers ----
+  // These were typed-number fields first (see index.html's "Set exact…"
+  // disclosures); the stepper buttons are now the primary interaction — a
+  // motor-limited user never needs the keyboard. `step` is the fine
+  // granularity (the coarse buttons multiply it via data-step); writes go
+  // through the same queue, validation, and undo chip as every other write.
+  // The window steppers delegate to setTimingWindow, which owns the
+  // short < long < max ordering contract.
+  st: { endpoint: 'ST', valueId: 'sipVal', min: 2, max: 149.99, step: 0.25, hpa: true },
+  pt: { endpoint: 'PT', valueId: 'puffVal', min: 2, max: 149.99, step: 0.25, hpa: true },
+  iz: { endpoint: 'IZ', valueId: 'innerDeadzoneVal', min: 0.01, max: 1, step: 0.01 },
+  oz: { endpoint: 'OZ', valueId: 'outerDeadzoneVal', min: 0.01, max: 1, step: 0.01 },
+  ws: { endpoint: 'WS', valueId: 'w1Val', min: 200, max: 2500, step: 50 },
+  wl: { endpoint: 'WL', valueId: 'w2Val', min: 400, max: 6000, step: 50 },
+  wm: { endpoint: 'WM', valueId: 'w3Val', min: 1000, max: 10000, step: 50 },
 };
 
 // ---- Input restrictions (roadmap item 11; firmware 4.4.0+) ----

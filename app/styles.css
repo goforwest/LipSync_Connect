@@ -586,6 +586,18 @@ progress {
 .switch-cell select {
   width: 100%;
 }
+/* "Set exact…" disclosures: the typed-number inputs are the power-user
+   escape hatch under each stepper row — collapsed by default. */
+.exact-values {
+  margin: 6px 0 10px;
+}
+.exact-values summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.exact-values[open] summary {
+  margin-bottom: 8px;
+}
 .hold-chip {
   align-self: flex-start;
   padding: 3px 12px;

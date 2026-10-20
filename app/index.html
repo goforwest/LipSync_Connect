@@ -390,37 +390,128 @@
         <div class="diag-group">
           <p class="diag-title">Thresholds</p>
           <div class="row">
-            <label for="sipInput">Sip threshold (2–150 hPa)</label>
+            <label>Sip threshold (2–150 hPa)</label>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-4"
+              data-target="st"
+              aria-label="Decrease sip threshold by 1 hPa"
+              disabled
+            >
+              &minus;1
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-1"
+              data-target="st"
+              aria-label="Decrease sip threshold by 0.25 hPa"
+              disabled
+            >
+              &minus;
+            </button>
             <span class="value" id="sipVal">&mdash;</span>
-            <input
-              type="number"
-              id="sipInput"
-              min="2"
-              max="149.99"
-              step="0.25"
-              inputmode="decimal"
-              autocomplete="off"
-              aria-label="New sip threshold"
-              aria-describedby="sapError"
-            />
-            <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
+            <span class="hint row-hint" aria-hidden="true">hPa</span>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="1"
+              data-target="st"
+              aria-label="Increase sip threshold by 0.25 hPa"
+              disabled
+            >
+              +
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="4"
+              data-target="st"
+              aria-label="Increase sip threshold by 1 hPa"
+              disabled
+            >
+              +1
+            </button>
           </div>
           <div class="row">
-            <label for="puffInput">Puff threshold (2–150 hPa)</label>
+            <label>Puff threshold (2–150 hPa)</label>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-4"
+              data-target="pt"
+              aria-label="Decrease puff threshold by 1 hPa"
+              disabled
+            >
+              &minus;1
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-1"
+              data-target="pt"
+              aria-label="Decrease puff threshold by 0.25 hPa"
+              disabled
+            >
+              &minus;
+            </button>
             <span class="value" id="puffVal">&mdash;</span>
-            <input
-              type="number"
-              id="puffInput"
-              min="2"
-              max="149.99"
-              step="0.25"
-              inputmode="decimal"
-              autocomplete="off"
-              aria-label="New puff threshold"
-              aria-describedby="sapError"
-            />
-            <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
+            <span class="hint row-hint" aria-hidden="true">hPa</span>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="1"
+              data-target="pt"
+              aria-label="Increase puff threshold by 0.25 hPa"
+              disabled
+            >
+              +
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="4"
+              data-target="pt"
+              aria-label="Increase puff threshold by 1 hPa"
+              disabled
+            >
+              +1
+            </button>
           </div>
+          <details class="exact-values">
+            <summary>Set exact threshold values&hellip;</summary>
+            <div class="row">
+              <label for="sipInput">Exact sip value (2–150 hPa)</label>
+              <input
+                type="number"
+                id="sipInput"
+                min="2"
+                max="149.99"
+                step="0.25"
+                inputmode="decimal"
+                autocomplete="off"
+                aria-label="New sip threshold"
+                aria-describedby="sapError"
+              />
+              <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
+            </div>
+            <div class="row">
+              <label for="puffInput">Exact puff value (2–150 hPa)</label>
+              <input
+                type="number"
+                id="puffInput"
+                min="2"
+                max="149.99"
+                step="0.25"
+                inputmode="decimal"
+                autocomplete="off"
+                aria-label="New puff threshold"
+                aria-describedby="sapError"
+              />
+              <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
+            </div>
+          </details>
           <div class="row">
             <label>Live pressure</label>
             <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
@@ -474,53 +565,188 @@
         <div class="diag-group">
           <p class="diag-title">Hold timing</p>
           <div class="row">
-            <label for="w1Input">Short input window (200–2500 ms)</label>
+            <label>Short input window (200–2500 ms)</label>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-5"
+              data-target="ws"
+              aria-label="Decrease short input window by 250 ms"
+              disabled
+            >
+              &minus;250
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-1"
+              data-target="ws"
+              aria-label="Decrease short input window by 50 ms"
+              disabled
+            >
+              &minus;
+            </button>
             <span class="value" id="w1Val">&mdash;</span>
-            <input
-              type="number"
-              id="w1Input"
-              min="200"
-              max="2500"
-              step="50"
-              inputmode="numeric"
-              autocomplete="off"
-              aria-label="New short input window in milliseconds"
-              aria-describedby="sapError"
-            />
-            <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
+            <span class="hint row-hint" aria-hidden="true">ms</span>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="1"
+              data-target="ws"
+              aria-label="Increase short input window by 50 ms"
+              disabled
+            >
+              +
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="5"
+              data-target="ws"
+              aria-label="Increase short input window by 250 ms"
+              disabled
+            >
+              +250
+            </button>
           </div>
           <div class="row">
-            <label for="w2Input">Long input window (400–6000 ms)</label>
+            <label>Long input window (400–6000 ms)</label>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-5"
+              data-target="wl"
+              aria-label="Decrease long input window by 250 ms"
+              disabled
+            >
+              &minus;250
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-1"
+              data-target="wl"
+              aria-label="Decrease long input window by 50 ms"
+              disabled
+            >
+              &minus;
+            </button>
             <span class="value" id="w2Val">&mdash;</span>
-            <input
-              type="number"
-              id="w2Input"
-              min="400"
-              max="6000"
-              step="50"
-              inputmode="numeric"
-              autocomplete="off"
-              aria-label="New long input window in milliseconds"
-              aria-describedby="sapError"
-            />
-            <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
+            <span class="hint row-hint" aria-hidden="true">ms</span>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="1"
+              data-target="wl"
+              aria-label="Increase long input window by 50 ms"
+              disabled
+            >
+              +
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="5"
+              data-target="wl"
+              aria-label="Increase long input window by 250 ms"
+              disabled
+            >
+              +250
+            </button>
           </div>
           <div class="row">
-            <label for="w3Input">Max input window (1000–10000 ms)</label>
+            <label>Max input window (1000–10000 ms)</label>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-5"
+              data-target="wm"
+              aria-label="Decrease max input window by 250 ms"
+              disabled
+            >
+              &minus;250
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="-1"
+              data-target="wm"
+              aria-label="Decrease max input window by 50 ms"
+              disabled
+            >
+              &minus;
+            </button>
             <span class="value" id="w3Val">&mdash;</span>
-            <input
-              type="number"
-              id="w3Input"
-              min="1000"
-              max="10000"
-              step="50"
-              inputmode="numeric"
-              autocomplete="off"
-              aria-label="New max input window in milliseconds"
-              aria-describedby="sapError"
-            />
-            <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
+            <span class="hint row-hint" aria-hidden="true">ms</span>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="1"
+              data-target="wm"
+              aria-label="Increase max input window by 50 ms"
+              disabled
+            >
+              +
+            </button>
+            <button
+              type="button"
+              class="cmd secondary"
+              data-step="5"
+              data-target="wm"
+              aria-label="Increase max input window by 250 ms"
+              disabled
+            >
+              +250
+            </button>
           </div>
+          <details class="exact-values">
+            <summary>Set exact window values&hellip;</summary>
+            <div class="row">
+              <label for="w1Input">Exact short window (200–2500 ms)</label>
+              <input
+                type="number"
+                id="w1Input"
+                min="200"
+                max="2500"
+                step="50"
+                inputmode="numeric"
+                autocomplete="off"
+                aria-label="New short input window in milliseconds"
+                aria-describedby="sapError"
+              />
+              <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
+            </div>
+            <div class="row">
+              <label for="w2Input">Exact long window (400–6000 ms)</label>
+              <input
+                type="number"
+                id="w2Input"
+                min="400"
+                max="6000"
+                step="50"
+                inputmode="numeric"
+                autocomplete="off"
+                aria-label="New long input window in milliseconds"
+                aria-describedby="sapError"
+              />
+              <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
+            </div>
+            <div class="row">
+              <label for="w3Input">Exact max window (1000–10000 ms)</label>
+              <input
+                type="number"
+                id="w3Input"
+                min="1000"
+                max="10000"
+                step="50"
+                inputmode="numeric"
+                autocomplete="off"
+                aria-label="New max input window in milliseconds"
+                aria-describedby="sapError"
+              />
+              <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
+            </div>
+          </details>
           <p class="hint">
             How long a sip or puff must be held to trigger each action (short &rarr; click/drag, long &rarr;
             scroll/menu, very long &rarr; more). Requires firmware 4.4.0+; the Hub menu offers the same settings under
@@ -773,32 +999,125 @@
           </button>
         </div>
         <div class="row">
-          <label for="innerDeadzone">Inner deadzone</label><span class="value" id="innerDeadzoneVal">&mdash;</span
-          ><input
-            type="number"
-            id="innerDeadzone"
-            min="0.01"
-            max="1"
-            step="0.01"
-            inputmode="decimal"
-            autocomplete="off"
-            aria-describedby="formError"
-          /><button type="button" class="cmd" id="btnSetInnerDeadzone" disabled>Set</button>
+          <label>Inner deadzone</label>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-5"
+            data-target="iz"
+            aria-label="Decrease inner deadzone by 0.05"
+            disabled
+          >
+            &minus;.05
+          </button>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="iz"
+            aria-label="Decrease inner deadzone by 0.01"
+            disabled
+          >
+            &minus;
+          </button>
+          <span class="value" id="innerDeadzoneVal">&mdash;</span>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="iz"
+            aria-label="Increase inner deadzone by 0.01"
+            disabled
+          >
+            +
+          </button>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="5"
+            data-target="iz"
+            aria-label="Increase inner deadzone by 0.05"
+            disabled
+          >
+            +.05
+          </button>
         </div>
         <div class="row">
-          <label for="outerDeadzone">Outer deadzone</label><span class="value" id="outerDeadzoneVal">&mdash;</span
-          ><input
-            type="number"
-            id="outerDeadzone"
-            min="0.01"
-            max="1"
-            step="0.01"
-            inputmode="decimal"
-            autocomplete="off"
-            aria-describedby="formError"
-          /><button type="button" class="cmd" id="btnSetOuterDeadzone" disabled>Set</button>
+          <label>Outer deadzone</label>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-5"
+            data-target="oz"
+            aria-label="Decrease outer deadzone by 0.05"
+            disabled
+          >
+            &minus;.05
+          </button>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="-1"
+            data-target="oz"
+            aria-label="Decrease outer deadzone by 0.01"
+            disabled
+          >
+            &minus;
+          </button>
+          <span class="value" id="outerDeadzoneVal">&mdash;</span>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="1"
+            data-target="oz"
+            aria-label="Increase outer deadzone by 0.01"
+            disabled
+          >
+            +
+          </button>
+          <button
+            type="button"
+            class="cmd secondary"
+            data-step="5"
+            data-target="oz"
+            aria-label="Increase outer deadzone by 0.05"
+            disabled
+          >
+            +.05
+          </button>
         </div>
-        <p class="hint">Range 0.01–1.0. Inner &lt; outer. Rings update when set.</p>
+        <details class="exact-values">
+          <summary>Set exact deadzone values&hellip;</summary>
+          <div class="row">
+            <label for="innerDeadzone">Exact inner deadzone value (0.01&ndash;1)</label>
+            <input
+              type="number"
+              id="innerDeadzone"
+              min="0.01"
+              max="1"
+              step="0.01"
+              inputmode="decimal"
+              autocomplete="off"
+              aria-describedby="formError"
+            />
+            <button type="button" class="cmd" id="btnSetInnerDeadzone" disabled>Set</button>
+          </div>
+          <div class="row">
+            <label for="outerDeadzone">Exact outer deadzone value (0.01&ndash;1)</label>
+            <input
+              type="number"
+              id="outerDeadzone"
+              min="0.01"
+              max="1"
+              step="0.01"
+              inputmode="decimal"
+              autocomplete="off"
+              aria-describedby="formError"
+            />
+            <button type="button" class="cmd" id="btnSetOuterDeadzone" disabled>Set</button>
+          </div>
+        </details>
+        <p class="hint">Range 0.01&ndash;1.0. Inner &lt; outer. Rings update when set.</p>
         <div class="error" id="formError" role="alert"></div>
         <div class="row">
           <label>Live joystick</label>

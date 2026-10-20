@@ -339,6 +339,30 @@ export function installGatingDom(existingEls = null) {
       switchPanels.push(panel);
     }
   }
+  // Stepper buttons (index.html's data-step/data-target rows — the coarse
+  // and fine steppers for every STEP_TARGETS entry). updateStepButtons
+  // disables them by bounds and the stepper tests read that state by
+  // selector, so both selector surfaces must resolve.
+  const stepButtons = [
+    ['speed', '-1'], ['speed', '1'],
+    ['scroll', '-1'], ['scroll', '1'],
+    ['accel', '-1'], ['accel', '1'],
+    ['brightness', '-1'], ['brightness', '1'],
+    ['st', '-4'], ['st', '-1'], ['st', '1'], ['st', '4'],
+    ['pt', '-4'], ['pt', '-1'], ['pt', '1'], ['pt', '4'],
+    ['iz', '-5'], ['iz', '-1'], ['iz', '1'], ['iz', '5'],
+    ['oz', '-5'], ['oz', '-1'], ['oz', '1'], ['oz', '5'],
+    ['ws', '-5'], ['ws', '-1'], ['ws', '1'], ['ws', '5'],
+    ['wl', '-5'], ['wl', '-1'], ['wl', '1'], ['wl', '5'],
+    ['wm', '-5'], ['wm', '-1'], ['wm', '1'], ['wm', '5'],
+  ].map(([target, delta]) => {
+    const b = makeEl('button');
+    b.classList.add('cmd');
+    b.dataset.target = target;
+    b.dataset.step = delta;
+    b.disabled = false;
+    return b;
+  });
   // RT buttons are class="cmd" (disabled-by-default until connected), like real markup.
   const cmdBtnLeds = makeEl('button');
   cmdBtnLeds.id = 'btnTestLeds';
@@ -377,11 +401,22 @@ export function installGatingDom(existingEls = null) {
       const panelJack = sel.match(/^\.switch-mode\[data-jack="(.+)"\]$/);
       if (panelJack) return switchPanels.filter((p) => p.dataset.jack === panelJack[1]);
       if (sel === 'button.cmd') return [...els.values()].filter((e) => e && e.classList?.contains('cmd'));
+      if (sel === 'button[data-step]') return stepButtons;
+      const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
+      if (stepSel)
+        return (
+          stepButtons.find(
+            (b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2],
+          ) ?? null
+        );
       return [];
     },
     querySelector(sel) {
       const m = sel.match(/^\.circle-trigger\[data-section="(.+)"\]$/);
       if (m) return navs.find((b) => b.dataset.section === m[1]) || null;
+      const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
+      if (stepSel)
+        return stepButtons.find((b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2]) ?? null;
       if (sel === 'header .logo') return null;
       return null;
     },
