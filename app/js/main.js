@@ -136,7 +136,7 @@ window.addEventListener('unhandledrejection', (e) => {
 // root for this ordering).
 import './serial/endpoints.js';
 import { configureConnection } from './serial/connection.js';
-import { configureSettingsListeners } from './services/settings-service.js';
+import { configureSettingsListeners, clearLoadTimer } from './services/settings-service.js';
 import { clearHealthResults, hideHealthHistory } from './services/health.js';
 // Disconnect (and a fresh settings load) must clear stale health results AND
 // the mirrored Hub screen — the device's menu dies with the port. The
@@ -153,6 +153,7 @@ const clearSessionUi = () => {
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
+  clearLoadTimer();
 };
 // The DISCONNECT reset additionally closes the guided wizard: a mid-flow
 // wizard must not point at a dead session. The load-start reset above must

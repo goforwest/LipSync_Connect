@@ -31,11 +31,19 @@ import { ENDPOINT_RENDERERS } from './registry.js';
 
 let loadDoneTimer = null;
 let loadGeneration = 0;
+let loadTotalTimer = null; // overall-load timeout; cleared on disconnect and supersession
 
 /** Disconnect/start-of-load hook from services/health.js — injected by main. */
 let clearHealth = () => {};
 export function configureSettingsListeners(svc) {
   if (svc?.clearHealth) clearHealth = svc.clearHealth;
+}
+
+/** Clears the overall-load timeout timer. Called on disconnect to prevent
+ *  a stale timer from firing a misleading 'timed out' message 120 s later. */
+export function clearLoadTimer() {
+  clearTimeout(loadTotalTimer);
+  loadTotalTimer = null;
 }
 
 /** @param {string} endpoint @returns {{endpoint: string, checkboxId: string, label: string}|null} */
@@ -406,7 +414,8 @@ export async function loadDeviceInfo() {
     progRow.style.display = '';
     progRow.classList.remove('fade-out');
   }
-  const loadTimer = setTimeout(() => {
+  clearTimeout(loadTotalTimer);
+  loadTotalTimer = setTimeout(() => {
     loadAborted = true;
     announceStatus('Loading timed out overall; some values may be missing.');
     log('Loading timed out overall; some values may be missing.', 'log-err');
@@ -459,7 +468,8 @@ export async function loadDeviceInfo() {
     // A newer load superseded this one — the overall-timeout timer for this
     // stale generation must die too, or it fires later and logs a misleading
     // "timed out" message against the live session.
-    clearTimeout(loadTimer);
+    clearTimeout(loadTotalTimer);
+    loadTotalTimer = null;
     return;
   }
   VALUE_IDS.forEach((id) => {
@@ -504,7 +514,8 @@ export async function loadDeviceInfo() {
       loadDoneTimerRef.current = loadDoneTimer;
     }
   }
-  clearTimeout(loadTimer);
+  clearTimeout(loadTotalTimer);
+  loadTotalTimer = null;
   if (!serialSession.port) return;
   updateStepButtons();
   if (deadLink) {

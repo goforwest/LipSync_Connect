@@ -88,5 +88,8 @@ export function resetHealthHistory() {
     localStorage.removeItem(HISTORY_KEY);
   } catch {}
   const row = $('healthHistory');
-  if (row) row.hidden = true;
+  if (row) {
+    while (row.children?.length) row.removeChild(row.children[row.children.length - 1]);
+    row.hidden = true;
+  }
 }
