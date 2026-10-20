@@ -297,7 +297,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.waitForTimeout(500);
     note('hub-close', (await evalCard(() => document.getElementById('hubScreenWrap').hidden)) === true, 'wrap hidden');
 
-    // Two-way hub remote (CH,5 pushes, firmware 4.5.3 proposal): the mirror
+    // Two-way hub remote (CH,5 pushes — emitted by firmware 4.5.4): the mirror
     // follows device-initiated redraws with no app press, reopens when the
     // device menu opens on its own, and closes when the device closes it.
     await page.evaluate(() => window.__fakeFirmware.pushMenu(1, 0, 0)); // physical: user enters the menu
@@ -549,6 +549,50 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
+    // Watch holds (the Sip & Puff card's practice door into the DEBUG,5
+    // stream): the button starts the hold stream, both ladders sweep with the
+    // device-measured hold, and the card's Hold readout tracks the state.
+    await page.click('#btnWatchHolds');
+    await page.waitForTimeout(700);
+    const wh = await evalCard(() => {
+      const ladder = document.getElementById('winLadder');
+      const sweep = ladder.children[3];
+      return {
+        pressed: document.getElementById('btnWatchHolds').getAttribute('aria-pressed'),
+        text: document.getElementById('btnWatchHolds').textContent.trim(),
+        sweepWidth: sweep.style.width,
+        ladderAria: ladder.getAttribute('aria-label'),
+        holdReadout: document.getElementById('sapHoldVal').textContent,
+        livePressureOff: document.getElementById('btnLivePressure').getAttribute('aria-pressed') === 'false',
+      };
+    });
+    note(
+      'watch-holds',
+      wh.pressed === 'true' &&
+        wh.text === 'Stop watching' &&
+        parseFloat(wh.sweepWidth) > 0 &&
+        wh.ladderAria.includes('Hold at') &&
+        wh.holdReadout.includes('ms') &&
+        wh.livePressureOff,
+      JSON.stringify(wh),
+    );
+    await page.click('#btnWatchHolds');
+    await page.waitForTimeout(400);
+    const whStopped = await evalCard(() => ({
+      pressed: document.getElementById('btnWatchHolds').getAttribute('aria-pressed'),
+      text: document.getElementById('btnWatchHolds').textContent.trim(),
+      sweepWidth: document.getElementById('winLadder').children[3].style.width,
+      ladderAria: document.getElementById('winLadder').getAttribute('aria-label'),
+    }));
+    note(
+      'watch-holds-stop',
+      whStopped.pressed === 'false' &&
+        whStopped.text === 'Watch holds' &&
+        parseFloat(whStopped.sweepWidth) === 0 &&
+        !whStopped.ladderAria.includes('Hold at'),
+      JSON.stringify(whStopped),
+    );
+
     await openCard('sec-device');
     await page.click('#btnRefreshAll');
     await page.waitForTimeout(2500);
@@ -618,6 +662,112 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('share-fallback', share.open && share.title === 'Share log', JSON.stringify({ ...hitInfo, ...share }));
     await page.click('#confirmCancel');
+
+    // ---------------- Phase 3: the full firmware-update wizard ----------------
+    // Uses the dev server's REAL local artifacts: /firmware-manifest.json +
+    // /firmware-files/LipSync_Firmware_4.5.4_dfu.zip from dev/firmware/dist
+    // (the documented localStorage override), the browser-side bootloader
+    // model in the fake, and the fake's app firmware flipping to 4.5.4 when
+    // the bootloader activates. Exercises the whole journey: check →
+    // backup → confirm → UM restart → bootloader port pick → real DFU wire
+    // exchange → STOP/activate → reconnect → verify + settings restore.
+    await page.evaluate(() => {
+      localStorage.removeItem('lipsync-fw-check'); // the offline check from phase 1/2 is cached
+      localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json');
+      window.__fakeFirmware.wantBootloader = false;
+      window.__fakeFirmware.state.VN = '4.5.2';
+      window.__fakeFirmware.targetVersion = '4.5.4';
+    });
+
+    await connect();
+    await openCard('sec-firmware');
+    // The auto-check (post-connect) read the local manifest: 4.5.4 > 4.5.2.
+    const updateBtn = await page.waitForSelector('#btnStartUpdate', { state: 'visible', timeout: 15000 });
+    const fwAvail = await evalCard(() => ({
+      latest: document.getElementById('fwLatestVersion').textContent,
+      installed: document.getElementById('fwCurrentVersion').textContent,
+      status: document.getElementById('fwUpdateStatus').getAttribute('data-state'),
+      notes: !!document.getElementById('fwNotesLink'),
+    }));
+    note(
+      'fw-update-available',
+      fwAvail.latest === '4.5.4' && fwAvail.installed === '4.5.2' && fwAvail.status === 'available',
+      JSON.stringify(fwAvail),
+    );
+
+    // The settings backup fires as a download; then the confirm dialog.
+    const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+    await updateBtn.click();
+    const download = await downloadPromise;
+    await page.waitForTimeout(400);
+    const updDlg = await evalCard(() => ({ open: document.getElementById('confirmDialog').open }));
+    note('fw-wizard-backup+confirm', updDlg.open && download.suggestedFilename().includes('settings'), JSON.stringify({ file: download.suggestedFilename(), open: updDlg.open }));
+    await page.click('#confirmOk');
+
+    // Restart step: UM acked, wizard disconnects and asks for the update port.
+    await page.waitForSelector('#btnFwContinue', { state: 'visible', timeout: 20000 });
+    const restartStep = await evalCard(() => ({
+      stage: document.querySelector('#fwStepRestart').className,
+      text: document.getElementById('fwWizardStep').textContent,
+      connected: document.getElementById('status').textContent,
+    }));
+    note(
+      'fw-wizard-restart',
+      restartStep.stage.includes('active') &&
+        /update port|update mode/.test(restartStep.connected) &&
+        /Continue/.test(restartStep.text),
+      JSON.stringify(restartStep),
+    );
+    await page.click('#btnFwContinue'); // picker → the fake presents the bootloader
+
+    // Flash: real DFU over the bootloader model — erase + ~600 data frames
+    // against the real 4.5.4 package. Poll the progress to 100%.
+    let flashSeen = null;
+    let maxPct = 0;
+    const flashDeadline = Date.now() + 120000;
+    while (Date.now() < flashDeadline) {
+      await page.waitForTimeout(800);
+      flashSeen = await evalCard(() => ({
+        pct: parseInt(document.getElementById('fwPct').textContent) || Math.round(document.getElementById('fwProgress').value) || 0,
+        stage: document.querySelector('#fwStepFlash').className,
+        text: document.getElementById('fwWizardStep').textContent,
+      }));
+      maxPct = Math.max(maxPct, flashSeen.pct);
+      if (flashSeen.text.includes('Firmware installed')) break;
+    }
+    note(
+      'fw-wizard-flash',
+      flashSeen.stage.includes('done') && flashSeen.text.includes('Firmware installed') && maxPct >= 95,
+      JSON.stringify({ ...flashSeen, maxPct }),
+    );
+
+    // Reconnect: the fake re-presents the application, now on 4.5.4 — the
+    // pending-update finisher must verify the version and restore settings.
+    await page.click('#btnConnect');
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, { timeout: 30000 });
+    let restore = null;
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(600);
+      restore = await evalCard(() => ({
+        done: document.getElementById('fwWizard')?.getAttribute('data-state'),
+        text: document.getElementById('fwWizardStep')?.textContent ?? '',
+        version: document.getElementById('version').textContent,
+        fwCurrent: document.getElementById('fwCurrentVersion').textContent,
+        w1: document.getElementById('w1Val').textContent,
+        status: document.getElementById('status').textContent,
+      }));
+      if (restore.done === 'done') break;
+    }
+    note(
+      'fw-wizard-verify+restore',
+      restore.done === 'done' &&
+        restore.text.toLowerCase().includes('complete') &&
+        restore.version === '4.5.4' &&
+        restore.fwCurrent === '4.5.4' &&
+        restore.w1 === '600' && // the fake's post-flash factory default is 500 — only the restore brings 600 back
+        restore.status === 'Connected',
+      JSON.stringify(restore),
+    );
     await ctx.close();
   } finally {
     await browser.close();

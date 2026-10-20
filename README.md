@@ -37,6 +37,9 @@ npm run typecheck       # tsc --checkJs over app/js
 npm test                # unit + integration tests (node)
 npm run test:e2e        # real-browser offline precache test (Playwright Chromium required:
                         # `npm --prefix dev exec playwright-core install chromium`)
+npm run test:browser-audit # real-browser connected-state + viewport audits against a firmware
+                        # fake (same Chromium requirement as the e2e) — exercises layout, focus,
+                        # the a11y tree, and timing the node stubs cannot see
 ```
 
 CI (`.github/workflows/ci.yml`) runs everything above on every push/PR. Secrets and local cert files are never allowed to be tracked.
@@ -73,11 +76,12 @@ app/                      served application (front end)
       dfu/                serial-DFU protocol, transports, DFU package parsing
     services/             settings, calibration, self-test, health, hub mirror, log/export,
                           firmware update (check + flash wizard)
-    plotting/             joystick plot, pressure gauge, live diagnostics
+    plotting/             joystick plot, pressure gauge, live diagnostics, input-window ladder
     ui/                   connection chrome, sections, theme, a11y, guard
     state/ modes.js       operating/communication mode state
   service-worker.js       offline precache
 dev/                      dev server, lint/type/format configs, test runner entry
+  browser-audit/          real-browser connected-state + viewport audits (firmware fake)
   firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
 tests/                    unit + integration tests (node) and firmware simulators
   harness/                DOM stubs, firmware + bootloader simulators, ESM load-order helpers

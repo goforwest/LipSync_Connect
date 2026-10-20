@@ -176,6 +176,9 @@
       return;
     }
     if (ep === 'SR' || ep === 'FR' || ep === 'SE' || ep === 'UM') {
+      // UM (4.3.0+): the device enters its update loader — the next port
+      // request presents the bootloader, like the real USB re-enumeration.
+      if (ep === 'UM') window.__fakeFirmware.wantBootloader = true;
       emit(`SUCCESS,0:${ep},1:${val}`);
       return;
     }
@@ -197,14 +200,173 @@
   }
 
   const fakeSerial = {
-    requestPort: async () => makePort(),
+    requestPort: async () => {
+      if (window.__fakeFirmware.wantBootloader) return makeBootloaderPort();
+      return makePort();
+    },
     getPorts: async () => [],
     _fake: true,
   };
+
+  // ---- Simulated XIAO nRF52840 stock bootloader (serial-DFU) ----
+  // Behavioral model mirroring tests/harness/bootloader-sim.mjs (the node
+  // harness is not served to the page): transport sequence numbers start at
+  // 1, wrong/duplicate frames are re-ACKed with the current expected number,
+  // PROBE/unknown ops are transport-ACKed and ignored, START records sizes,
+  // INIT/DATA accumulate, and STOP activates — flipping the fake's app
+  // firmware to the target version and "rebooting" (departing the port) so
+  // the next requestPort hands back the running application.
+  let proto = null;
+  async function loadProto() {
+    if (!proto) proto = await import('./js/serial/dfu/dfu-protocol.js');
+    return proto;
+  }
+  function makeBootloaderPort() {
+    const st = {
+      expectedSeq: 1,
+      initPacket: new Uint8Array(0),
+      dataBytes: new Uint8Array(0),
+      startSizes: null,
+      activated: false,
+      departed: false,
+    };
+    const readQueue = [];
+    const readWaiters = [];
+    const departedError = () => {
+      const e = new Error('Failed to execute "open" on "SerialPort": Failed to open serial port.');
+      e.name = 'NetworkError';
+      return e;
+    };
+    function depart() {
+      if (st.departed) return;
+      st.departed = true;
+      for (const w of readWaiters.splice(0)) w.rej(departedError());
+      readQueue.length = 0;
+    }
+    function enqueue(bytes) {
+      if (st.departed) return;
+      const w = readWaiters.shift();
+      if (w) w.res({ value: bytes, done: false });
+      else readQueue.push(bytes);
+    }
+    function ackFrame() {
+      const b0 = (1 << 7) | (1 << 6) | ((st.expectedSeq & 0x07) << 3);
+      const b1 = 14,
+        b2 = 0,
+        b3 = (~(b0 + b1 + b2) + 1) & 0xff;
+      const head = new Uint8Array([b0, b1, b2, b3]);
+      const crc = crc16(head);
+      const frame = new Uint8Array([...head, crc & 0xff, (crc >> 8) & 0xff]);
+      return new Uint8Array([0xc0, ...slipEncode(frame), 0xc0]);
+    }
+    async function onData(bytes) {
+      const { crc16, slipDecode } = await loadProto();
+      try {
+        if (bytes[0] !== 0xc0 || bytes[bytes.length - 1] !== 0xc0) return;
+        const decoded = slipDecode(bytes.slice(1, -1));
+        if (decoded.length < 6) return;
+        const expectedCrc = decoded[decoded.length - 2] | (decoded[decoded.length - 1] << 8);
+        const body = decoded.slice(0, decoded.length - 2);
+        if (crc16(body) !== expectedCrc) return;
+        const [b0, b1, b2, b3] = body;
+        if (((~(b0 + b1 + b2) + 1) & 0xff) !== b3) return;
+        const seq = b0 & 0x07;
+        const payload = body.slice(4);
+        const op = payload[0] | (payload[1] << 8) | (payload[2] << 16) | (payload[3] << 24);
+        const rest = payload.slice(4);
+        if (seq !== st.expectedSeq) {
+          setTimeout(() => enqueue(ackFrame()), 2); // re-ACK the current expected number
+          return;
+        }
+        st.expectedSeq = (st.expectedSeq + 1) % 8;
+        setTimeout(() => enqueue(ackFrame()), 2); // transport ACKs at receipt
+        if (op === 3) {
+          const u32 = (i) => rest[i] | (rest[i + 1] << 8) | (rest[i + 2] << 16) | (rest[i + 3] << 24);
+          st.startSizes = { softdevice: u32(4), bootloader: u32(8), application: u32(12) };
+        }
+        if (op === 1) {
+          const merged = new Uint8Array(st.initPacket.length + rest.length);
+          merged.set(st.initPacket);
+          merged.set(rest, st.initPacket.length);
+          st.initPacket = merged;
+        }
+        if (op === 4) {
+          const merged = new Uint8Array(st.dataBytes.length + rest.length);
+          merged.set(st.dataBytes);
+          merged.set(rest, st.dataBytes.length);
+          st.dataBytes = merged;
+        }
+        if (op === 5) {
+          const complete =
+            st.initPacket.length > 0 && st.startSizes !== null && st.dataBytes.length === st.startSizes.application;
+          if (complete) {
+            st.activated = true;
+            window.__fakeFirmware.wantBootloader = false;
+            // "Reboot with the new firmware": the flashed device comes back on
+            // the target version with FACTORY settings — the wizard's restore
+            // step must rewrite the backed-up values for them to reappear.
+            window.__fakeFirmware.state.VN = window.__fakeFirmware.targetVersion || '4.5.4';
+            Object.assign(window.__fakeFirmware.state, {
+              SS: '5', SL: '5', AV: '0', ST: '4.00', PT: '4.00', IZ: '0.10', OZ: '0.90',
+              SM: '1', LM: '1', LL: '5', DM: '0',
+              SD: '0', MA: '0', LK: '0', CF: '0',
+              WS: '500', WL: '1000', WM: '2500',
+              IN: '0.00|0.00',
+              CA: '0.00|0.00,9.50|8.30,-9.40|8.10,-8.20|-7.05,7.90|-6.98',
+            });
+            for (const k of Object.keys(window.__fakeFirmware.switches)) window.__fakeFirmware.switches[k] = [0, 0, 0];
+            setTimeout(depart, 5); // the stock bootloader reboots ~1s after STOP
+          }
+        }
+      } catch {}
+    }
+    let crc16 = () => 0,
+      slipEncode = (b) => b,
+      slipDecode = (b) => b;
+    loadProto().then((p) => {
+      crc16 = p.crc16;
+      slipEncode = p.slipEncode;
+      slipDecode = p.slipDecode;
+    });
+    return {
+      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x0045 }),
+      async open() {
+        if (st.departed) throw departedError();
+        await loadProto();
+      },
+      async close() {
+        if (st.departed) throw departedError();
+      },
+      async setSignals() {},
+      readable: {
+        getReader: () => ({
+          read: () => {
+            if (st.departed) return Promise.reject(departedError());
+            return readQueue.length
+              ? Promise.resolve({ value: readQueue.shift(), done: false })
+              : new Promise((res, rej) => readWaiters.push({ res, rej }));
+          },
+          async cancel() {
+            for (const w of readWaiters.splice(0)) w.res({ value: undefined, done: true });
+          },
+          releaseLock() {},
+        }),
+      },
+      writable: {
+        getWriter: () => ({
+          async write(bytes) {
+            if (st.departed) throw departedError();
+            await onData(bytes);
+          },
+          releaseLock() {},
+        }),
+      },
+    };
+  }
   Object.defineProperty(navigator, 'serial', { value: fakeSerial, configurable: true });
-  window.__fakeFirmware = { state, menu, switches };
+  window.__fakeFirmware = { state, menu, switches, wantBootloader: false, targetVersion: '4.5.4' };
   // Two-way hub remote: emit the firmware's menu-state push (the CH,5 line
-  // protocol 4.5.3 proposes) as if a physical press/redraw just happened on
+  // firmware 4.5.4 emits) as if a physical press/redraw just happened on
   // the device. Updates the internal state so later CH,0:0 polls agree.
   window.__fakeFirmware.pushMenu = (active, page, row) => {
     menu.active = active;
