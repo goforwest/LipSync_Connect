@@ -1035,6 +1035,26 @@ summary {
   .appearance-popup::before {
     right: 20px;
   }
+  /* UI scale: a segmented 100/125/150 control (body zoom — the whole
+   interface scales, not just the fonts). */
+  .scale-seg {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .scale-btn {
+    padding: 6px 12px;
+    min-height: 34px;
+    font-size: 0.85rem;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: inset 0 0 0 1.5px var(--border);
+  }
+  .scale-btn[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--btn-text);
+    box-shadow: none;
+  }
 }
 @media (max-width: 700px) {
   header {

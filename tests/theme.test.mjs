@@ -46,6 +46,7 @@ const setup = () => {
     storage: ctx.storage,
     computedStyles: ctx.computedStyles,
     html: ctx.document.documentElement,
+    document: ctx.document,
   };
 };
 
@@ -115,4 +116,43 @@ test('Reset clears the stored theme and restores default input values', () => {
   // No stored choice => back to following the OS (dark per the stub).
   assert.equal(els.get('btnDarkMode').getAttribute('aria-pressed'), 'true');
   assert.equal(els.get('darkModeLabel').textContent, 'On (Auto)');
+});
+
+test('UI scale: stored scale applies as body zoom on init; 100% is the absence of a choice', () => {
+  const { document: doc, storage } = setup();
+  storage.setItem(THEME_STORAGE_KEY, JSON.stringify({ scale: 1.25 }));
+  initSettings();
+  assert.equal(doc.body.style.zoom, '1.25');
+  // The pressed state follows the stored scale.
+  const pressed = doc
+    .querySelectorAll('.scale-btn')
+    .filter((b) => b.getAttribute('aria-pressed') === 'true')
+    .map((b) => b.dataset.scale);
+  assert.deepEqual(pressed, ['1.25']);
+});
+
+test('UI scale: clicking a size applies, persists, and 100% removes the choice', () => {
+  const { document: doc, storage } = setup();
+  initSettings();
+  const byScale = (s) => doc.querySelectorAll('.scale-btn').find((b) => b.dataset.scale === s);
+  byScale('1.5').dispatch('click');
+  assert.equal(doc.body.style.zoom, '1.5');
+  assert.equal(JSON.parse(storage.getItem(THEME_STORAGE_KEY)).scale, 1.5);
+  assert.equal(byScale('1.5').getAttribute('aria-pressed'), 'true');
+  assert.equal(byScale('1').getAttribute('aria-pressed'), 'false');
+  // Back to 100%: the stored key disappears (the reset convention).
+  byScale('1').dispatch('click');
+  assert.equal(doc.body.style.zoom, '1');
+  assert.equal(JSON.parse(storage.getItem(THEME_STORAGE_KEY)).scale, undefined);
+});
+
+test('UI scale: Reset restores 100% zoom and the pressed state', () => {
+  const { document: doc, els, storage } = setup();
+  storage.setItem(THEME_STORAGE_KEY, JSON.stringify({ scale: 1.5 }));
+  initSettings();
+  assert.equal(doc.body.style.zoom, '1.5');
+  els.get('btnResetColors').dispatch('click');
+  assert.equal(doc.body.style.zoom, '1');
+  const pressed = doc.querySelectorAll('.scale-btn').find((b) => b.getAttribute('aria-pressed') === 'true');
+  assert.equal(pressed.dataset.scale, '1');
 });

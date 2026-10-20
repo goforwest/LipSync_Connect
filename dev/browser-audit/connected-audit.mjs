@@ -791,6 +791,27 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('share-fallback', share.open && share.title === 'Share log', JSON.stringify({ ...hitInfo, ...share }));
     await page.click('#confirmCancel');
 
+    // UI scale: the appearance popup's 100/125/150 control applies body
+    // zoom live and persists; back to 100% removes the choice.
+    await page.click('#btnSettings');
+    await page.waitForTimeout(300);
+    await page.click('.scale-btn[data-scale="1.25"]');
+    await page.waitForTimeout(200);
+    const scaled = await evalCard(() => ({
+      zoom: document.body.style.zoom,
+      pressed: document.querySelector('.scale-btn[data-scale="1.25"]').getAttribute('aria-pressed'),
+      stored: JSON.parse(localStorage.getItem('lipsync-theme') || '{}').scale,
+    }));
+    note('ui-scale-125', scaled.zoom === '1.25' && scaled.pressed === 'true' && scaled.stored === 1.25, JSON.stringify(scaled));
+    await page.click('.scale-btn[data-scale="1"]');
+    await page.waitForTimeout(200);
+    const unscaled = await evalCard(() => ({
+      zoom: document.body.style.zoom,
+      pressed: document.querySelector('.scale-btn[data-scale="1"]').getAttribute('aria-pressed'),
+    }));
+    note('ui-scale-reset', unscaled.zoom === '1' && unscaled.pressed === 'true', JSON.stringify(unscaled));
+    await page.click('#btnSettings'); // close the popup
+
     // ---------------- Phase 3: the full firmware-update wizard ----------------
     // Uses the dev server's REAL local artifacts: /firmware-manifest.json +
     // /firmware-files/LipSync_Firmware_4.5.4_dfu.zip from dev/firmware/dist

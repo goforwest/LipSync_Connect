@@ -343,6 +343,16 @@ export function installGatingDom(existingEls = null) {
   // and fine steppers for every STEP_TARGETS entry). updateStepButtons
   // disables them by bounds and the stepper tests read that state by
   // selector, so both selector surfaces must resolve.
+  // UI-scale buttons (index.html's appearance popup): theme.js binds them
+  // through querySelectorAll and reads/writes aria-pressed; body.style.zoom
+  // is where the applied scale lands.
+  const scaleButtons = ['1', '1.25', '1.5'].map((scale) => {
+    const b = makeEl('button');
+    b.classList.add('scale-btn');
+    b.dataset.scale = scale;
+    b.setAttribute('aria-pressed', String(scale === '1'));
+    return b;
+  });
   const stepButtons = [
     ['speed', '-1'], ['speed', '1'],
     ['scroll', '-1'], ['scroll', '1'],
@@ -402,6 +412,7 @@ export function installGatingDom(existingEls = null) {
       if (panelJack) return switchPanels.filter((p) => p.dataset.jack === panelJack[1]);
       if (sel === 'button.cmd') return [...els.values()].filter((e) => e && e.classList?.contains('cmd'));
       if (sel === 'button[data-step]') return stepButtons;
+      if (sel === '.scale-btn') return scaleButtons;
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
         return (
@@ -438,7 +449,7 @@ export function installGatingDom(existingEls = null) {
     },
     activeElement: null,
     // Legacy-clipboard + download-fallback surfaces (share-log tests).
-    body: { appendChild() {} },
+    body: { appendChild() {}, style: {} },
     execCommand() {
       return true;
     },

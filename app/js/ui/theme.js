@@ -41,6 +41,11 @@ function applyTheme(theme) {
   // Use the *effective* mode: in auto (no stored darkMode) the OS decides, so
   // a live OS flip must recolor the meta too — theme.darkMode would be undefined.
   if (meta) meta.content = effectiveDark(theme) ? '#10151c' : '#f5f7f8';
+  // UI scale: body zoom scales the whole interface (text, spacing, plots,
+  // fixed chrome) — the app is Chromium-only (Web Serial), so zoom is the
+  // honest lever; a rem-only font scale would leave px paddings behind and
+  // split the layout. Absent choice = 100%.
+  if (document.body && document.body.style) document.body.style.zoom = String(theme.scale ?? 1);
   warnLowContrastTheme();
 }
 
@@ -148,6 +153,26 @@ export function initSettings() {
       warnLowContrastTheme();
     });
   });
+  // UI scale: a segmented 100/125/150 control. 100% is stored as the
+  // absence of a choice (same convention as dark-mode-follows-OS).
+  const syncScaleButtons = () => {
+    const current = loadTheme().scale ?? 1;
+    document.querySelectorAll('.scale-btn').forEach((/** @type {any} */ b) => {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.scale) === current));
+    });
+  };
+  document.querySelectorAll('.scale-btn').forEach((/** @type {any} */ btn) => {
+    btn.addEventListener('click', () => {
+      const scale = Number(btn.dataset.scale) || 1;
+      const t = loadTheme();
+      if (scale === 1) delete t.scale;
+      else t.scale = scale;
+      applyTheme(t);
+      saveTheme(t); // before the button sync: it reads the stored theme back
+      syncScaleButtons();
+    });
+  });
+  syncScaleButtons();
   const resetBtn = $('btnResetColors');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
@@ -163,6 +188,7 @@ export function initSettings() {
       });
       applyTheme({});
       syncDarkToggle(darkBtn, darkLabel, {});
+      syncScaleButtons();
     });
   }
 }
