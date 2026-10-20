@@ -55,13 +55,14 @@ try {
   process.exit(1);
 }
 
-const { runConnectedAudit, runViewportAudit } = await import(path.join(dir, 'connected-audit.mjs'));
+const { runConnectedAudit, runViewportAudit, runWizardAudit } = await import(path.join(dir, 'connected-audit.mjs'));
 let failed = 0;
 try {
   const opts = { origin: ORIGIN, chromium, executablePath: chrome };
   for (const [name, run] of [
     ['connected-state', runConnectedAudit],
     ['viewport-matrix', runViewportAudit],
+    ['first-run-wizard', runWizardAudit],
   ]) {
     const findings = await run(opts);
     const fails = findings.filter((f) => !f.ok);

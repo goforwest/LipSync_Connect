@@ -11,7 +11,7 @@ import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { connect } from '../serial/connection.js';
 import { serialSession } from '../serial/session.js';
-import { openSectionById } from '../ui/sections.js';
+import { openSectionById, getOpenSection } from '../ui/sections.js';
 
 // Step order and shape. `done` is a predicate over live UI state, polled
 // while the wizard is open; `action` is the step's primary affordance.
@@ -42,7 +42,11 @@ const STEPS = [
   {
     id: 'thresholds',
     title: 'Thresholds',
-    text: 'In the Sip & Puff card: turn on Live view, have the user sip and puff firmly a few times, then press Suggest thresholds and Apply both. Use the steppers to fine-tune.',
+    // Auto-live starts the pressure stream when the card opens on an idle
+    // device — "turn on Live view" would read as an instruction to press the
+    // button, which toggles that auto-started stream OFF. Say what to check,
+    // not what to press.
+    text: 'In the Sip & Puff card: with the live pressure view running (it starts on its own; the Live view button turns it on if it is not), have the user sip and puff firmly a few times, then press Suggest thresholds and Apply both. Use the steppers to fine-tune, then come back to this panel in Help and press Next.',
     actionLabel: 'Open the Sip & Puff card',
     action: () => {
       openSectionById('sec-sip');
@@ -99,6 +103,12 @@ function poll() {
   if (stepIndex < STEPS.length && STEPS[stepIndex].done && STEPS[stepIndex].done()) {
     stepIndex++;
     renderStep();
+    // The completed step's card took the user elsewhere — its own action
+    // opened it, and the accordion keeps one card open, which collapsed the
+    // Help card this panel lives in. Bring the wizard back with the next
+    // instruction + action on screen the moment the step completes (only
+    // when Help is not already the open card — openSectionById toggles).
+    if (getOpenSection() !== 'sec-help') openSectionById('sec-help');
     if (stepIndex >= STEPS.length) finish();
   }
   pollTimer = setTimeout(poll, POLL_MS);
@@ -144,7 +154,15 @@ export function isWizardActive() {
 /** Button wiring from main.js (composition root). */
 export function bindWizard() {
   const start = $('btnStartWizard');
-  if (start) start.addEventListener('click', () => startWizard());
+  if (start) {
+    // Only reached on serial-capable browsers (main.js wires inside its
+    // supported branch): the entry point comes alive for the very first
+    // run — before any connection — because step 1 of the flow IS the
+    // connect. Unsupported browsers never reach this, so the button
+    // stays disabled and inert there.
+    start.disabled = false;
+    start.addEventListener('click', () => startWizard());
+  }
   const action = $('wizAction');
   if (action)
     action.addEventListener('click', () => {

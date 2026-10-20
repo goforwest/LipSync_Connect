@@ -66,7 +66,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'connect-chrome',
-      chrome1.status === 'Connected' && chrome1.title.includes('Connected') && chrome1.dimmed === 0 && chrome1.cardOff === 0,
+      chrome1.status === 'Connected' &&
+        chrome1.title.includes('Connected') &&
+        chrome1.dimmed === 0 &&
+        chrome1.cardOff === 0,
       JSON.stringify(chrome1),
     );
 
@@ -80,7 +83,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'device-values',
-      dev.model.includes('LipSync 4') && dev.version === '4.5.2' && dev.opmode === 'Mouse' && dev.commode === 'USB' && dev.modeSel === 'mouse',
+      dev.model.includes('LipSync 4') &&
+        dev.version === '4.5.2' &&
+        dev.opmode === 'Mouse' &&
+        dev.commode === 'USB' &&
+        dev.modeSel === 'mouse',
       JSON.stringify(dev),
     );
 
@@ -112,15 +119,13 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('.task-btn[data-task="clicks"]');
     await page.waitForTimeout(400);
     const taskJump = await evalCard(() => ({
-      open: !document.getElementById('sec-sip').classList.contains('card-off') && document.getElementById('sec-sip').classList.contains('open'),
+      open:
+        !document.getElementById('sec-sip').classList.contains('card-off') &&
+        document.getElementById('sec-sip').classList.contains('open'),
       focus: document.activeElement.dataset.target ?? document.activeElement.id ?? null,
       pulsed: document.activeElement.classList.contains('pulse-target'),
     }));
-    note(
-      'task-entry',
-      taskJump.open && taskJump.focus === 'st' && taskJump.pulsed,
-      JSON.stringify(taskJump),
-    );
+    note('task-entry', taskJump.open && taskJump.focus === 'st' && taskJump.pulsed, JSON.stringify(taskJump));
 
     // User profiles: save the current settings under a name.
     await openCard('sec-device');
@@ -128,8 +133,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnSaveProfile');
     await page.waitForTimeout(400);
     const profSaved = await evalCard(() => ({
-      rows: [...document.querySelectorAll('#profileList .profile-row')].map((r) =>
-        r.querySelector('.profile-name').textContent,
+      rows: [...document.querySelectorAll('#profileList .profile-row')].map(
+        (r) => r.querySelector('.profile-name').textContent,
       ),
       empty: document.getElementById('profileEmpty').hidden,
     }));
@@ -156,8 +161,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       accel: document.getElementById('accelVal').textContent,
       accelSegs: document.querySelectorAll('#accelMeter span').length,
       accelLit: document.querySelectorAll('#accelMeter span.on').length,
-      accelLitSide: [...document.querySelectorAll('#accelMeter span.on')].every((s, i, arr) =>
-        [...document.querySelectorAll('#accelMeter span')].indexOf(s) >= 10,
+      accelLitSide: [...document.querySelectorAll('#accelMeter span.on')].every(
+        (s, i, arr) => [...document.querySelectorAll('#accelMeter span')].indexOf(s) >= 10,
       ),
     }));
     note(
@@ -174,7 +179,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     await page.click('[data-target="speed"][data-step="1"]');
     await page.waitForTimeout(400);
-    note('stepper-plus', (await evalCard(() => document.getElementById('speedVal').textContent)) === '8', 'speed after +');
+    note(
+      'stepper-plus',
+      (await evalCard(() => document.getElementById('speedVal').textContent)) === '8',
+      'speed after +',
+    );
 
     // Inline write confirmation + undo: the stepper write chips with the
     // previous value, Undo rewrites it. The re-plus afterwards restores
@@ -191,7 +200,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     );
     await page.click('#btnWriteUndo');
     await page.waitForTimeout(500);
-    note('write-confirm-undo', (await evalCard(() => document.getElementById('speedVal').textContent)) === '7', 'speed restored to 7');
+    note(
+      'write-confirm-undo',
+      (await evalCard(() => document.getElementById('speedVal').textContent)) === '7',
+      'speed restored to 7',
+    );
     await page.click('[data-target="speed"][data-step="1"]');
     await page.waitForTimeout(400);
 
@@ -215,7 +228,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     note(
       'sip-values',
-      sip.sipVal === '12.50' && sip.puffVal === '25.00' && sip.sipInput === '12.50' && sip.markLeft !== '' && sip.scaleLabel.includes('hPa'),
+      sip.sipVal === '12.50' &&
+        sip.puffVal === '25.00' &&
+        sip.sipInput === '12.50' &&
+        sip.markLeft !== '' &&
+        sip.scaleLabel.includes('hPa'),
       JSON.stringify(sip),
     );
 
@@ -254,6 +271,21 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('profile-apply', profApplied.speed === '7' && profApplied.rows === 1, JSON.stringify(profApplied));
 
+    // Profile delete removes the row and restores the empty state (the
+    // delegated delete button with its per-profile aria-label).
+    await page.click('.profile-row .profile-delete');
+    await page.waitForTimeout(400);
+    const profDeleted = await evalCard(() => ({
+      rows: document.querySelectorAll('#profileList .profile-row').length,
+      emptyShown: !document.getElementById('profileEmpty').hidden,
+      logHasDelete: document.getElementById('log').textContent.includes('deleted.'),
+    }));
+    note(
+      'profile-delete',
+      profDeleted.rows === 0 && profDeleted.emptyShown && profDeleted.logHasDelete,
+      JSON.stringify(profDeleted),
+    );
+
     await openCard('sec-switches');
     const sw = await evalCard(() => ({
       sa0: document.getElementById('swSA0').value,
@@ -262,7 +294,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       sbDisabled: document.getElementById('swSB0').disabled,
       resetEnabled: !document.getElementById('btnResetSwitchActions').disabled,
     }));
-    note('switch-values', sw.sa0 === '1' && sw.ga0 === '6' && sw.options > 10 && !sw.sbDisabled && sw.resetEnabled, JSON.stringify(sw));
+    note(
+      'switch-values',
+      sw.sa0 === '1' && sw.ga0 === '6' && sw.options > 10 && !sw.sbDisabled && sw.resetEnabled,
+      JSON.stringify(sw),
+    );
 
     await openCard('sec-joystick');
     // Auto-live: opening the card while connected starts the live joystick
@@ -293,7 +329,12 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'joystick-read',
-      joy.raw.includes('2.5') && joy.out.includes('153') && joy.rawDot && joy.innerRing !== '' && joy.neutral && joy.corner1,
+      joy.raw.includes('2.5') &&
+        joy.out.includes('153') &&
+        joy.rawDot &&
+        joy.innerRing !== '' &&
+        joy.neutral &&
+        joy.corner1,
       JSON.stringify(joy),
     );
 
@@ -304,7 +345,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       bright: document.getElementById('brightnessVal').textContent,
       brightSegs: document.querySelectorAll('#brightnessMeter span.on').length,
     }));
-    note('feedback-values', fb.soundSel === '1' && fb.lightSel === '2' && fb.bright === '8' && fb.brightSegs === 8, JSON.stringify(fb));
+    note(
+      'feedback-values',
+      fb.soundSel === '1' && fb.lightSel === '2' && fb.bright === '8' && fb.brightSegs === 8,
+      JSON.stringify(fb),
+    );
 
     // Health check
     await openCard('sec-diagnostics');
@@ -347,7 +392,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'selftest-mid',
-      midTest.visible && midTest.title.includes('LED') && midTest.steps === 13 && midTest.ledsLocked && midTest.buzzerLocked,
+      midTest.visible &&
+        midTest.title.includes('LED') &&
+        midTest.steps === 13 &&
+        midTest.ledsLocked &&
+        midTest.buzzerLocked,
       JSON.stringify(midTest),
     );
     await page.waitForTimeout(1800);
@@ -361,7 +410,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       active: document.querySelectorAll('#selfTestSteps li.active').length,
       panelStill: !document.getElementById('selfTestPanel').hidden,
     }));
-    note('selftest-complete', completed.done === 13 && completed.active === 0 && completed.panelStill, JSON.stringify(completed));
+    note(
+      'selftest-complete',
+      completed.done === 13 && completed.active === 0 && completed.panelStill,
+      JSON.stringify(completed),
+    );
     await page.waitForTimeout(2700); // linger ends ~6.1s
     const postTest = await evalCard(() => ({
       hidden: document.getElementById('selfTestPanel').hidden,
@@ -384,7 +437,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'live-view',
-      live1.text === 'Stop live view' && live1.pressed === 'true' && live1.panel && live1.aria.includes('raw') && live1.readOnce,
+      live1.text === 'Stop live view' &&
+        live1.pressed === 'true' &&
+        live1.panel &&
+        live1.aria.includes('raw') &&
+        live1.readOnce,
       JSON.stringify(live1),
     );
     await page.click('#btnLiveJoy');
@@ -406,7 +463,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       items: [...document.querySelectorAll('#hubScreenItems li')].map((li) => li.textContent.trim()),
       firstSelected: document.querySelector('#hubScreenItems li.selected') !== null,
     }));
-    note('hub-open', hub1.wrap && hub1.header === 'Main menu' && hub1.items.length === 5 && hub1.firstSelected, JSON.stringify(hub1));
+    note(
+      'hub-open',
+      hub1.wrap && hub1.header === 'Main menu' && hub1.items.length === 5 && hub1.firstSelected,
+      JSON.stringify(hub1),
+    );
     await page.click('#btnHubNext');
     await page.waitForTimeout(500);
     await page.click('#btnHubNext');
@@ -447,11 +508,19 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         selectedText: items.find((li) => li.classList.contains('selected'))?.textContent.trim(),
       };
     });
-    note('hub-push-follows', push2.header.toLowerCase().includes('mode') && push2.selected === 1, JSON.stringify(push2));
+    note(
+      'hub-push-follows',
+      push2.header.toLowerCase().includes('mode') && push2.selected === 1,
+      JSON.stringify(push2),
+    );
     await page.waitForTimeout(1000); // clear the close-grace window before the device-side close
     await page.evaluate(() => window.__fakeFirmware.pushMenu(0, 0, 0)); // device menu times out
     await page.waitForTimeout(700);
-    note('hub-push-closes', (await evalCard(() => document.getElementById('hubScreenWrap').hidden)) === true, 'device close hides mirror');
+    note(
+      'hub-push-closes',
+      (await evalCard(() => document.getElementById('hubScreenWrap').hidden)) === true,
+      'device close hides mirror',
+    );
 
     // Raw console (lives in the Log card since 149a412) + the suggestion list
     await openCard('sec-log');
@@ -501,7 +570,12 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'disconnect',
-      disc.status === 'Not connected' && disc.title === 'LipSync Connect' && disc.connectEnabled && disc.dimmed > 0 && disc.cmdDisabled && disc.health === 'Not run',
+      disc.status === 'Not connected' &&
+        disc.title === 'LipSync Connect' &&
+        disc.connectEnabled &&
+        disc.dimmed > 0 &&
+        disc.cmdDisabled &&
+        disc.health === 'Not run',
       JSON.stringify(disc),
     );
 
@@ -533,7 +607,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       status: document.getElementById('calStatus').textContent,
       val: document.getElementById('neutralVal').textContent,
     }));
-    note('neutral-reset', neutral.status.includes('Neutral position set to') && neutral.val.includes('1.23'), JSON.stringify(neutral));
+    note(
+      'neutral-reset',
+      neutral.status.includes('Neutral position set to') && neutral.val.includes('1.23'),
+      JSON.stringify(neutral),
+    );
 
     await page.click('#btnCalibrate');
     await page.waitForTimeout(900);
@@ -553,7 +631,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       done: document.querySelectorAll('#calSteps li.done').length,
       cornerDots: document.querySelectorAll('.dot.corner.captured').length,
     }));
-    note('cal-done', calDone.status.includes('Calibration complete') && calDone.done >= 6 && calDone.cornerDots === 4, JSON.stringify(calDone));
+    note(
+      'cal-done',
+      calDone.status.includes('Calibration complete') && calDone.done >= 6 && calDone.cornerDots === 4,
+      JSON.stringify(calDone),
+    );
 
     await openCard('sec-sip');
     await page.click('text=Set exact window values');
@@ -629,7 +711,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('restriction-on', r1.checked && r1.enabled, JSON.stringify(r1));
     await page.uncheck('#sapDisabled');
     await page.waitForTimeout(600);
-    note('restriction-off', (await evalCard(() => document.getElementById('sapDisabled').checked)) === false, 'unchecked');
+    note(
+      'restriction-off',
+      (await evalCard(() => document.getElementById('sapDisabled').checked)) === false,
+      'unchecked',
+    );
 
     await openCard('sec-switches');
     await page.selectOption('#swSA0', '5');
@@ -649,12 +735,20 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       gamepadVisible: !document.querySelector('.switch-mode[data-jack="A"][data-mode="gamepad"]').hidden,
       mouseHidden: document.querySelector('.switch-mode[data-jack="A"][data-mode="mouse"]').hidden,
       pressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="gamepad"]').getAttribute('aria-pressed'),
-      mousePressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="mouse"]').getAttribute('aria-pressed'),
-      jackBTabsUntouched: document.querySelector('.switch-tab[data-jack="B"][data-mode="mouse"]').getAttribute('aria-pressed'),
+      mousePressed: document
+        .querySelector('.switch-tab[data-jack="A"][data-mode="mouse"]')
+        .getAttribute('aria-pressed'),
+      jackBTabsUntouched: document
+        .querySelector('.switch-tab[data-jack="B"][data-mode="mouse"]')
+        .getAttribute('aria-pressed'),
     }));
     note(
       'switch-tab-gamepad',
-      tabGamepad.gamepadVisible && tabGamepad.mouseHidden && tabGamepad.pressed === 'true' && tabGamepad.mousePressed === 'false' && tabGamepad.jackBTabsUntouched === 'true',
+      tabGamepad.gamepadVisible &&
+        tabGamepad.mouseHidden &&
+        tabGamepad.pressed === 'true' &&
+        tabGamepad.mousePressed === 'false' &&
+        tabGamepad.jackBTabsUntouched === 'true',
       JSON.stringify(tabGamepad),
     );
     await page.click('.switch-tab[data-jack="A"][data-mode="mouse"]');
@@ -664,7 +758,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       gamepadHidden: document.querySelector('.switch-mode[data-jack="A"][data-mode="gamepad"]').hidden,
       pressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="mouse"]').getAttribute('aria-pressed'),
     }));
-    note('switch-tab-mouse-back', tabBack.mouseVisible && tabBack.gamepadHidden && tabBack.pressed === 'true', JSON.stringify(tabBack));
+    note(
+      'switch-tab-mouse-back',
+      tabBack.mouseVisible && tabBack.gamepadHidden && tabBack.pressed === 'true',
+      JSON.stringify(tabBack),
+    );
 
     await openCard('sec-sip');
     // Auto-live: the pressure stream is already running from the open —
@@ -697,9 +795,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'practice-peaks',
-      parseFloat(peaks.sip) >= 10 &&
-        parseFloat(peaks.puff) >= 10 &&
-        peaks.suggestVisible,
+      parseFloat(peaks.sip) >= 10 && parseFloat(peaks.puff) >= 10 && peaks.suggestVisible,
       JSON.stringify(peaks),
     );
     await page.click('#btnSuggestThresholds');
@@ -813,7 +909,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       sap: document.getElementById('sapDisabled').checked,
       hint: document.getElementById('modeGuardHint').textContent,
     }));
-    note('refresh-all', refresh.status === 'Connected' && refresh.w1 === '600' && !refresh.sap && refresh.hint === '', JSON.stringify(refresh));
+    note(
+      'refresh-all',
+      refresh.status === 'Connected' && refresh.w1 === '600' && !refresh.sap && refresh.hint === '',
+      JSON.stringify(refresh),
+    );
 
     await openCard('sec-maintenance');
     await page.click('#btnFactoryReset');
@@ -823,7 +923,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       focus: document.activeElement.id,
       title: document.getElementById('confirmTitle').textContent,
     }));
-    note('factory-dialog-danger', frDlg.open && frDlg.focus === 'confirmCancel' && frDlg.title === 'Factory reset', JSON.stringify(frDlg));
+    note(
+      'factory-dialog-danger',
+      frDlg.open && frDlg.focus === 'confirmCancel' && frDlg.title === 'Factory reset',
+      JSON.stringify(frDlg),
+    );
     await page.click('#confirmCancel');
     await page.waitForTimeout(400);
 
@@ -842,7 +946,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         return n.hidden ? null : n.querySelector('.notif-msg')?.textContent;
       })(),
     }));
-    note('mode-change-flow', modeChanged.status === 'Not connected' && (modeChanged.notif ?? '').includes('Gamepad'), JSON.stringify(modeChanged));
+    note(
+      'mode-change-flow',
+      modeChanged.status === 'Not connected' && (modeChanged.notif ?? '').includes('Gamepad'),
+      JSON.stringify(modeChanged),
+    );
 
     await openCard('sec-log');
     // Model "desktop without share support" deterministically: headless
@@ -885,7 +993,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       pressed: document.querySelector('.scale-btn[data-scale="1.25"]').getAttribute('aria-pressed'),
       stored: JSON.parse(localStorage.getItem('lipsync-theme') || '{}').scale,
     }));
-    note('ui-scale-125', scaled.zoom === '1.25' && scaled.pressed === 'true' && scaled.stored === 1.25, JSON.stringify(scaled));
+    note(
+      'ui-scale-125',
+      scaled.zoom === '1.25' && scaled.pressed === 'true' && scaled.stored === 1.25,
+      JSON.stringify(scaled),
+    );
     await page.click('.scale-btn[data-scale="1"]');
     await page.waitForTimeout(200);
     const unscaled = await evalCard(() => ({
@@ -933,7 +1045,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     const download = await downloadPromise;
     await page.waitForTimeout(400);
     const updDlg = await evalCard(() => ({ open: document.getElementById('confirmDialog').open }));
-    note('fw-wizard-backup+confirm', updDlg.open && download.suggestedFilename().includes('settings'), JSON.stringify({ file: download.suggestedFilename(), open: updDlg.open }));
+    note(
+      'fw-wizard-backup+confirm',
+      updDlg.open && download.suggestedFilename().includes('settings'),
+      JSON.stringify({ file: download.suggestedFilename(), open: updDlg.open }),
+    );
     await page.click('#confirmOk');
 
     // Restart step: UM acked, wizard disconnects and asks for the update port.
@@ -960,7 +1076,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     while (Date.now() < flashDeadline) {
       await page.waitForTimeout(800);
       flashSeen = await evalCard(() => ({
-        pct: parseInt(document.getElementById('fwPct').textContent) || Math.round(document.getElementById('fwProgress').value) || 0,
+        pct:
+          parseInt(document.getElementById('fwPct').textContent) ||
+          Math.round(document.getElementById('fwProgress').value) ||
+          0,
         stage: document.querySelector('#fwStepFlash').className,
         text: document.getElementById('fwWizardStep').textContent,
       }));
@@ -976,7 +1095,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // Reconnect: the fake re-presents the application, now on 4.5.4 — the
     // pending-update finisher must verify the version and restore settings.
     await page.click('#btnConnect');
-    await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, { timeout: 30000 });
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, {
+      timeout: 30000,
+    });
     let restore = null;
     for (let i = 0; i < 20; i++) {
       await page.waitForTimeout(600);
@@ -1007,6 +1128,176 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
   return findings;
 }
 
+// ---------------- First-run wizard: the clinician journey ----------------
+// A fresh context — nothing loaded, nothing connected — walks the guided
+// setup exactly as a first-time user meets it, and every advance is driven
+// by OBSERVED device state: the calibration step completes when the fake's
+// corner sequence lands, the verify step when the health check passes.
+export async function runWizardAudit({ origin, chromium, executablePath }) {
+  const findings = [];
+  const note = (area, ok, detail) => {
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${area}  ${detail}`);
+    findings.push({ area, ok: !!ok, detail });
+  };
+  const fakePath = path.join(dir, 'fake-firmware.mjs');
+  const browser = await chromium.launch({ headless: true, executablePath });
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await ctx.newPage();
+    await page.route('**api.github.com**', (r) => r.abort());
+    await page.addInitScript({ path: fakePath });
+    await page.goto(origin + '/', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(800);
+
+    // Start from the Help card — the default-open landing card on a first
+    // run (clicking its trigger here would TOGGLE it closed).
+    await page.waitForTimeout(300);
+    await page.click('#btnStartWizard');
+    await page.waitForTimeout(400);
+    const start = await page.evaluate(() => ({
+      panel: !document.getElementById('wizardPanel').hidden,
+      text: document.getElementById('wizStepText').textContent,
+      action: document.getElementById('wizAction').textContent.trim(),
+      current: document.querySelector('.wiz-steps li.current')?.textContent.trim(),
+      nextHidden: document.getElementById('wizNext').hidden,
+    }));
+    note(
+      'wizard-first-run-start',
+      start.panel &&
+        start.text.includes('Step 1 of 4 — Connect') &&
+        start.action === 'Connect' &&
+        start.current === 'Connect',
+      JSON.stringify(start),
+    );
+
+    // Step 1 completes from the observed load; the panel advances by itself.
+    await page.click('#wizAction');
+    await page.waitForFunction(() => /Calibrate/.test(document.getElementById('wizStepText').textContent), null, {
+      timeout: 20000,
+    });
+    const cal = await page.evaluate(() => ({
+      text: document.getElementById('wizStepText').textContent,
+      action: document.getElementById('wizAction').textContent.trim(),
+      doneStep1: document.querySelector('.wiz-steps li.done')?.textContent.trim(),
+    }));
+    note(
+      'wizard-connect-advances',
+      cal.text.includes('Step 2 of 4 — Calibrate') &&
+        cal.action === 'Open the Joystick card' &&
+        cal.doneStep1 === 'Connect',
+      JSON.stringify(cal),
+    );
+
+    // Step 2: the action opens the Joystick card and focuses its control; the
+    // fake's calibration sequence (corner acks + MANUAL re-center + read-back)
+    // is the observed completion.
+    await page.click('#wizAction');
+    await page.waitForTimeout(500);
+    const calFocus = await page.evaluate(() => ({ focus: document.activeElement.id }));
+    note('wizard-calibrate-opens', calFocus.focus === 'btnCalibrate', JSON.stringify(calFocus));
+    await page.click('#btnCalibrate');
+    await page.waitForFunction(
+      () => /Step 3 of 4 — Thresholds/.test(document.getElementById('wizStepText').textContent),
+      null,
+      { timeout: 20000 },
+    );
+    const thresh = await page.evaluate(() => ({
+      text: document.getElementById('wizStepText').textContent,
+      doneSteps: [...document.querySelectorAll('.wiz-steps li.done')].map((li) => li.textContent.trim()),
+    }));
+    note(
+      'wizard-calibrate-advances',
+      thresh.text.includes('Step 3 of 4 — Thresholds') && thresh.doneSteps.join('|') === 'Connect|Calibrate',
+      JSON.stringify(thresh),
+    );
+
+    // Step 3 is a judgment call: the Next button is the affordance. Practice
+    // (peaks → Suggest → Apply) then advance manually.
+    await page.click('#wizAction'); // opens the Sip & Puff card, focuses Live view
+    await page.waitForTimeout(500);
+    const threshFocus = await page.evaluate(() => ({
+      focus: document.activeElement.id,
+      nextVisible: !document.getElementById('wizNext').hidden,
+    }));
+    note(
+      'wizard-thresholds-manual',
+      threshFocus.focus === 'btnLivePressure' && threshFocus.nextVisible,
+      JSON.stringify(threshFocus),
+    );
+    // Auto-live: opening the card on an idle device starts the practice
+    // stream on its own — the step's own copy says to check, not press.
+    // Only press when the stream is actually off.
+    const livePressed = await page.evaluate(() =>
+      document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
+    );
+    if (livePressed === 'false') await page.click('#btnLivePressure');
+    let suggestVisible = false;
+    for (let i = 0; i < 14 && !suggestVisible; i++) {
+      await page.waitForTimeout(300);
+      suggestVisible = await page.evaluate(() => !document.getElementById('btnSuggestThresholds').hidden);
+    }
+    await page.click('#btnSuggestThresholds');
+    await page.waitForTimeout(400);
+    await page.click('#btnApplySuggested');
+    await page.waitForTimeout(900);
+    const applied = await page.evaluate(() => ({
+      sip: document.getElementById('sipVal').textContent,
+    }));
+    // The written value must differ from the loaded default — it came from
+    // the practice. (The Suggest button itself stays visible after Apply:
+    // the peaks persist and re-suggesting after more practice is legitimate.)
+    note(
+      'wizard-thresholds-from-practice',
+      suggestVisible && applied.sip !== '12.50' && applied.sip !== '—',
+      JSON.stringify(applied),
+    );
+    // The step's copy says to come back to this panel in Help and press
+    // Next — the return is part of the instructed flow.
+    await page.click('.circle-trigger[data-section="sec-help"]');
+    await page.waitForTimeout(600);
+    await page.click('#wizNext');
+    await page.waitForTimeout(400);
+    const verify = await page.evaluate(() => ({ text: document.getElementById('wizStepText').textContent }));
+    note('wizard-thresholds-advances', verify.text.includes('Step 4 of 4 — Verify'), JSON.stringify(verify));
+
+    // Step 4: the health check's green summary is the observed completion;
+    // the panel flips to its done text and every step shows done.
+    await page.click('#wizAction'); // opens Diagnostics, focuses Run health check
+    await page.waitForTimeout(500);
+    const verifyFocus = await page.evaluate(() => ({ focus: document.activeElement.id }));
+    note('wizard-verify-opens', verifyFocus.focus === 'btnRunDiagnostics', JSON.stringify(verifyFocus));
+    await page.click('#btnRunDiagnostics');
+    await page.waitForFunction(
+      () => document.getElementById('wizStepText').textContent.includes('Guided setup complete'),
+      null,
+      { timeout: 20000 },
+    );
+    const done = await page.evaluate(() => ({
+      text: document.getElementById('wizStepText').textContent,
+      allDone: [...document.querySelectorAll('.wiz-steps li')].every((li) => li.classList.contains('done')),
+      actionHidden: document.getElementById('wizAction').hidden,
+    }));
+    note(
+      'wizard-verify-completes',
+      done.text.includes('Guided setup complete') && done.allDone && done.actionHidden,
+      JSON.stringify(done),
+    );
+
+    // Exit: the panel hides and the entry point returns.
+    await page.click('#wizCancel');
+    await page.waitForTimeout(300);
+    const exited = await page.evaluate(() => ({
+      panelHidden: document.getElementById('wizardPanel').hidden,
+      startVisible: !document.getElementById('btnStartWizard').hidden,
+    }));
+    note('wizard-exit', exited.panelHidden && exited.startVisible, JSON.stringify(exited));
+    await ctx.close();
+  } finally {
+    await browser.close();
+  }
+  return findings;
+}
+
 // ---------------- Viewport matrix: the layout guards ----------------
 // The connected UI must not horizontally scroll at any width (the round-8
 // grid fix). Runs the same fake at phone/narrow-desktop/landscape sizes and
@@ -1030,7 +1321,9 @@ export async function runViewportAudit({ origin, chromium, executablePath }) {
       await page.goto(origin + '/', { waitUntil: 'networkidle' });
       await page.waitForTimeout(700);
       await page.click('#btnConnect');
-      await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, { timeout: 20000 });
+      await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, {
+        timeout: 20000,
+      });
       for (const sec of ['sec-sip', 'sec-joystick', 'sec-switches', 'sec-log']) {
         await page.click(`.circle-trigger[data-section="${sec}"]`);
         await page.waitForTimeout(900);

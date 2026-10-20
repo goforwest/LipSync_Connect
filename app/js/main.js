@@ -150,10 +150,18 @@ const clearSessionUi = () => {
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   hideHealthHistory(); // the stored trend stays; the row hides with the session
-  exitWizard(); // a wizard mid-flow must not point at a dead session
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
+};
+// The DISCONNECT reset additionally closes the guided wizard: a mid-flow
+// wizard must not point at a dead session. The load-start reset above must
+// NOT — the wizard's own first step is the connect, and the fresh load it
+// triggers is exactly what the wizard is waiting on (exiting there killed
+// the first-run flow the moment its Connect step succeeded).
+const resetSessionUiOnDisconnect = () => {
+  clearSessionUi();
+  exitWizard();
 };
 
 // --- Auto-live sections -------------------------------------------------------
@@ -200,7 +208,10 @@ const loadDeviceInfoThenCheckFirmware = async () => {
   await loadDeviceInfo();
   void afterDeviceLoad();
 };
-configureConnection({ loadDeviceInfo: loadDeviceInfoThenCheckFirmware, clearHealthResults: clearSessionUi });
+configureConnection({
+  loadDeviceInfo: loadDeviceInfoThenCheckFirmware,
+  clearHealthResults: resetSessionUiOnDisconnect,
+});
 configureSettingsListeners({ clearHealth: clearSessionUi });
 
 // ------------------------- Wiring -------------------------

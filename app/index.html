@@ -1570,7 +1570,12 @@
             set thresholds from practice, verify with a health check &mdash; and follows along as each step completes.
           </p>
           <div class="row">
-            <button type="button" class="cmd" id="btnStartWizard" disabled>Start guided setup</button>
+            <!-- Not a .cmd button on purpose: the wizard's own first step is
+                 "Connect", so the entry must be reachable BEFORE the first
+                 connection — the whole point of a first-run guide. It ships
+                 disabled and bindWizard() (supported browsers only) enables
+                 it, so unsupported browsers keep it inert. -->
+            <button type="button" id="btnStartWizard" disabled>Start guided setup</button>
           </div>
           <div id="wizardPanel" class="wizard-panel" hidden aria-label="Guided setup">
             <ol class="wiz-steps" aria-hidden="true">
