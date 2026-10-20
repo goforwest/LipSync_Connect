@@ -22,10 +22,11 @@ const STEPS = [
     text: 'Click Connect and pick your LipSync from the browser dialog. Settings load in a few seconds.',
     actionLabel: 'Connect',
     action: () => void connect(),
-    done: () =>
-      !!serialSession.port &&
-      ($('version')?.textContent || '').trim() !== '' &&
-      ($('version')?.textContent || '').trim() !== '\u2014',
+    done: () => {
+      const version = ($('version')?.textContent || '').trim();
+      // A placeholder or the ERR sentinel is not a loaded firmware version.
+      return !!serialSession.port && /^\d+\.\d+(?:\.\d+)?/.test(version);
+    },
   },
   {
     id: 'calibrate',
@@ -37,7 +38,9 @@ const STEPS = [
       const btn = $('btnCalibrate');
       if (btn && typeof btn.focus === 'function') btn.focus();
     },
-    done: () => /complete/i.test(String($('calStatus')?.textContent ?? '')),
+    // Failure copy is "Calibration did not complete" — never let that
+    // satisfy the success predicate just because it contains "complete".
+    done: () => /^Calibration complete\b/i.test(String($('calStatus')?.textContent ?? '').trim()),
   },
   {
     id: 'thresholds',

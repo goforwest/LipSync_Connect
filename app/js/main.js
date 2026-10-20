@@ -285,7 +285,9 @@ window.addEventListener('DOMContentLoaded', () => {
         popup.classList.add('open');
         requestAnimationFrame(() => {
           const firstControl = /** @type {HTMLElement|null} */ (
-            popup.querySelector('button, input, select, textarea, a[href]')
+            popup.querySelector(
+              'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]',
+            )
           );
           if (firstControl && typeof firstControl.focus === 'function') firstControl.focus({ preventScroll: true });
         });
@@ -320,10 +322,10 @@ window.addEventListener('DOMContentLoaded', () => {
     // close it, but keyboard users should not be stranded behind it).
     popup.addEventListener('keydown', (e) => {
       if (e.key !== 'Tab' || !popup.classList.contains('open')) return;
-      const focusables = /** @type {any[]} */ (
-        popup
-          .querySelectorAll('button, input, select, textarea, a[href]')
-          .filter((el) => !el.disabled && el.getAttribute('aria-hidden') !== 'true')
+      const focusables = /** @type {HTMLElement[]} */ (
+        Array.from(popup.querySelectorAll('button, input, select, textarea, a[href]')).filter(
+          (el) => !el.disabled && el.getAttribute('aria-hidden') !== 'true',
+        )
       );
       if (!focusables.length) {
         e.preventDefault();

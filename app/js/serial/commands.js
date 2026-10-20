@@ -75,7 +75,18 @@ export function waitLine(predicate, timeoutMs, signal) {
     return Promise.reject(new Error('Too many pending device response waiters. Disconnect and reconnect.'));
   }
   return new Promise((resolve, reject) => {
-    const w = { predicate, resolve, reject };
+    const w = {
+      predicate,
+      // A normal response resolves the waiter but must also detach its abort
+      // listener and timeout; otherwise one load leaves a listener per command
+      // on the same load-wide AbortSignal.
+      resolve: (value) => {
+        removeSelf();
+        clearTimeout(w.timer);
+        resolve(value);
+      },
+      reject,
+    };
     const removeSelf = () => {
       serialBus.lineWaiters = serialBus.lineWaiters.filter((x) => x !== w);
       signal?.removeEventListener('abort', onAbort);

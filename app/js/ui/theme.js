@@ -45,7 +45,12 @@ function applyTheme(theme) {
   // fixed chrome) — the app is Chromium-only (Web Serial), so zoom is the
   // honest lever; a rem-only font scale would leave px paddings behind and
   // split the layout. Absent choice = 100%.
-  if (document.body && document.body.style) document.body.style.zoom = String(theme.scale ?? 1);
+  const scale = Number(theme.scale ?? 1) || 1;
+  if (document.body && document.body.style) document.body.style.zoom = String(scale);
+  // CSS needs the inverse-aware scale for fixed-position UI: body zoom makes
+  // 100vw/100vh stay in unzoomed CSS pixels, so offsets and widths are divided
+  // by the scale to keep the popup inside the physical viewport.
+  if (html.style) html.style.setProperty('--ui-scale', String(scale));
   warnLowContrastTheme();
 }
 

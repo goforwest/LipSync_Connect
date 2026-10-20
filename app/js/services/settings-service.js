@@ -17,7 +17,7 @@ import {
 } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
-import { setStatus } from '../ui/connection-ui.js';
+import { setStatus, showConnectionError } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
 import { updateMeter } from '../plotting/gauge.js';
@@ -32,6 +32,7 @@ import { ENDPOINT_RENDERERS } from './registry.js';
 let loadDoneTimer = null;
 let loadGeneration = 0;
 let loadTotalTimer = null; // overall-load timeout; cleared on disconnect and supersession
+let loadController = null; // abort in-flight endpoint reads on timeout/disconnect/supersession
 
 /** Disconnect/start-of-load hook from services/health.js — injected by main. */
 let clearHealth = () => {};
@@ -44,6 +45,10 @@ export function configureSettingsListeners(svc) {
 export function clearLoadTimer() {
   clearTimeout(loadTotalTimer);
   loadTotalTimer = null;
+  // A disconnect or a fresh load must not leave an endpoint read waiting for
+  // its per-command timeout and holding the shared command queue hostage.
+  loadController?.abort();
+  loadController = null;
 }
 
 /** @param {string} endpoint @returns {{endpoint: string, checkboxId: string, label: string}|null} */
@@ -394,8 +399,15 @@ export function getDeviceLoadTasks() {
 
 export async function loadDeviceInfo() {
   const gen = ++loadGeneration;
+  // Supersede the previous load: abort its read and clear its overall timer.
+  loadController?.abort();
+  loadController = null;
+  clearTimeout(loadTotalTimer);
+  loadTotalTimer = null;
   setLoadingPlaceholders();
-  clearHealth(); // stale diagnostics from a previous session would mislead
+  clearHealth(); // stale diagnostics from a previous session would mislead (also clears timer)
+  const controller = new AbortController();
+  loadController = controller;
   Object.values(DIAG_PANELS).forEach((id) => {
     const el = $(id);
     if (el) el.hidden = true;
@@ -417,6 +429,9 @@ export async function loadDeviceInfo() {
   clearTimeout(loadTotalTimer);
   loadTotalTimer = setTimeout(() => {
     loadAborted = true;
+    // Stop the endpoint command that is currently waiting, not just the loop
+    // that would check the flag after it returns.
+    controller.abort();
     announceStatus('Loading timed out overall; some values may be missing.');
     log('Loading timed out overall; some values may be missing.', 'log-err');
   }, LOAD_TOTAL_TIMEOUT);
@@ -444,12 +459,13 @@ export async function loadDeviceInfo() {
       progLabel.textContent = `Loading ${i + 1} of ${tasks.length}…` + (remaining ? ` (~${remaining}s)` : '');
     try {
       const t0 = performance.now();
-      const r = await sendCommand(tasks[i][0]);
+      const r = await sendCommand(tasks[i][0], undefined, undefined, { signal: controller.signal });
       timingSamples.push((performance.now() - t0) / 1000);
       if (timingSamples.length > 10) timingSamples.shift();
       if (gen !== loadGeneration) break;
       /** @type {any} */ (tasks[i][1])(r);
     } catch (e) {
+      if (e?.name === 'AbortError' || loadAborted || gen !== loadGeneration) break;
       if (!serialSession.port || e.message === 'Disconnected' || e.message === 'Not connected') break;
       failed++;
       log('Failed to load ' + tasks[i][0] + ': ' + e.message, 'log-err');
@@ -470,6 +486,7 @@ export async function loadDeviceInfo() {
     // "timed out" message against the live session.
     clearTimeout(loadTotalTimer);
     loadTotalTimer = null;
+    if (loadController === controller) loadController = null;
     return;
   }
   VALUE_IDS.forEach((id) => {
@@ -486,9 +503,15 @@ export async function loadDeviceInfo() {
     }
   });
   if (progBar) progBar.value = progBar.max;
-  if (progLabel) progLabel.textContent = 'Done';
+  const incomplete = failed > 0 || loadAborted || deadLink;
+  if (progLabel) progLabel.textContent = incomplete ? 'Incomplete' : 'Done';
   if (gen === loadGeneration && serialSession.port) {
-    setStatus('Connected', true);
+    const status = !incomplete
+      ? 'Connected'
+      : failed > 0
+        ? `Connected — ${failed} setting${failed === 1 ? '' : 's'} failed`
+        : 'Connected — settings incomplete';
+    setStatus(status, true);
     updateReadiness(); // the strip derives from state that just landed
   }
   if (progRow) {
@@ -516,6 +539,7 @@ export async function loadDeviceInfo() {
   }
   clearTimeout(loadTotalTimer);
   loadTotalTimer = null;
+  if (loadController === controller) loadController = null;
   if (!serialSession.port) return;
   updateStepButtons();
   if (deadLink) {
@@ -524,17 +548,23 @@ export async function loadDeviceInfo() {
     $('modeGuardHint').textContent = message;
     announceStatus(message);
     log(message, 'log-err');
+    // The Device card may be closed — keep the recovery reachable globally.
+    showConnectionError(message, () => void loadDeviceInfo());
   } else if (loadAborted) {
     const message = 'Settings partially loaded: overall timeout reached. Values shown as ERR did not load.';
     $('modeGuardHint').textContent = message;
     announceStatus(message);
     log('Settings partially loaded (overall timeout reached).', 'log-err');
+    showConnectionError(message, () => void loadDeviceInfo());
   } else {
     const message = failed
       ? `${failed} of ${attempted} settings failed to load; failed values are shown as ERR. Click Refresh all settings to retry.`
       : '';
     $('modeGuardHint').textContent = message;
-    if (message) announceStatus(message);
+    if (message) {
+      announceStatus(message);
+      showConnectionError(message, () => void loadDeviceInfo());
+    }
     log(
       failed ? `Settings loaded with ${failed} error(s).` : 'Device settings loaded.',
       failed ? 'log-err' : 'log-info',

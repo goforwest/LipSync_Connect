@@ -256,59 +256,82 @@ export async function disconnect(options = {}) {
 async function readLoop() {
   const myGen = ++serialSession.readerGeneration;
   const decoder = new TextDecoder();
+  const MAX_RECOVERY_ATTEMPTS = 3;
   let buffer = '';
   let readClosed = false;
-  serialSession.currentReader = serialSession.port.readable.getReader();
-  try {
-    resetReadTimer(myGen);
-    while (true) {
-      const { value, done } = await serialSession.currentReader.read();
-      if (done) {
-        readClosed = true;
-        break;
-      }
+  let recovered = false;
+  let recoveryAttempts = 0;
+  while (myGen === serialSession.readerGeneration && !serialSession.disconnecting) {
+    /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
+    let reader = null;
+    try {
+      // Acquisition belongs inside the recovery boundary: the stream can be
+      // locked or already errored after a device-side disconnect, and that
+      // rejection must go through recovery instead of becoming a silent
+      // unhandled rejection while the header still says Connected.
+      if (!serialSession.port?.readable) throw new Error('Serial port is no longer readable.');
+      reader = serialSession.port.readable.getReader();
+      serialSession.currentReader = reader;
       resetReadTimer(myGen);
-      buffer += decoder.decode(value, { stream: true });
-      let idx;
-      while ((idx = buffer.search(/\r\n|\n/)) >= 0) {
-        const line = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + (buffer[idx] === '\r' ? 2 : 1));
-        if (line) handleLine(line);
-      }
-    }
-  } catch (e) {
-    if (myGen !== serialSession.readerGeneration) return;
-    if (!serialSession.disconnecting) {
-      const lostMessage = 'Connection lost: ' + e.message + ' — attempting to recover…';
-      announceStatus(lostMessage);
-      log(lostMessage, 'log-err');
-      try {
-        await serialSession.currentReader.cancel();
-        serialSession.currentReader.releaseLock();
-        await new Promise((r) => setTimeout(r, 2000));
-        if (myGen !== serialSession.readerGeneration) return;
+      if (recovered) {
         announceStatus('Connection recovered.');
         log('Connection recovered.', 'log-info');
-        buffer = '';
-        await readLoop();
-        return;
-      } catch (recoveryErr) {
-        if (myGen !== serialSession.readerGeneration) return;
-        const recoveryMessage = 'Recovery failed: ' + recoveryErr.message + '.';
+      }
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          readClosed = true;
+          break;
+        }
+        // Only a reader that actually delivered data counts as healthy; this
+        // keeps a getReader()-succeeds-then-immediately-fails loop bounded.
+        recoveryAttempts = 0;
+        resetReadTimer(myGen);
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.search(/\r\n|\n/)) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + (buffer[idx] === '\r' ? 2 : 1));
+          if (line) handleLine(line);
+        }
+      }
+      break;
+    } catch (e) {
+      if (myGen !== serialSession.readerGeneration || serialSession.disconnecting) return;
+      recoveryAttempts++;
+      if (recoveryAttempts === 1) {
+        const lostMessage = 'Connection lost: ' + e.message + ' — attempting to recover…';
+        announceStatus(lostMessage);
+        log(lostMessage, 'log-err');
+      } else {
+        log('Recovery attempt ' + recoveryAttempts + ' failed: ' + e.message, 'log-err');
+      }
+      try {
+        await reader?.cancel();
+        reader?.releaseLock();
+      } catch {}
+      if (serialSession.currentReader === reader) serialSession.currentReader = null;
+      if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
+        const recoveryMessage = 'Connection lost. Recovery failed: ' + e.message + '.';
         announceStatus(recoveryMessage);
         log(recoveryMessage, 'log-err');
         showConnectionError('Connection lost. Recovery failed. Check cable and try again.', connect);
         await disconnect({ preserveBanner: true, quiet: true });
+        return;
       }
+      await sleep(2000);
+      if (myGen !== serialSession.readerGeneration || serialSession.disconnecting) return;
+      recovered = true;
+      buffer = '';
+      continue;
+    } finally {
+      if (reader) {
+        try {
+          reader.releaseLock();
+        } catch {}
+      }
+      if (serialSession.currentReader === reader) serialSession.currentReader = null;
     }
-  } finally {
-    if (myGen !== serialSession.readerGeneration) return;
-    clearTimeout(readWatchdog.timer);
-    readWatchdog.timer = null;
-    try {
-      serialSession.currentReader.releaseLock();
-    } catch {}
-    serialSession.currentReader = null;
   }
   if (readClosed && myGen === serialSession.readerGeneration && !serialSession.disconnecting) {
     announceStatus('Connection closed by device.');

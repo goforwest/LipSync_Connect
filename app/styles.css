@@ -13,6 +13,8 @@
   --text: #3a3f42;
   --muted: #45525e;
   --danger: #b3261e;
+  --danger-fill: #b3261e;
+  --info-fill: #0072ce;
   --border: #d7dde2;
   --field: #ffffff;
   --value-bg: #f0f3f5;
@@ -40,6 +42,8 @@
     --text: #e8edf4;
     --muted: #93a1b5;
     --danger: #ff8a80;
+    --danger-fill: #8f1d17;
+    --info-fill: #0b5cab;
     --border: #2c3a50;
     --field: #0d1117;
     --value-bg: #0d1117;
@@ -80,6 +84,8 @@ html.dark-mode {
   --text: #e8edf4;
   --muted: #93a1b5;
   --danger: #ff8a80;
+  --danger-fill: #8f1d17;
+  --info-fill: #0b5cab;
   --border: #2c3a50;
   --field: #0d1117;
   --value-bg: #0d1117;
@@ -394,7 +400,7 @@ button.secondary:hover:not(:disabled) {
   border-color: var(--muted);
 }
 button.danger {
-  background: var(--danger);
+  background: var(--danger-fill);
   color: var(--btn-text);
 }
 :where(button, select, input, summary, a):focus-visible {
@@ -636,7 +642,7 @@ progress {
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
 .notice {
@@ -1028,12 +1034,12 @@ summary {
     height: 30px;
   }
   .appearance-popup {
-    bottom: calc(64px + 20px + 12px);
-    right: 20px;
+    bottom: calc((64px + 20px + 12px) / var(--ui-scale, 1));
+    right: calc(20px / var(--ui-scale, 1));
   }
   .appearance-popup::after,
   .appearance-popup::before {
-    right: 20px;
+    right: calc(20px / var(--ui-scale, 1));
   }
   /* UI scale: a segmented 100/125/150 control (body zoom — the whole
    interface scales, not just the fonts). */
@@ -1095,6 +1101,31 @@ summary {
   select {
     flex: 1 1 140px;
     width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* Body zoom shrinks the effective card width without changing the media
+     query width, so fixed-width readouts and meters must be allowed to
+     shrink/wrap instead of running under the card edge. */
+  .value {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .meter {
+    max-width: 100%;
+  }
+  .meter span {
+    flex: 0 1 12px;
+    min-width: 0;
+  }
+  .meter--bipolar span {
+    flex-basis: 8px;
+  }
+  .profile-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .viz-wrap {
     gap: 14px;
@@ -1390,7 +1421,7 @@ button.ready-chip:hover {
   gap: 12px;
   padding: 12px 14px 12px 20px;
   border-radius: 12px;
-  background: var(--danger);
+  background: var(--danger-fill);
   color: var(--btn-text);
   font-weight: 600;
   font-size: 0.95rem;
@@ -1419,7 +1450,7 @@ button.ready-chip:hover {
   animation: notifIn 0.2s ease;
 }
 #notification.warning {
-  background: var(--info);
+  background: var(--info-fill);
   color: #fff;
 }
 #notification .notif-msg {
@@ -2155,10 +2186,12 @@ html.dark-mode .floating-gear {
 .appearance-popup {
   position: fixed;
   z-index: 299;
-  bottom: calc(56px + 24px + 12px);
-  right: 24px;
-  width: 280px;
-  max-height: 70vh;
+  /* Body zoom scales the rendered element but not 100vw/vh. Divide fixed
+     geometry by the scale so the popup stays inside the visible viewport. */
+  bottom: calc((56px + 24px + 12px) / var(--ui-scale, 1));
+  right: calc(24px / var(--ui-scale, 1));
+  width: min(calc(280px / var(--ui-scale, 1)), calc((100vw - 48px) / var(--ui-scale, 1)));
+  max-height: calc(70vh / var(--ui-scale, 1));
   overflow-y: auto;
   background: var(--panel);
   color: var(--text);
@@ -2171,14 +2204,13 @@ html.dark-mode .floating-gear {
   transform: translateY(8px) scale(0.95);
   transition:
     opacity 0.2s ease,
-    transform 0.2s ease,
-    visibility 0.2s ease;
+    transform 0.2s ease;
 }
 .appearance-popup::after {
   content: '';
   position: absolute;
   top: 100%;
-  right: 24px;
+  right: calc(24px / var(--ui-scale, 1));
   width: 0;
   height: 0;
   border: 8px solid transparent;
@@ -2188,7 +2220,7 @@ html.dark-mode .floating-gear {
   content: '';
   position: absolute;
   top: 100%;
-  right: 24px;
+  right: calc(24px / var(--ui-scale, 1));
   width: 0;
   height: 0;
   z-index: 1;
@@ -2264,12 +2296,12 @@ html.dark-mode .appearance-popup {
 }
 @media (max-width: 560px) {
   .appearance-popup {
-    right: 16px;
-    width: min(288px, calc(100vw - 32px));
+    right: calc(16px / var(--ui-scale, 1));
+    width: min(calc(288px / var(--ui-scale, 1)), calc((100vw - 32px) / var(--ui-scale, 1)));
   }
   .appearance-popup::after,
   .appearance-popup::before {
-    right: 16px;
+    right: calc(16px / var(--ui-scale, 1));
   }
 }
 
