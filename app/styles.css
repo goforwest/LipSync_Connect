@@ -2166,6 +2166,13 @@ html.dark-mode .appearance-popup {
     background: Highlight;
     color: HighlightText;
   }
+  /* Same for the input-window ladder's live-hold highlight: the resting cue
+     is a white inset shadow, which forced colors erases — outline the zone
+     so "which window am I in" stays visible in high contrast. */
+  .win-zone.active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
   #notification {
     border: 1px solid ButtonText;
   }

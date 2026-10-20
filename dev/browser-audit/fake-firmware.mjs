@@ -30,6 +30,9 @@
   let debugTimer = null;
   let debugMode = 0;
   let calTimer = null;
+  // The most recent open port's emit — lets the audit script play the DEVICE
+  // side of the two-way hub remote (MANUAL CH,5 pushes) mid-session.
+  let currentEmit = null;
 
   const ECHO = new Set(['SS','SL','ST','PT','IZ','OZ','SM','LM','LL','DM','OM','CM','SA','SB','SC','GA','GB','GC']);
   const LED_NARRATION = [
@@ -60,11 +63,13 @@
         port.writable = new WritableStream({
           write: (chunk) => { handle(chunk); },
         });
+        currentEmit = emit;
       },
       close: async () => {
         if (debugTimer) { clearInterval(debugTimer); debugTimer = null; }
         if (calTimer) { clearTimeout(calTimer); calTimer = null; }
         ctrl = null;
+        currentEmit = null;
       },
     };
     const emit = (text, delay = 3) => {
@@ -198,4 +203,13 @@
   };
   Object.defineProperty(navigator, 'serial', { value: fakeSerial, configurable: true });
   window.__fakeFirmware = { state, menu, switches };
+  // Two-way hub remote: emit the firmware's menu-state push (the CH,5 line
+  // protocol 4.5.3 proposes) as if a physical press/redraw just happened on
+  // the device. Updates the internal state so later CH,0:0 polls agree.
+  window.__fakeFirmware.pushMenu = (active, page, row) => {
+    menu.active = active;
+    menu.page = page;
+    menu.row = row;
+    currentEmit?.(`MANUAL,0:CH,5:${active},${page},${row}`);
+  };
 })();

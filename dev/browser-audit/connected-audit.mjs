@@ -90,8 +90,23 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       segs: document.querySelectorAll('#speedMeter span.on').length,
       scroll: document.getElementById('scrollVal').textContent,
       accel: document.getElementById('accelVal').textContent,
+      accelSegs: document.querySelectorAll('#accelMeter span').length,
+      accelLit: document.querySelectorAll('#accelMeter span.on').length,
+      accelLitSide: [...document.querySelectorAll('#accelMeter span.on')].every((s, i, arr) =>
+        [...document.querySelectorAll('#accelMeter span')].indexOf(s) >= 10,
+      ),
     }));
-    note('cursor-values', cur.speed === '7' && cur.segs === 7 && cur.scroll === '5' && cur.accel === '3', JSON.stringify(cur));
+    note(
+      'cursor-values',
+      cur.speed === '7' &&
+        cur.segs === 7 &&
+        cur.scroll === '5' &&
+        cur.accel === '3' &&
+        cur.accelSegs === 20 &&
+        cur.accelLit === 3 &&
+        cur.accelLitSide,
+      JSON.stringify(cur),
+    );
 
     await page.click('[data-target="speed"][data-step="1"]');
     await page.waitForTimeout(400);
@@ -209,14 +224,16 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.waitForTimeout(1800);
     const stillLocked = await evalCard(() => document.getElementById('btnTestLeds').disabled);
     note('selftest-mid-locked', stillLocked === true, 'locked at 2.4s');
-    await page.waitForTimeout(1200); // 'Test Complete' lands ~3.6s
+    // 'Test Complete' lands at ~3.6s from the fake's narration cadence —
+    // probe at 4.4s so the completion marking is never raced.
+    await page.waitForTimeout(2000);
     const completed = await evalCard(() => ({
       done: document.querySelectorAll('#selfTestSteps li.done').length,
       active: document.querySelectorAll('#selfTestSteps li.active').length,
       panelStill: !document.getElementById('selfTestPanel').hidden,
     }));
     note('selftest-complete', completed.done === 13 && completed.active === 0 && completed.panelStill, JSON.stringify(completed));
-    await page.waitForTimeout(3500); // linger ends ~6.1s
+    await page.waitForTimeout(2700); // linger ends ~6.1s
     const postTest = await evalCard(() => ({
       hidden: document.getElementById('selfTestPanel').hidden,
       leds: !document.getElementById('btnTestLeds').disabled,
@@ -279,6 +296,32 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnHubClose');
     await page.waitForTimeout(500);
     note('hub-close', (await evalCard(() => document.getElementById('hubScreenWrap').hidden)) === true, 'wrap hidden');
+
+    // Two-way hub remote (CH,5 pushes, firmware 4.5.3 proposal): the mirror
+    // follows device-initiated redraws with no app press, reopens when the
+    // device menu opens on its own, and closes when the device closes it.
+    await page.evaluate(() => window.__fakeFirmware.pushMenu(1, 0, 0)); // physical: user enters the menu
+    await page.waitForTimeout(700);
+    const push1 = await evalCard(() => ({
+      wrap: !document.getElementById('hubScreenWrap').hidden,
+      header: document.getElementById('hubScreenHeader').textContent,
+    }));
+    note('hub-push-opens', push1.wrap && push1.header === 'Main menu', JSON.stringify(push1));
+    await page.evaluate(() => window.__fakeFirmware.pushMenu(1, 3, 1)); // physical: navigate to Mode, row 1
+    await page.waitForTimeout(700);
+    const push2 = await evalCard(() => {
+      const items = [...document.querySelectorAll('#hubScreenItems li')];
+      return {
+        header: document.getElementById('hubScreenHeader').textContent,
+        selected: items.findIndex((li) => li.classList.contains('selected')),
+        selectedText: items.find((li) => li.classList.contains('selected'))?.textContent.trim(),
+      };
+    });
+    note('hub-push-follows', push2.header.toLowerCase().includes('mode') && push2.selected === 1, JSON.stringify(push2));
+    await page.waitForTimeout(1000); // clear the close-grace window before the device-side close
+    await page.evaluate(() => window.__fakeFirmware.pushMenu(0, 0, 0)); // device menu times out
+    await page.waitForTimeout(700);
+    note('hub-push-closes', (await evalCard(() => document.getElementById('hubScreenWrap').hidden)) === true, 'device close hides mirror');
 
     // Raw console (lives in the Log card since 149a412) + the suggestion list
     await openCard('sec-log');
@@ -401,6 +444,46 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('timing-order-refused', w2bad.err.includes('ordered') && w2bad.val === '1000', JSON.stringify(w2bad));
 
+    // Input-window ladder: zones proportional to the windows in force
+    // (600/1000/2500 → 24%/16%/60%), scale marks, and the live aria-label.
+    const ladder = await evalCard(() => ({
+      zones: [...document.querySelectorAll('#winLadder .win-zone')].map((z) => z.style.flexBasis),
+      marks: [...document.querySelectorAll('#winScale span')].map((s) => s.textContent),
+      aria: document.getElementById('winLadder').getAttribute('aria-label'),
+    }));
+    note(
+      'window-ladder',
+      ladder.zones.length === 3 &&
+        Math.round(parseFloat(ladder.zones[0])) === 24 &&
+        Math.round(parseFloat(ladder.zones[1])) === 16 &&
+        Math.round(parseFloat(ladder.zones[2])) === 60 &&
+        ladder.marks.join('|') === '0 ms|600|1000|2500 ms' &&
+        ladder.aria.includes('600 ms'),
+      JSON.stringify(ladder),
+    );
+
+    // Diagnostics ladder sweep: the DEBUG,5 sip&puff state stream drives the
+    // live hold fill (the fake cycles 2 s holds with 2 s gaps — poll until a
+    // hold paints).
+    await openCard('sec-diagnostics');
+    await page.selectOption('#debugMode', '5');
+    await page.click('#btnSetDebug');
+    let swept = false;
+    let sweepDetail = null;
+    for (let i = 0; i < 15 && !swept; i++) {
+      await page.waitForTimeout(300);
+      sweepDetail = await evalCard(() => ({
+        sweepW: parseFloat(document.querySelector('#winLadderDiag .win-sweep').style.width) || 0,
+        activeZone: !!document.querySelector('#winLadderDiag .win-zone.active'),
+        aria: document.getElementById('winLadderDiag').getAttribute('aria-label'),
+      }));
+      swept = sweepDetail.sweepW > 5 && sweepDetail.activeZone;
+    }
+    note('window-ladder-sweep', swept, JSON.stringify(sweepDetail));
+    await page.selectOption('#debugMode', '0');
+    await page.click('#btnSetDebug');
+    await page.waitForTimeout(500);
+
     await openCard('sec-restrictions');
     await page.check('#sapDisabled');
     await page.waitForTimeout(600);
@@ -421,6 +504,32 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       err: document.getElementById('switchError').textContent,
     }));
     note('switch-remap', remap.sel === '5' && remap.err === '', JSON.stringify(remap));
+
+    // Switch-card mode toggles: the per-jack segmented tabs swap the visible
+    // mapping (mouse ↔ gamepad) and carry aria-pressed; selecting the
+    // already-pressed tab is a no-op.
+    await page.click('.switch-tab[data-jack="A"][data-mode="gamepad"]');
+    await page.waitForTimeout(400);
+    const tabGamepad = await evalCard(() => ({
+      gamepadVisible: !document.querySelector('.switch-mode[data-jack="A"][data-mode="gamepad"]').hidden,
+      mouseHidden: document.querySelector('.switch-mode[data-jack="A"][data-mode="mouse"]').hidden,
+      pressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="gamepad"]').getAttribute('aria-pressed'),
+      mousePressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="mouse"]').getAttribute('aria-pressed'),
+      jackBTabsUntouched: document.querySelector('.switch-tab[data-jack="B"][data-mode="mouse"]').getAttribute('aria-pressed'),
+    }));
+    note(
+      'switch-tab-gamepad',
+      tabGamepad.gamepadVisible && tabGamepad.mouseHidden && tabGamepad.pressed === 'true' && tabGamepad.mousePressed === 'false' && tabGamepad.jackBTabsUntouched === 'true',
+      JSON.stringify(tabGamepad),
+    );
+    await page.click('.switch-tab[data-jack="A"][data-mode="mouse"]');
+    await page.waitForTimeout(400);
+    const tabBack = await evalCard(() => ({
+      mouseVisible: !document.querySelector('.switch-mode[data-jack="A"][data-mode="mouse"]').hidden,
+      gamepadHidden: document.querySelector('.switch-mode[data-jack="A"][data-mode="gamepad"]').hidden,
+      pressed: document.querySelector('.switch-tab[data-jack="A"][data-mode="mouse"]').getAttribute('aria-pressed'),
+    }));
+    note('switch-tab-mouse-back', tabBack.mouseVisible && tabBack.gamepadHidden && tabBack.pressed === 'true', JSON.stringify(tabBack));
 
     await openCard('sec-sip');
     await page.click('#btnLivePressure');
@@ -481,8 +590,16 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('mode-change-flow', modeChanged.status === 'Not connected' && (modeChanged.notif ?? '').includes('Gamepad'), JSON.stringify(modeChanged));
 
     await openCard('sec-log');
-    // Hit-test first: record what sits at the Share button's center so a
-    // swallowed click is attributable (toast/popup/scroll overlay).
+    // Model "desktop without share support" deterministically: headless
+    // Chromium exposes navigator.share but its promise may never settle (no
+    // share UI), which makes the real not-supported fallback unreachable.
+    // Shadowing it with undefined sends shareLog down the same code path a
+    // share-less browser takes — the in-app privacy confirm.
+    await page.evaluate(() => {
+      try {
+        Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+      } catch {}
+    });
     const hitInfo = await evalCard(() => {
       const btn = document.getElementById('btnShareLog');
       const r = btn.getBoundingClientRect();
@@ -494,35 +611,12 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       };
     });
     await page.click('#btnShareLog');
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(900);
     const share = await evalCard(() => ({
       open: document.getElementById('confirmDialog').open,
       title: document.getElementById('confirmTitle').textContent,
-      logTail: document.getElementById('log').textContent.slice(-160),
-      popupOpen: document.getElementById('appearancePopup').classList.contains('open'),
-      hasShare: 'share' in navigator,
-      logBroken: (() => {
-        try {
-          return typeof window.__shareProbe === 'undefined';
-        } catch {
-          return null;
-        }
-      })(),
     }));
-    if (!share.open && share.hasShare) {
-      // headless Chromium can expose navigator.share while never settling
-      // its promise (no share UI) — wait for the rejection to trip the
-      // session circuit, then click again: the second attempt must reach
-      // the in-app confirm.
-      await page.waitForTimeout(3000);
-      await page.click('#btnShareLog');
-      await page.waitForTimeout(900);
-    }
-    const share2 = await evalCard(() => ({
-      open: document.getElementById('confirmDialog').open,
-      title: document.getElementById('confirmTitle').textContent,
-    }));
-    note('share-fallback', share2.open && share2.title === 'Share log', JSON.stringify({ ...hitInfo, ...share, share2 }));
+    note('share-fallback', share.open && share.title === 'Share log', JSON.stringify({ ...hitInfo, ...share }));
     await page.click('#confirmCancel');
     await ctx.close();
   } finally {
