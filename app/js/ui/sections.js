@@ -8,6 +8,18 @@ import { prefersReducedMotion } from './motion.js';
 
 let openSection = null; // id of the currently-open section card (null when none)
 
+// Section-change subscription: main.js registers the auto-live hook here so
+// this module never needs serial imports (the dependency graph stays
+// acyclic). Called with the open section id after every transition (null on
+// close), including the open-then-close toggle path.
+let changeHandler = null;
+export function onSectionChange(fn) {
+  changeHandler = fn;
+}
+const notifySectionChange = () => {
+  if (changeHandler) changeHandler(openSection);
+};
+
 export function animateSectionOpen(el) {
   el.removeAttribute('inert');
   el.removeAttribute('aria-hidden');
@@ -96,6 +108,7 @@ export function openSectionById(id) {
       b.removeAttribute('aria-current');
     }
   });
+  notifySectionChange();
 }
 
 export function closeCurrentSection() {
@@ -109,4 +122,5 @@ export function closeCurrentSection() {
   }
   if (prev) animateSectionClose(prev);
   openSection = null;
+  notifySectionChange();
 }

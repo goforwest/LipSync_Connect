@@ -190,6 +190,22 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('switch-values', sw.sa0 === '1' && sw.ga0 === '6' && sw.options > 10 && !sw.sbDisabled && sw.resetEnabled, JSON.stringify(sw));
 
     await openCard('sec-joystick');
+    // Auto-live: opening the card while connected starts the live joystick
+    // view (DM 1) — the read button yields while the stream runs. Pin the
+    // auto-start, then Stop + Read once covers the manual path.
+    await page.waitForTimeout(600);
+    const autoJoy = await evalCard(() => ({
+      pressed: document.getElementById('btnLiveJoy').getAttribute('aria-pressed'),
+      readOnce: document.getElementById('btnReadJoy').disabled,
+      raw: document.getElementById('joyRaw').textContent,
+    }));
+    note(
+      'auto-live-joystick',
+      autoJoy.pressed === 'true' && autoJoy.readOnce && /\d+\.\d+ \| -?\d+\.\d+/.test(autoJoy.raw),
+      JSON.stringify(autoJoy),
+    );
+    await page.click('#btnLiveJoy');
+    await page.waitForTimeout(400);
     await page.click('#btnReadJoy');
     await page.waitForTimeout(500);
     const joy = await evalCard(() => ({
@@ -273,7 +289,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     // Live joystick view (lives in the Joystick card)
     await openCard('sec-joystick');
-    await page.click('#btnLiveJoy');
+    // Auto-live started the stream on open — the old first click would now
+    // stop it. The live button is pressed by the section itself.
     await page.waitForTimeout(800);
     const live1 = await evalCard(() => ({
       text: document.getElementById('btnLiveJoy').textContent,
@@ -567,7 +584,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('switch-tab-mouse-back', tabBack.mouseVisible && tabBack.gamepadHidden && tabBack.pressed === 'true', JSON.stringify(tabBack));
 
     await openCard('sec-sip');
-    await page.click('#btnLivePressure');
+    // Auto-live: the pressure stream is already running from the open —
+    // assert it directly instead of toggling.
     await page.waitForTimeout(700);
     const lp = await evalCard(() => ({
       pressed: document.getElementById('btnLivePressure').getAttribute('aria-pressed'),

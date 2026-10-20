@@ -26,6 +26,7 @@ import { bindCalibration } from './services/calibration.js';
 import { loadDeviceInfo } from './services/settings-service.js';
 
 import { connect, disconnect } from './serial/connection.js';
+import { serialSession } from './serial/session.js';
 import {
   readCalibration,
   setDeadzone,
@@ -36,7 +37,7 @@ import {
 } from './services/settings-service.js';
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
-import { openSectionById, closeCurrentSection, getOpenSection } from './ui/sections.js';
+import { openSectionById, closeCurrentSection, getOpenSection, onSectionChange } from './ui/sections.js';
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
@@ -146,7 +147,46 @@ const clearSessionUi = () => {
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   hideWriteConfirm(); // a stale Undo must never point at a dead session
+  autoLiveMode = null; // the device's debug mode dies with the port
 };
+
+// --- Auto-live sections -------------------------------------------------------
+// Opening Sip & Puff or Joystick while connected starts their live view
+// automatically when the device is idle (debug mode 0) — the two-click tax
+// on every practice, calibration, and adjustment session disappears. The
+// auto-started stream belongs to the app: it stops when its section closes
+// or another one opens. A stream the user started (or replaced ours with)
+// is theirs and is never touched.
+const AUTO_LIVE_SECTION_MODES = { 'sec-sip': '2', 'sec-joystick': '1' };
+let autoLiveMode = null; // the DM mode the app auto-started; null = not ours
+const syncAutoLive = (sectionId) => {
+  const dm = String($('debugMode')?.value ?? '0');
+  // If the stream we started was replaced or stopped elsewhere, it is no
+  // longer ours to manage.
+  if (autoLiveMode !== null && dm !== String(autoLiveMode)) autoLiveMode = null;
+  if (autoLiveMode !== null) {
+    const wantMode = sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
+    if (!wantMode || String(wantMode) !== String(autoLiveMode)) {
+      const stopping = autoLiveMode;
+      autoLiveMode = null;
+      if (serialSession.port) {
+        void setSimpleSetting('DM', '0', 'debugModeVal', DEBUG_MODES).catch(() => {
+          void stopping; // a failed stop is retried by the next transition
+        });
+      }
+    }
+  }
+  const wantMode = serialSession.port && sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
+  if (wantMode && autoLiveMode === null && dm === '0') {
+    autoLiveMode = wantMode;
+    void setSimpleSetting('DM', wantMode, 'debugModeVal', DEBUG_MODES)
+      .then(() => log('Live view started for this section — Stop live view turns it off.', 'log-info'))
+      .catch(() => {
+        autoLiveMode = null; // never started: nothing to manage
+      });
+  }
+};
+onSectionChange(syncAutoLive);
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
 // automatic update check. Fire-and-forget — nothing here may delay "ready".
