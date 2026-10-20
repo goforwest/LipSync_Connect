@@ -445,13 +445,30 @@
             <div class="zero"></div>
             <div class="mark" id="gaugeSipMark"></div>
             <div class="mark" id="gaugePuffMark"></div>
+            <div class="mark peak" id="gaugeSipPeak" hidden></div>
+            <div class="mark peak" id="gaugePuffPeak" hidden></div>
           </div>
           <div class="gauge-scale">
             <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
           </div>
+          <div class="row">
+            <span class="value" title="Largest sip and puff seen since Clear (practice peaks)"
+              >Practice peaks: sip <span id="peakSipVal">&mdash;</span> hPa &middot; puff
+              <span id="peakPuffVal">&mdash;</span> hPa</span
+            >
+            <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Clear peaks</button>
+            <button type="button" class="cmd" id="btnSuggestThresholds" hidden>Suggest thresholds</button>
+          </div>
+          <div class="notice" id="sapSuggestion" role="status" hidden>
+            <span id="sapSuggestionText"></span>
+            <button type="button" class="cmd" id="btnApplySuggested" hidden>Apply both</button>
+            <button type="button" class="secondary" id="btnDismissSuggestion" hidden>Dismiss</button>
+          </div>
           <p class="hint">
-            Red markers show trigger values. Use Live view while adjusting thresholds &mdash; sip fills left, puff fills
-            right.
+            Red markers show trigger values; dashed markers pin the practice peaks. Use <strong>Live view</strong> and
+            have the user sip and puff firmly a few times &mdash; their measured maximum stays on the gauge, and
+            <strong>Suggest thresholds</strong> turns it into trigger values at 65% of each peak: a deliberate hold
+            crosses them, breathing noise should not.
           </p>
         </div>
         <div class="diag-group">

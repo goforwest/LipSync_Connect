@@ -553,6 +553,47 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
+    // Practice peaks + suggest-from-practice: the streamed pressure swings
+    // (the fake's ±25 hPa wave) must pin both peaks, expose the Suggest
+    // button, and Apply must write both thresholds from the measured maxima.
+    const peaks = await evalCard(() => ({
+      sip: document.getElementById('peakSipVal').textContent,
+      puff: document.getElementById('peakPuffVal').textContent,
+      suggestVisible: !document.getElementById('btnSuggestThresholds').hidden,
+      sipBefore: document.getElementById('sipVal').textContent,
+      puffBefore: document.getElementById('puffVal').textContent,
+    }));
+    note(
+      'practice-peaks',
+      parseFloat(peaks.sip) >= 10 &&
+        parseFloat(peaks.puff) >= 10 &&
+        peaks.suggestVisible,
+      JSON.stringify(peaks),
+    );
+    await page.click('#btnSuggestThresholds');
+    await page.waitForTimeout(300);
+    const suggest = await evalCard(() => ({
+      open: !document.getElementById('sapSuggestion').hidden,
+      text: document.getElementById('sapSuggestionText').textContent,
+    }));
+    note('suggest-thresholds', suggest.open && /65% of the practice peaks/.test(suggest.text), JSON.stringify(suggest));
+    await page.click('#btnApplySuggested');
+    await page.waitForTimeout(600);
+    const applied = await evalCard(() => ({
+      sip: document.getElementById('sipVal').textContent,
+      puff: document.getElementById('puffVal').textContent,
+      suggestionHidden: document.getElementById('sapSuggestion').hidden,
+    }));
+    note(
+      'suggest-apply',
+      applied.suggestionHidden &&
+        applied.sip !== peaks.sipBefore &&
+        applied.puff !== peaks.puffBefore &&
+        parseFloat(applied.sip) >= 2 &&
+        parseFloat(applied.puff) >= 2,
+      JSON.stringify(applied),
+    );
+
     // Watch holds (the Sip & Puff card's practice door into the DEBUG,5
     // stream): the button starts the hold stream, both ladders sweep with the
     // device-measured hold, and the card's Hold readout tracks the state.

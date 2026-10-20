@@ -853,6 +853,12 @@ footer p {
   width: 2px;
   background: var(--accent);
 }
+/* Practice peaks (peak-hold): the dashed marks pin the largest sip/puff the
+   user produced, beside the solid threshold marks. */
+.gauge .mark.peak {
+  background: transparent;
+  border-left: 2px dashed var(--info);
+}
 .gauge-scale {
   display: flex;
   justify-content: space-between;

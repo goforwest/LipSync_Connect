@@ -17,7 +17,7 @@ import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.j
 import { serialApi } from './serial/transport.js';
 import { sendCommand } from './serial/commands.js';
 
-import { gaugeDelta, recalcGaugeRange, gaugeMarks } from './plotting/gauge.js';
+import { gaugeDelta, recalcGaugeRange, gaugeMarks, resetPracticePeaks, suggestThresholds } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
 
 import { setValue } from './ui/values.js';
@@ -143,6 +143,7 @@ const clearSessionUi = () => {
   resetFirmwareUpdateUi();
   resetRestrictionsUi();
   resetSwitchActionsUi();
+  resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
 };
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
@@ -438,6 +439,68 @@ window.addEventListener('DOMContentLoaded', () => {
     );
     $('sipInput').addEventListener('blur', () => clampInput('sipInput', 2, 149.99, 'sipVal'));
     $('puffInput').addEventListener('blur', () => clampInput('puffInput', 2, 149.99, 'puffVal'));
+
+    // Practice peaks + suggest-from-practice: the peaks track in
+    // plotting/gauge.js off every pressure frame; these three buttons are the
+    // user-facing half. Suggest computes 65%-of-peak trigger values; Apply
+    // writes both through the same SET path the manual buttons use (device
+    // truth re-syncs the readouts and marks through the endpoint renderers).
+    $('btnClearPeaks').addEventListener(
+      'click',
+      guard(() => {
+        resetPracticePeaks();
+        $('sapSuggestion').hidden = true;
+        $('btnApplySuggested').hidden = true;
+        $('btnDismissSuggestion').hidden = true;
+        log('Practice peaks cleared.', 'log-info');
+      }),
+    );
+    $('btnSuggestThresholds').addEventListener(
+      'click',
+      guard(() => {
+        const s = suggestThresholds();
+        if (!s.ready) return; // the button is hidden until ready; guard anyway
+        $('sapSuggestionText').textContent =
+          'Suggested: sip ' +
+          fmtHpa(s.sip) +
+          ' hPa, puff ' +
+          fmtHpa(s.puff) +
+          ' hPa \u2014 65% of the practice peaks. A deliberate hold crosses them; breathing noise should not.';
+        $('sapSuggestion').hidden = false;
+        $('btnApplySuggested').hidden = false;
+        $('btnDismissSuggestion').hidden = false;
+      }),
+    );
+    $('btnApplySuggested').addEventListener(
+      'click',
+      guard(
+        async () => {
+          const s = suggestThresholds();
+          if (!s.ready) return;
+          $('sapError').textContent = '';
+          try {
+            const rs = await sendCommand('ST,1:' + fmtApiFloat(s.sip));
+            setValue('sipVal', fmtHpa(rs.value ?? s.sip));
+            const rp = await sendCommand('PT,1:' + fmtApiFloat(s.puff));
+            setValue('puffVal', fmtHpa(rp.value ?? s.puff));
+            recalcGaugeRange();
+            log('Suggested thresholds applied (from practice peaks).', 'log-info');
+            $('sapSuggestion').hidden = true;
+            $('btnApplySuggested').hidden = true;
+            $('btnDismissSuggestion').hidden = true;
+          } catch (e) {
+            $('sapError').textContent = e.message;
+            throw e;
+          }
+        },
+        { quiet: true },
+      ),
+    );
+    $('btnDismissSuggestion').addEventListener('click', () => {
+      $('sapSuggestion').hidden = true;
+      $('btnApplySuggested').hidden = true;
+      $('btnDismissSuggestion').hidden = true;
+    });
 
     // Input timing windows (roadmap item 15; firmware 4.4.0+): each Set
     // validates range and short < long < max ordering before writing; the

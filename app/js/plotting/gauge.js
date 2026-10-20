@@ -1,10 +1,23 @@
 // Sip/puff pressure gauge: fill position between the two threshold marks and
-// the axis labels. Range derives from the largest threshold × 1.5.
+// the axis labels. Range derives from the largest threshold × 1.5. The gauge
+// also carries the practice-peak hold: while any pressure data streams (live
+// view, one-shot reads, the diagnostics panel), the largest sip and puff seen
+// pin as a second pair of marks — the needle passes, the peak stays — and
+// suggestThresholds() turns those measured peaks into trigger values at a
+// fraction of them (the guesswork-killer for thresholds).
 import { METER_SEGMENTS } from '../config/constants.js';
+import { fmtHpa } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
 
 let gaugeRange = null;
 let gaugeLastDelta = null;
+// Practice peaks: the largest |Δ| reached on each side since the last Clear
+// (or session start). Zero = nothing seen yet.
+const practicePeaks = { sip: 0, puff: 0 };
+// The suggest fraction: standard assistive-tech practice — a threshold far
+// enough below a deliberate peak that a hold reliably crosses it, far enough
+// above resting noise that breathing never triggers.
+export const SUGGEST_FRACTION = 0.65;
 
 export function updateMeter(id, value) {
   const el = $(id);
@@ -44,6 +57,9 @@ function setGaugeFill(el, delta) {
   el.style.width = half + '%';
 }
 export function gaugeDelta(delta) {
+  // Peak tracking runs before the range guard: practice data can arrive
+  // while thresholds are still loading (range not yet derived).
+  if (Number.isFinite(delta)) notePracticeDelta(delta);
   if (!Number.isFinite(delta) || gaugeRange === null) return;
   gaugeLastDelta = delta;
   setGaugeFill($('gaugeFill'), delta);
@@ -54,6 +70,63 @@ export function gaugeDelta(delta) {
       'aria-label',
       `Pressure gauge: sip fills left, puff fills right, thresholds marked in red. Current delta: ${Math.abs(delta).toFixed(1)} hPa ${delta < 0 ? '(sip)' : '(puff)'}.`,
     );
+}
+
+// ---- Practice peaks ----------------------------------------------------------
+// Every pressure frame flows through gaugeDelta (live stream frames and
+// one-shot reads alike), so this single hook sees all practice data. Peaks
+// pin on the gauge as dashed marks beside the solid threshold marks and
+// surface in the card's readout; Clear (and every fresh session) resets them.
+
+function notePracticeDelta(delta) {
+  if (delta < 0 && -delta > practicePeaks.sip) practicePeaks.sip = -delta;
+  else if (delta > 0 && delta > practicePeaks.puff) practicePeaks.puff = delta;
+  updatePracticeUi();
+}
+
+function renderPeakMark(id, peak, side) {
+  const el = $(id);
+  if (!el || !el.style) return;
+  if (gaugeRange === null || !(peak >= 1)) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const clamped = Math.min(peak / gaugeRange, 1) * 50;
+  el.style.left = (side === 'sip' ? 50 - clamped : 50 + clamped) + '%';
+  el.title = `Practice peak ${side}: ${fmtHpa(peak)} hPa`;
+}
+
+function updatePracticeUi() {
+  renderPeakMark('gaugeSipPeak', practicePeaks.sip, 'sip');
+  renderPeakMark('gaugePuffPeak', practicePeaks.puff, 'puff');
+  const sipOut = $('peakSipVal');
+  const puffOut = $('peakPuffVal');
+  if (sipOut) sipOut.textContent = practicePeaks.sip >= 1 ? fmtHpa(practicePeaks.sip) : '\u2014';
+  if (puffOut) puffOut.textContent = practicePeaks.puff >= 1 ? fmtHpa(practicePeaks.puff) : '\u2014';
+  const suggest = $('btnSuggestThresholds');
+  if (suggest) suggest.hidden = !(practicePeaks.sip >= 2 && practicePeaks.puff >= 2);
+}
+
+/** Session reset (fresh connect) and the Clear button: no stale peak may
+ *  survive into a new practice. */
+export function resetPracticePeaks() {
+  practicePeaks.sip = 0;
+  practicePeaks.puff = 0;
+  updatePracticeUi();
+}
+
+/**
+ * The measured-maximum suggestion: 65% of each practice peak, rounded to the
+ * threshold input's 0.25 granularity and clamped to the firmware's range.
+ * ready is false until both peaks reach the 2 hPa minimum threshold — a
+ * suggestion clamped up from noise would be a lie.
+ */
+export function suggestThresholds() {
+  const round = (v) => Math.round(v * 4) / 4; // 0.25 granularity
+  const one = (peak) => Math.min(149.99, Math.max(2, round(peak * SUGGEST_FRACTION)));
+  const ready = practicePeaks.sip >= 2 && practicePeaks.puff >= 2;
+  return { ready, sip: ready ? one(practicePeaks.sip) : 0, puff: ready ? one(practicePeaks.puff) : 0 };
 }
 export function recalcGaugeRange() {
   const sip = Number($('sipVal').textContent),
@@ -77,5 +150,7 @@ export function gaugeMarks() {
   }
   $('gaugeSipLabel').textContent = '\u2212' + gaugeRange.toFixed(1) + ' hPa';
   $('gaugePuffLabel').textContent = '+' + gaugeRange.toFixed(1) + ' hPa';
+  // A range change moves the peak marks with the threshold marks.
+  updatePracticeUi();
   if (gaugeLastDelta !== null) gaugeDelta(gaugeLastDelta);
 }
