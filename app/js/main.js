@@ -40,6 +40,7 @@ import { openSectionById, closeCurrentSection, getOpenSection } from './ui/secti
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
+import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -144,6 +145,7 @@ const clearSessionUi = () => {
   resetRestrictionsUi();
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
+  hideWriteConfirm(); // a stale Undo must never point at a dead session
 };
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
@@ -370,6 +372,7 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnExportSettings').addEventListener('click', guard(exportSettings));
     $('btnRunDiagnostics').addEventListener('click', guard(runDiagnostics));
     bindDeviceOps(guard);
+    bindWriteConfirm(); // the inline write-confirm chip's Undo button
     bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
     $('btnSetDebug').addEventListener(

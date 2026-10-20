@@ -15,6 +15,7 @@ import { showConfirm } from '../ui/formatting.js';
 import { handleBeforeUnload, setStatus } from '../ui/connection-ui.js';
 import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
+import { setWriteConfirmSuppressed } from './confirm.js';
 import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
@@ -667,20 +668,29 @@ export async function restoreSettingsSnapshot(snapshot) {
     order.push('SA', 'SB', 'SC', 'GA', 'GB', 'GC');
   }
   let consecutive = 0;
-  for (const ep of order) {
-    const raw = snapshot?.[ep];
-    if (raw === undefined || raw === null || raw === '') continue;
-    const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(raw) : String(raw);
-    try {
-      await sendCommand(`${ep},1:${value}`);
-      consecutive = 0;
-    } catch (e) {
-      failures.push(`${ep}: ${e.message}`);
-      // A dead link (unplug) fails fast; a wedged-but-open port would grind
-      // through nine 6-second timeouts instead. Stop after two consecutive
-      // failures — the finisher re-arms or reports either way.
-      if (!serialSession.port || ++consecutive >= 2) break;
+  // A restore is a deliberate burst over every settings endpoint at once —
+  // one write-confirm chip per write would flicker through a dozen states
+  // for a change the wizard already narrates. Suppress the chips for the
+  // burst; normal single writes confirm again immediately after.
+  setWriteConfirmSuppressed(true);
+  try {
+    for (const ep of order) {
+      const raw = snapshot?.[ep];
+      if (raw === undefined || raw === null || raw === '') continue;
+      const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(raw) : String(raw);
+      try {
+        await sendCommand(`${ep},1:${value}`);
+        consecutive = 0;
+      } catch (e) {
+        failures.push(`${ep}: ${e.message}`);
+        // A dead link (unplug) fails fast; a wedged-but-open port would grind
+        // through nine 6-second timeouts instead. Stop after two consecutive
+        // failures — the finisher re-arms or reports either way.
+        if (!serialSession.port || ++consecutive >= 2) break;
+      }
     }
+  } finally {
+    setWriteConfirmSuppressed(false);
   }
   return failures;
 }

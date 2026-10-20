@@ -1099,6 +1099,56 @@ summary {
   border: 0;
 }
 
+/* ---- Inline write confirmation + undo (services/confirm.js) ----
+   Appears on every successful settings write: the change and its previous
+   value, one Undo click away. Bottom-left — the gear, toasts, and share
+   popups all live bottom-right. The text area is click-through
+   (pointer-events: none) so the chip can never intercept a click aimed at
+   the control behind it; only the Undo button takes clicks. */
+.write-confirm {
+  position: fixed;
+  bottom: 24px;
+  left: 16px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--success) 14%, var(--panel));
+  border: 1px solid var(--success);
+  color: var(--text);
+  font-size: 0.9rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+.write-confirm[hidden] {
+  display: none;
+}
+.write-confirm-undo {
+  pointer-events: auto;
+  padding: 4px 14px;
+  min-height: 34px;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--success);
+  box-shadow: inset 0 0 0 1.5px var(--success);
+}
+.write-confirm-undo:hover:not(:disabled) {
+  background: var(--success);
+  color: #fff;
+}
+@media (max-width: 700px) {
+  .write-confirm {
+    bottom: 100px; /* above the mobile gear button's zone */
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+}
+
 /* ---- Toast notification ---- */
 #notification {
   position: fixed;

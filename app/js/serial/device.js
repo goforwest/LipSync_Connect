@@ -17,6 +17,7 @@ import { gaugeDelta } from '../plotting/gauge.js';
 import { plotCorner, plotRawXY, orientFromOutput, cornerState } from '../plotting/plot.js';
 import { updateStepButtons, calibrationIsRunning, applySwitchActionValue } from '../services/settings-service.js';
 import { noteExternalSettingsChange, applyHubMenuPush } from '../services/hub-remote.js';
+import { captureWriteConfirm } from '../services/confirm.js';
 import { $ } from '../ui/dom.js';
 
 export function applyDeviceResponse(line) {
@@ -146,6 +147,11 @@ export function applyDeviceResponse(line) {
     },
     RT: () => log('Self-test acknowledged (RT,' + r.cmd.slice(3) + '); narrating steps…', 'log-info'),
   };
+  // Inline confirm/undo (services/confirm.js): snapshot the pre-write
+  // control state BEFORE the renderers replace it, commit the chip after
+  // they land the new device truth. Write responses only (",1") — reads and
+  // MANUAL pushes confirm nothing.
+  const pendingConfirm = captureWriteConfirm(endpoint, r.cmd);
   if (updates[endpoint]) updates[endpoint]();
   else if (!r.cmd.startsWith('DEBUG,')) {
     // When firmware adds an endpoint and this map doesn't know it, the response
@@ -168,6 +174,7 @@ export function applyDeviceResponse(line) {
   // settings, and device truth just replaced them — refresh a visible value
   // page so the mirror shows what the Hub actually changed.
   if (r.type === 'MANUAL') noteExternalSettingsChange(endpoint);
+  if (pendingConfirm) pendingConfirm.commit(r.value);
   if (!r.cmd.startsWith('DEBUG,')) updateStepButtons();
 }
 

@@ -112,6 +112,25 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.waitForTimeout(400);
     note('stepper-plus', (await evalCard(() => document.getElementById('speedVal').textContent)) === '8', 'speed after +');
 
+    // Inline write confirmation + undo: the stepper write chips with the
+    // previous value, Undo rewrites it. The re-plus afterwards restores
+    // speed 8 for the stepper-max math below.
+    const chip1 = await evalCard(() => ({
+      visible: !document.getElementById('writeConfirm').hidden,
+      text: document.getElementById('writeConfirmText').textContent,
+      undoVisible: !document.getElementById('btnWriteUndo').hidden,
+    }));
+    note(
+      'write-confirm-chip',
+      chip1.visible && chip1.text === '\u2713 Cursor speed level 7 \u2192 8' && chip1.undoVisible,
+      JSON.stringify(chip1),
+    );
+    await page.click('#btnWriteUndo');
+    await page.waitForTimeout(500);
+    note('write-confirm-undo', (await evalCard(() => document.getElementById('speedVal').textContent)) === '7', 'speed restored to 7');
+    await page.click('[data-target="speed"][data-step="1"]');
+    await page.waitForTimeout(400);
+
     await openCard('sec-sip');
     const sip = await evalCard(() => ({
       sipVal: document.getElementById('sipVal').textContent,
