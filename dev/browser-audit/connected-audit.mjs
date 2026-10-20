@@ -314,6 +314,14 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(health),
     );
 
+    // Health history: the run recorded a trend dot with its timestamp.
+    const hist = await evalCard(() => ({
+      hidden: document.getElementById('healthHistory').hidden,
+      dots: document.querySelectorAll('#healthHistory .health-dot').length,
+      firstTitle: document.querySelector('#healthHistory .health-dot')?.title ?? '',
+    }));
+    note('health-history', !hist.hidden && hist.dots === 1 && hist.firstTitle.length > 0, JSON.stringify(hist));
+
     // Self-test: mid-narration, completion, linger, unlock
     await page.click('#btnTestLeds');
     await page.waitForTimeout(600);

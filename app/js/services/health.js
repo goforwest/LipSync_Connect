@@ -8,6 +8,7 @@ import { setCmdButtons } from '../ui/connection-ui.js';
 import { validFiniteList } from '../utils/format.js';
 import { log } from './log.js';
 import { updateReadiness } from './readiness.js';
+import { recordHealthRun, renderHealthHistory } from './health-history.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 
@@ -70,6 +71,11 @@ function cancelDetailsFade() {
 // On disconnect or the start of a fresh session, clear past results. Otherwise
 // a stale "Passed" from a previous LipSync would still be showing while the
 // user is connected to a different state (or nothing at all).
+export function hideHealthHistory() {
+  const el = $('healthHistory');
+  if (el) el.hidden = true;
+}
+
 export function clearHealthResults() {
   cancelDetailsFade();
   const grid = $('healthGrid');
@@ -182,6 +188,7 @@ export async function runDiagnostics() {
       }
     }
     $('healthSummary').textContent = findings.length ? 'Needs attention' : 'Passed';
+    recordHealthRun(findings.length ? 'attention' : 'passed', { ...healthStepState });
     updateReadiness();
     // On a clean pass, show a short confirmation and fade it out gently — the
     // header summary ("Passed") plus the ✓ cells carry the lasting state,
@@ -206,8 +213,10 @@ export async function runDiagnostics() {
       findings.length ? `Health check completed with ${findings.length} warning(s).` : 'Health check passed.',
       findings.length ? 'log-err' : 'log-info',
     );
+    renderHealthHistory();
   } catch (e) {
     $('healthSummary').textContent = 'Error';
+    recordHealthRun('error', { ...healthStepState });
     updateReadiness();
     healthEl.textContent = 'Diagnostics failed: ' + e.message;
     // Mark any still-running step as errored so the user sees exactly where it stopped

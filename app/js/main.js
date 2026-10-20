@@ -136,7 +136,7 @@ window.addEventListener('unhandledrejection', (e) => {
 import './serial/endpoints.js';
 import { configureConnection } from './serial/connection.js';
 import { configureSettingsListeners } from './services/settings-service.js';
-import { clearHealthResults } from './services/health.js';
+import { clearHealthResults, hideHealthHistory } from './services/health.js';
 // Disconnect (and a fresh settings load) must clear stale health results AND
 // the mirrored Hub screen — the device's menu dies with the port. The
 // restriction checkboxes reset with the same stroke so a stale checked state
@@ -148,6 +148,7 @@ const clearSessionUi = () => {
   resetRestrictionsUi();
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
+  hideHealthHistory(); // the stored trend stays; the row hides with the session
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port

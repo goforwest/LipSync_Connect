@@ -1119,6 +1119,46 @@ summary {
     padding: 8px 16px 24px;
   }
 }
+/* ---- Health check history (Diagnostics card) ---- */
+.health-history {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.health-history[hidden] {
+  display: none;
+}
+.health-history-label {
+  margin-right: 4px;
+}
+.health-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.health-dot--ok {
+  background: var(--success);
+}
+.health-dot--warn {
+  background: var(--warning);
+}
+.health-dot--err {
+  background: var(--danger);
+}
+.health-history-clear {
+  margin-left: 8px;
+  padding: 4px 12px;
+  min-height: 32px;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--border);
+}
+
 /* ---- User profiles (Device card) ---- */
 .profile-list {
   display: flex;
