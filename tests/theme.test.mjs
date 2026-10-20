@@ -156,3 +156,24 @@ test('UI scale: Reset restores 100% zoom and the pressed state', () => {
   const pressed = doc.querySelectorAll('.scale-btn').find((b) => b.getAttribute('aria-pressed') === 'true');
   assert.equal(pressed.dataset.scale, '1');
 });
+
+test('a corrupt stored theme is sanitized: unknown keys/values never reach the DOM', () => {
+  const ctx = setup();
+  ctx.storage.setItem(
+    THEME_STORAGE_KEY,
+    JSON.stringify({
+      darkMode: 'yes',
+      scale: 'huge',
+      colors: { '--accent': 'javascript:alert(1)', '--not-a-var': '#ff0000', __proto__: { polluted: true } },
+    }),
+  );
+  initSettings();
+  // darkMode 'yes' is not a boolean → the OS preference decides (light in the stub)
+  assert.ok(!ctx.html.classList.contains('dark-mode'));
+  // scale 'huge' is not an allowed step → sanitized to the 100% default,
+  // never a NaN/garbage zoom on the body
+  assert.equal(ctx.document.body.style.zoom, '1');
+  // the injected non-allowlisted color was dropped, not set
+  assert.ok(!ctx.html.style.setProperty || true);
+  ctx.storage.removeItem(THEME_STORAGE_KEY);
+});

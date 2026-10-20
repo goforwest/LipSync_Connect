@@ -86,6 +86,7 @@ export const ENDPOINT_RENDERERS = {
   DM: (v) => {
     setValue('debugModeVal', DEBUG_MODES[v] ?? v);
     $('debugMode').value = v;
+    $('debugMode').disabled = false; // renderer runs only on a real device answer
   },
   IN: (v) => {
     $('neutralVal').textContent = v ?? '?';

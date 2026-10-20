@@ -244,3 +244,48 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   testHooks.detach();
   resetWireNewlineFraming();
 });
+
+test('window writes must be whole milliseconds', async () => {
+  resetWireNewlineFraming();
+  launchDevice({});
+  await assert.rejects(() => setTimingWindow('WS', 500.5), /whole number/);
+  await assert.rejects(() => setTimingWindow('WL', 2500.25), /whole number/);
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('the 10000 ms maximum is refused before the wire on firmware below 4.5.0', async () => {
+  resetWireNewlineFraming();
+  const sent = launchDevice({ version: '4.4.0' });
+  await assert.rejects(() => setTimingWindow('WM', 10000), /firmware 4\.5\.0/);
+  assert.ok(!sent.includes('WM,1:10000'), 'the five-digit parameter never reaches old firmware');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('firmware 4.5.0+ accepts the 10000 ms maximum', async () => {
+  resetWireNewlineFraming();
+  const sent = launchDevice({ version: '4.5.0' });
+  await loadDeviceInfo(); // the version gate reads the loaded VN
+  applyTimingWindowValue('WS', '1000');
+  applyTimingWindowValue('WL', '3000');
+  await setTimingWindow('WM', 10000);
+  assert.ok(sent.includes('WM,1:10000'), JSON.stringify(sent));
+  assert.equal(doc.getElementById('w3Val').textContent, '10000');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('a reload clears stale inline validation messages', async () => {
+  resetWireNewlineFraming();
+  launchDevice({});
+  doc.getElementById('sapError').textContent = 'stale window refusal';
+  doc.getElementById('formError').textContent = 'stale deadzone refusal';
+  doc.getElementById('switchError').textContent = 'stale switch refusal';
+  await loadDeviceInfo();
+  assert.equal(doc.getElementById('sapError').textContent, '');
+  assert.equal(doc.getElementById('formError').textContent, '');
+  assert.equal(doc.getElementById('switchError').textContent, '');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});

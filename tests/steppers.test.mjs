@@ -101,3 +101,30 @@ test('bounds disable the stepper buttons per current value', () => {
   updateStepButtons();
   assert.ok(!doc.querySelector('button[data-target="oz"][data-step="1"]').disabled, 'fine + re-enables below max');
 });
+
+test('deadzone steppers refuse to cross their sibling and surface formError', async () => {
+  const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
+  doc.getElementById('outerDeadzoneVal').textContent = '1.00';
+  // At 0.99 the inner fine + step would land at 1.00 == outer: disabled.
+  doc.getElementById('innerDeadzoneVal').textContent = '0.99';
+  updateStepButtons();
+  const izPlus = doc.querySelector('button[data-target="iz"][data-step="1"]');
+  assert.ok(izPlus.disabled, 'inner + disabled one step below the outer deadzone');
+  // The typed-value path's ordering contract holds for steps too: a step that
+  // would cross (or equal) the sibling never reaches the wire and says why.
+  doc.getElementById('innerDeadzoneVal').textContent = '0.98';
+  updateStepButtons();
+  const sentBefore = sent.length;
+  doc.getElementById('formError').textContent = '';
+  await step('iz', 2); // fine ×2 → 1.00 == outer → refused in-app
+  assert.match(doc.getElementById('formError').textContent, /ordered/);
+  assert.equal(sent.length, sentBefore, 'no wire write for a crossing step');
+  // Outer stepping down to the inner value is refused the same way.
+  doc.getElementById('innerDeadzoneVal').textContent = '0.90';
+  doc.getElementById('outerDeadzoneVal').textContent = '0.92';
+  const sentBeforeOuter = sent.length;
+  await step('oz', -2); // coarse −2 → 0.90 == inner → refused
+  assert.match(doc.getElementById('formError').textContent, /ordered/);
+  assert.equal(sent.length, sentBeforeOuter, 'no wire write for the outer crossing step');
+  testHooks.detach();
+});

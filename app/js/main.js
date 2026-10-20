@@ -22,7 +22,7 @@ import { initWindowLadders } from './plotting/windows.js';
 
 import { setValue } from './ui/values.js';
 import { bindModeSwitch } from './services/mode-switch.js';
-import { bindCalibration } from './services/calibration.js';
+import { bindCalibration, resetCalibrationUi } from './services/calibration.js';
 import { loadDeviceInfo } from './services/settings-service.js';
 
 import { connect, disconnect } from './serial/connection.js';
@@ -37,6 +37,7 @@ import {
 } from './services/settings-service.js';
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
+import { showNotification } from './ui/notification.js';
 import { openSectionById, closeCurrentSection, getOpenSection, onSectionChange } from './ui/sections.js';
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
@@ -148,7 +149,13 @@ const clearSessionUi = () => {
   resetFirmwareUpdateUi();
   resetRestrictionsUi();
   resetSwitchActionsUi();
+  resetCalibrationUi(); // no stale "Calibration complete" from a previous session
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
+  // The streaming select is only meaningful once the device's DM value has
+  // loaded; disabling it is also the signal auto-live uses to refuse to send
+  // DM over a stream whose current state is still unknown.
+  const dmSelect = $('debugMode');
+  if (dmSelect) dmSelect.disabled = true;
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
@@ -175,7 +182,12 @@ const resetSessionUiOnDisconnect = () => {
 const AUTO_LIVE_SECTION_MODES = { 'sec-sip': '2', 'sec-joystick': '1' };
 let autoLiveMode = null; // the DM mode the app auto-started; null = not ours
 const syncAutoLive = (sectionId) => {
-  const dm = String($('debugMode')?.value ?? '0');
+  const dmEl = $('debugMode');
+  // Before the settings load lands the select is disabled and still shows its
+  // markup default ("0"). Treating that as the device's real mode would send
+  // DM,1:2 over a stream the user already had running.
+  const dmReady = !!dmEl && !dmEl.disabled;
+  const dm = String(dmEl?.value ?? '0');
   // If the stream we started was replaced or stopped elsewhere, it is no
   // longer ours to manage.
   if (autoLiveMode !== null && dm !== String(autoLiveMode)) autoLiveMode = null;
@@ -192,7 +204,7 @@ const syncAutoLive = (sectionId) => {
     }
   }
   const wantMode = serialSession.port && sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
-  if (wantMode && autoLiveMode === null && dm === '0') {
+  if (wantMode && autoLiveMode === null && dmReady && dm === '0') {
     autoLiveMode = wantMode;
     void setSimpleSetting('DM', wantMode, 'debugModeVal', DEBUG_MODES)
       .then(() => log('Live view started for this section — Stop live view turns it off.', 'log-info'))
@@ -207,6 +219,9 @@ onSectionChange(syncAutoLive);
 // automatic update check. Fire-and-forget — nothing here may delay "ready".
 const loadDeviceInfoThenCheckFirmware = async () => {
   await loadDeviceInfo();
+  // The user may have opened a live section while settings were still
+  // loading; now that DM is known, let the normal ownership rules decide.
+  syncAutoLive(getOpenSection());
   void afterDeviceLoad();
 };
 configureConnection({
@@ -353,7 +368,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.card-close').forEach((/** @type {any} */ btn) => {
     btn.addEventListener('click', () => {
       const sectionId = btn.dataset.close;
-      if (getOpenSection() === sectionId) closeCurrentSection();
+      if (getOpenSection() === sectionId && !closeCurrentSection()) return;
       const trigger = /** @type {HTMLElement|null} */ (
         document.querySelector(`.circle-trigger[data-section="${sectionId}"]`)
       );
@@ -440,6 +455,9 @@ window.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./service-worker.js').catch((err) => {
       console.error('Service worker registration failed:', err);
       log('Service worker registration failed: ' + err.message, 'log-err');
+      // Offline caching is an enhancement, not a requirement — say so rather
+      // than leaving the user to discover it the next time they are offline.
+      showNotification('Offline support could not start — the app still works while online.', true);
     });
   }
 
@@ -691,7 +709,10 @@ window.addEventListener('DOMContentLoaded', () => {
           try {
             await setRestriction(r.endpoint, el.checked);
           } finally {
-            el.disabled = false;
+            // Restore the connection-derived state, not an unconditional
+            // enable: a disconnect mid-write must leave the box disabled like
+            // every other cmd control.
+            el.disabled = !serialSession.port;
           }
         }),
       );

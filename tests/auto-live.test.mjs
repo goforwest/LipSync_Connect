@@ -99,3 +99,24 @@ test('sections without a live mapping change nothing', async () => {
   assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
   testHooks.detach();
 });
+
+test('before the settings load lands (select disabled), no auto-start is sent', async () => {
+  const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
+  const dmEl = doc.getElementById('debugMode');
+  dmEl.disabled = true; // the pre-load state clearSessionUi establishes
+  dmEl.value = '0'; // the markup default that must not be trusted
+  openSectionById('sec-sip');
+  await sleep(40);
+  assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
+  // Once the DM read lands (the renderer enables the select), the next
+  // transition may start the stream under the normal rules.
+  dmEl.disabled = false;
+  closeCurrentSection();
+  await sleep(40);
+  openSectionById('sec-sip');
+  await sleep(40);
+  assert.deepEqual(dmSent(sent), ['DM,1:2'], JSON.stringify(sent));
+  closeCurrentSection();
+  await sleep(40);
+  testHooks.detach();
+});

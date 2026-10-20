@@ -2380,6 +2380,7 @@ async function finishPendingUpdate(pending) {
     (wantedOm && currentOm && wantedOm !== currentOm) || (wantedCm && currentCm && wantedCm !== currentCm);
   writePending(null);
   wizard = null;
+  let modeRestoreError = '';
   if (modeChanged) {
     try {
       if (wantedOm && wantedOm !== currentOm) await sendCommand('OM,1:' + wantedOm, CMD_MODE_TIMEOUT);
@@ -2404,13 +2405,16 @@ async function finishPendingUpdate(pending) {
       await disconnect({ quiet: true });
       return;
     } catch (e) {
+      modeRestoreError = e.message;
       log('Could not restore the operating mode: ' + e.message + '. Set it in the Device section.', 'log-err');
       wizard = null;
     }
   }
-  const extra = calibrationLost
-    ? ' Joystick calibration changed — run Calibrate in the Joystick section if the cursor drifts.'
-    : '';
+  const extra =
+    (calibrationLost
+      ? ' Joystick calibration changed — run Calibrate in the Joystick section if the cursor drifts.'
+      : '') +
+    (modeRestoreError ? ' The operating mode could not be restored automatically — set it in the Device section.' : '');
   const message =
     'Firmware update complete.' + (failures.length ? ' Some settings could not be restored automatically.' : '');
   completedSnapshot = pending.snapshot ?? null;
@@ -2424,11 +2428,16 @@ async function finishPendingUpdate(pending) {
   // (cache-backed, so it is instant and does not burn the rate limit).
   setRow('fwCurrentVersion', installedVersion);
   setRowClass('fwLatestVersion', 'fw-new', false);
+  const needsAttention = failures.length || modeRestoreError || calibrationLost;
   setCheckStatus(
-    failures.length ? 'Update complete, but some settings need a manual retry.' : 'Firmware update complete.',
-    failures.length ? 'warn' : 'ok',
+    failures.length
+      ? 'Update complete, but some settings need a manual retry.'
+      : modeRestoreError
+        ? 'Update complete, but the operating mode needs to be set manually.'
+        : 'Firmware update complete.',
+    needsAttention ? 'warn' : 'ok',
   );
-  log(message + extra, failures.length || calibrationLost ? 'log-err' : 'log-info');
+  log(message + extra, needsAttention ? 'log-err' : 'log-info');
   void checkForFirmwareUpdate({ auto: true });
 }
 

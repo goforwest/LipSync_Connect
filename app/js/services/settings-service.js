@@ -179,6 +179,13 @@ export async function setTimingWindow(endpoint, valueMs) {
   if (!w) throw new Error('Unknown timing window.');
   if (!Number.isFinite(valueMs) || valueMs < w.min || valueMs > w.max)
     throw new Error(`${w.label} must be between ${w.min} and ${w.max} ms.`);
+  if (!Number.isInteger(valueMs)) throw new Error(`${w.label} must be a whole number of milliseconds.`);
+  // Five-digit parameters (the 10000 ms maximum) only became legal for the
+  // firmware's line-length validator in 4.5.0. Older devices have the window
+  // endpoint but reject this one value, so refuse it before the wire and say
+  // why instead of surfacing a generic FAIL.
+  if (endpoint === 'WM' && valueMs === 10000 && !deviceFirmwareAtLeast(4, 5, 0))
+    throw new Error('The 10000 ms maximum needs firmware 4.5.0+; use 9950 ms or lower on this device.');
   // The full triple with the new value in place; ordering is only checked
   // when both siblings have loaded (the firmware still guards it either way).
   // > 0, not just finite: an unloaded readout parses empty as 0, which would
@@ -405,6 +412,12 @@ export async function loadDeviceInfo() {
   clearTimeout(loadTotalTimer);
   loadTotalTimer = null;
   setLoadingPlaceholders();
+  // A reload supersedes the previous attempt: its inline validation messages
+  // describe values that are no longer on screen.
+  ['sapError', 'formError', 'switchError'].forEach((id) => {
+    const el = $(id);
+    if (el) el.textContent = '';
+  });
   clearHealth(); // stale diagnostics from a previous session would mislead (also clears timer)
   const controller = new AbortController();
   loadController = controller;
@@ -577,15 +590,33 @@ export async function step(target, delta) {
   if (!cfg || pendingSteps.has(target)) return;
   pendingSteps.add(target);
   updateStepButtons();
+  const errorId = cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ' ? 'formError' : 'sapError';
   try {
     const cur = parseFloat(String($(cfg.valueId)?.textContent ?? '').trim());
     if (!Number.isFinite(cur)) return;
+    const errEl = $(errorId);
+    if (errEl) errEl.textContent = '';
     // Float steps accumulate binary drift (0.01 is not representable); snap
     // to the step's own grid so 0.07 + 0.01 is exactly 0.08, never 0.08000…1.
     const stepSize = cfg.step ?? 1;
     let next = Math.round((cur + delta * stepSize) / stepSize) * stepSize;
     next = Number(next.toFixed(4));
     if (next < cfg.min || next > cfg.max) return;
+    // Deadzones are a pair (inner < outer), just like the timing windows are a
+    // triple. The typed-value path has always enforced this; stepping past the
+    // sibling used to reach the wire and fail there with no inline answer.
+    if (cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ') {
+      const other = parseFloat(
+        String($(cfg.endpoint === 'IZ' ? 'outerDeadzoneVal' : 'innerDeadzoneVal')?.textContent ?? '').trim(),
+      );
+      if (Number.isFinite(other)) {
+        const invalid = cfg.endpoint === 'IZ' ? next >= other : next <= other;
+        if (invalid) {
+          if (errEl) errEl.textContent = 'Deadzones must stay ordered: inner < outer.';
+          return;
+        }
+      }
+    }
     if (cfg.endpoint === 'WS' || cfg.endpoint === 'WL' || cfg.endpoint === 'WM') {
       // The window steppers delegate to the validated write: setTimingWindow
       // owns the short < long < max ordering contract, and its refusal
@@ -606,6 +637,8 @@ export async function step(target, delta) {
     setValue(cfg.valueId, cfg.hpa ? fmtHpa(result) : result);
     if (cfg.meter) updateMeter(cfg.meter, result);
   } catch (e) {
+    const errEl = $(errorId);
+    if (errEl) errEl.textContent = e.message;
     log(e.message, 'log-err');
   } finally {
     pendingSteps.delete(target);
@@ -627,7 +660,15 @@ export function updateStepButtons() {
       return;
     }
     const delta = parseFloat(b.dataset.step) * (cfg.step ?? 1);
-    b.disabled = val + delta < cfg.min || val + delta > cfg.max;
+    const next = val + delta;
+    let disabled = next < cfg.min || next > cfg.max;
+    if (!disabled && (cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ')) {
+      const other = parseFloat(
+        String($(cfg.endpoint === 'IZ' ? 'outerDeadzoneVal' : 'innerDeadzoneVal')?.textContent ?? '').trim(),
+      );
+      if (Number.isFinite(other)) disabled = cfg.endpoint === 'IZ' ? next >= other : next <= other;
+    }
+    b.disabled = disabled;
   });
 }
 

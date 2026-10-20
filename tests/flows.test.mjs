@@ -481,3 +481,17 @@ test('raw state-changing commands keep their confirm: ok sends the command', asy
   detach();
   assert.deepEqual(sent, ['SETTINGS', 'SR,1:1']);
 });
+
+test("raw command longer than the firmware's 11-character line cap is refused", async () => {
+  const { sent } = launch(() => []);
+  const logBefore = getLogHistory().length;
+  doc.getElementById('rawCommand').value = 'SS,1:123456789';
+  await clickAndDrain('btnSendRaw');
+  assert.ok(!sent.some((t) => t.includes('SS,1:123456789')), JSON.stringify(sent));
+  assert.ok(
+    getLogHistory()
+      .slice(logBefore)
+      .some((entry) => entry.includes('at most 11 characters')),
+  );
+  doc.getElementById('rawCommand').value = 'EX,0:0';
+});

@@ -585,8 +585,17 @@ function render() {
     (def.items ?? []).forEach((it, i) => {
       const li = document.createElement('li');
       li.textContent = it.label;
+      // The mirror is a passive listbox: the device, not the user, moves the
+      // cursor, so each row exposes its selected state (and the current-mode
+      // marker that is otherwise color-only) without becoming a tab stop.
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(i === sel));
       if (i === sel) li.classList.add('selected');
-      if (it.current) li.classList.add('current');
+      if (it.current) {
+        li.classList.add('current');
+        li.setAttribute('aria-label', it.label + ' (current mode)');
+        li.title = it.label + ' (current mode)';
+      }
       if (it.displayOnly) li.classList.add('display-only');
       list.appendChild(li);
     });

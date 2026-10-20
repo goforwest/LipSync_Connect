@@ -101,6 +101,16 @@ function renderStep() {
   if (next) next.hidden = !(stepIndex < STEPS.length && STEPS[stepIndex].done === null);
 }
 
+function focusWizardControl() {
+  const action = $('wizAction');
+  if (action && !action.hidden && !action.disabled && typeof action.focus === 'function') {
+    action.focus();
+    return;
+  }
+  const cancel = $('wizCancel');
+  if (cancel && !cancel.hidden && typeof cancel.focus === 'function') cancel.focus();
+}
+
 function poll() {
   if (!active) return;
   if (stepIndex < STEPS.length && STEPS[stepIndex].done && STEPS[stepIndex].done()) {
@@ -113,6 +123,9 @@ function poll() {
     // when Help is not already the open card — openSectionById toggles).
     if (getOpenSection() !== 'sec-help') openSectionById('sec-help');
     if (stepIndex >= STEPS.length) finish();
+    // renderStep hid the completed step's action; without moving focus the
+    // keyboard user is left on a control that no longer exists.
+    focusWizardControl();
   }
   pollTimer = setTimeout(poll, POLL_MS);
 }
@@ -135,6 +148,7 @@ export function startWizard() {
   stepIndex = 0;
   while (stepIndex < STEPS.length && STEPS[stepIndex].done && STEPS[stepIndex].done()) stepIndex++;
   renderStep();
+  focusWizardControl();
   clearTimeout(pollTimer);
   pollTimer = setTimeout(poll, POLL_MS);
 }
@@ -178,6 +192,7 @@ export function bindWizard() {
         stepIndex++;
         renderStep();
         if (stepIndex >= STEPS.length) finish();
+        focusWizardControl();
       }
     });
   const cancel = $('wizCancel');

@@ -149,6 +149,19 @@ export function makeEl(tag) {
       },
     },
     dataset: {},
+    // String-assigning className must feed the classList Set (real-DOM
+    // semantics): renderers assign className strings, interaction code later
+    // asks classList.contains — both paths have to see the same classes.
+    get className() {
+      return Array.from(classes).join(' ');
+    },
+    set className(v) {
+      classes.clear();
+      String(v)
+        .split(/\s+/)
+        .filter(Boolean)
+        .forEach((c) => classes.add(c));
+    },
     querySelectorAll(sel) {
       if (sel === 'li') return this.children.filter((c) => c.tagName === 'LI' || c.nodeType === 3 || true);
       return this.children.slice();

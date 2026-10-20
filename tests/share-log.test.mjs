@@ -86,20 +86,29 @@ test('long log settles on the clipboard with no mailto', async () => {
   getLogHistory().pop();
 });
 
-test('clipboard refuses → long log opens the mailto marker instead', async () => {
+test('clipboard refuses → long log downloads the promised file, then opens the mailto marker', async () => {
   setClipboard({ writeText: async () => Promise.reject(new Error('denied')) });
   document.execCommand = () => false; // legacy copy also unavailable
+  const objectUrls = [];
+  globalThis.URL.createObjectURL = () => {
+    const url = `blob:${objectUrls.length}`;
+    objectUrls.push(url);
+    return url;
+  };
+  globalThis.URL.revokeObjectURL = () => {};
   win.location.href = '';
   getLogHistory().push('M'.repeat(9000));
   await shareLog(ok);
+  assert.equal(objectUrls.length, 1, 'the file the message promises must actually exist');
   assert.match(win.location.href, /mailto:/);
   assert.match(win.location.href, /Log%20was%20too%20long/);
+  assert.match(notifMsg(), /downloaded/i);
   getLogHistory().pop();
   document.execCommand = () => true;
   setClipboard(undefined);
 });
 
-test('mailto navigation throws — download copy is the last resort', async () => {
+test('short log: mailto navigation throws — downloadFallback is the last resort', async () => {
   setClipboard(undefined);
   document.execCommand = () => false;
   const objectUrls = [];
@@ -117,10 +126,37 @@ test('mailto navigation throws — download copy is the last resort', async () =
     },
   });
   win.location = loc;
-  getLogHistory().push('N'.repeat(9000));
+  getLogHistory().push('N'.repeat(50));
   await shareLog(ok);
   assert.equal(objectUrls.length, 1);
   assert.match(notifMsg(), /downloaded/i);
   getLogHistory().pop();
   document.execCommand = () => true;
+});
+
+test('long log: mailto navigation throws after the download — no second download', async () => {
+  setClipboard({ writeText: async () => Promise.reject(new Error('denied')) });
+  document.execCommand = () => false;
+  const objectUrls = [];
+  globalThis.URL.createObjectURL = () => {
+    const url = `blob:${objectUrls.length}`;
+    objectUrls.push(url);
+    return url;
+  };
+  globalThis.URL.revokeObjectURL = () => {};
+  const loc = {};
+  Object.defineProperty(loc, 'href', {
+    get: () => '',
+    set: () => {
+      throw new Error('no mail handler');
+    },
+  });
+  win.location = loc;
+  getLogHistory().push('P'.repeat(9000));
+  await shareLog(ok);
+  assert.equal(objectUrls.length, 1, 'the pre-mailto download must not repeat');
+  assert.match(notifMsg(), /downloaded/i);
+  getLogHistory().pop();
+  document.execCommand = () => true;
+  setClipboard(undefined);
 });

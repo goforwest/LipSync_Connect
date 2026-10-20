@@ -1226,6 +1226,10 @@ summary {
 .health-dot--err {
   background: var(--danger);
 }
+.health-dot:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
 .health-history-clear {
   margin-left: 8px;
   padding: 4px 12px;

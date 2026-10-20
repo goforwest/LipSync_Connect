@@ -4,6 +4,7 @@
 // cleared on disconnect and at the start of each settings load.
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
+import { getOpenSection } from '../ui/sections.js';
 import { setCmdButtons } from '../ui/connection-ui.js';
 import { validFiniteList } from '../utils/format.js';
 import { log } from './log.js';
@@ -208,7 +209,11 @@ export async function runDiagnostics() {
         }, 450);
       }, 2500);
     }
-    announceStatus(findings.length ? `Health check: ${findings.length} warning(s).` : 'Health check passed.');
+    // While the Diagnostics card is open, #healthDetails is already a polite
+    // live region carrying the same news — announcing here too would read the
+    // outcome twice. The srStatus route stays for the closed-card case.
+    if (getOpenSection() !== 'sec-diagnostics')
+      announceStatus(findings.length ? `Health check: ${findings.length} warning(s).` : 'Health check passed.');
     log(
       findings.length ? `Health check completed with ${findings.length} warning(s).` : 'Health check passed.',
       findings.length ? 'log-err' : 'log-info',
@@ -223,7 +228,7 @@ export async function runDiagnostics() {
     for (const s of HEALTH_STEPS) {
       if (healthStepState[s.id] === 'running' || !healthStepState[s.id]) setHealthStep(s.id, 'err');
     }
-    announceStatus('Health check failed: ' + e.message);
+    if (getOpenSection() !== 'sec-diagnostics') announceStatus('Health check failed: ' + e.message);
     throw e;
   } finally {
     setCmdButtons(!!serialSession.port);

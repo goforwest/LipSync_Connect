@@ -14,6 +14,7 @@ const { saveCurrentProfile, applyProfile, deleteProfile, renderProfiles } =
   await import('../app/js/services/profiles.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 const { captureSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
+const { getLogHistory } = await import('../app/js/services/log.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const listChips = () => {
@@ -109,4 +110,50 @@ test('the snapshot machinery and the profile agree on what was live', () => {
   const snap = captureSettingsSnapshot();
   assert.equal(snap.SS, '7');
   assert.equal(snap.ST, '12.50');
+});
+
+test('malformed localStorage entries are dropped, never rendered or applied', () => {
+  seedSettings();
+  localStorage.setItem(
+    'lipsync-profiles',
+    JSON.stringify([
+      { name: 'NoSnapshot' },
+      { name: 'BadTypes', snapshot: { SS: { nested: true } } },
+      { name: 'x'.repeat(60), snapshot: { SS: '9' } },
+      { name: 'Good', id: 42, createdAt: '2026-01-01T00:00:00Z', snapshot: { SS: '8' } },
+      { name: 'Good', id: 42, createdAt: '2026-01-02T00:00:00Z', snapshot: { SS: '9' } },
+    ]),
+  );
+  renderProfiles();
+  const chips = listChips();
+  assert.equal(chips.length, 1, 'only the well-formed entry survives (dup id dropped)');
+  assert.equal(chips[0].name, 'Good');
+  // Reads are pure: the next save persists the sanitized list.
+  saveCurrentProfile('Fresh');
+  const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  assert.equal(stored.length, 2);
+  assert.ok(stored.every((p) => p.name !== 'NoSnapshot' && p.name !== 'BadTypes'));
+});
+
+test('names are trimmed and capped at 40 characters', () => {
+  seedSettings();
+  assert.equal(saveCurrentProfile('  Padded  '), true);
+  const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  assert.ok(stored.some((p) => p.name === 'Padded'));
+  assert.equal(saveCurrentProfile('x'.repeat(41)), false, '41 characters refuses');
+  const after = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  assert.equal(after.length, stored.length, 'the refused name was not stored');
+});
+
+test('apply with no port refuses before any wire write', async () => {
+  seedSettings();
+  saveCurrentProfile('NoPort');
+  const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  const logCount = getLogHistory().length;
+  await applyProfile(stored[0].id);
+  assert.ok(
+    getLogHistory()
+      .slice(logCount)
+      .some((entry) => entry.includes('Connect the LipSync before applying a profile')),
+  );
 });

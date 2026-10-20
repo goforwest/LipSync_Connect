@@ -136,6 +136,32 @@ function newDisplay(cfg, value) {
   return String(value); // int / float echo their own display
 }
 
+function hideChip() {
+  const chip = $('writeConfirm');
+  const undoBtn = $('btnWriteUndo');
+  clearTimeout(hideTimer);
+  hideTimer = 0;
+  if (chip) chip.hidden = true;
+  if (undoBtn) undoBtn.hidden = true;
+}
+
+function armChipHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(hideChip, CHIP_VISIBLE_MS);
+}
+
+/** Hover/focus pauses the 4 s countdown: a keyboard user tabbing to Undo must
+ *  not have the control vanish underneath them, and a reader pausing on the
+ *  confirmation should be able to finish reading it. */
+function pauseChipHide() {
+  clearTimeout(hideTimer);
+  hideTimer = 0;
+}
+
+function resumeChipHide() {
+  if ($('writeConfirm')?.hidden === false) armChipHide();
+}
+
 function showChip(cfg, value, oldDisplay, cmd) {
   const chip = $('writeConfirm');
   const textEl = $('writeConfirmText');
@@ -147,12 +173,7 @@ function showChip(cfg, value, oldDisplay, cmd) {
   undoCmd = cmd;
   if (undoBtn) undoBtn.hidden = !cmd;
   chip.hidden = false;
-  clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => {
-    hideTimer = 0;
-    chip.hidden = true;
-    if (undoBtn) undoBtn.hidden = true;
-  }, CHIP_VISIBLE_MS);
+  armChipHide();
 }
 
 /** Session reset (disconnect / fresh load): a stale undo must never survive
@@ -169,6 +190,15 @@ export function hideWriteConfirm() {
 
 /** Bound once from main.js — the chip's single Undo button. */
 export function bindWriteConfirm() {
+  const chip = $('writeConfirm');
+  if (chip) {
+    chip.addEventListener('mouseenter', pauseChipHide);
+    chip.addEventListener('mouseleave', resumeChipHide);
+    chip.addEventListener('focusin', pauseChipHide);
+    chip.addEventListener('focusout', (e) => {
+      if (!chip.contains?.(e.relatedTarget)) resumeChipHide();
+    });
+  }
   const undoBtn = $('btnWriteUndo');
   if (!undoBtn) return;
   undoBtn.addEventListener('click', () => {

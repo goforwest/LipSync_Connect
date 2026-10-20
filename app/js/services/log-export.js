@@ -232,14 +232,29 @@ export async function shareLog(confirmBeforeFallback) {
       announceStatus(copiedMsg);
       return;
     }
-    // Clipboard refused (e.g., insecure context) — open mailto with a
-    // paste-here marker; if mailto also leads nowhere there's a download
-    // fallback at the end.
+    // Clipboard refused (e.g., insecure context). Produce the file the
+    // mailto text promises BEFORE opening the mail client: the old flow
+    // claimed "email it from the downloaded file" without ever downloading
+    // it. The download is the guaranteed artifact; mailto is a convenience.
+    let downloaded = false;
+    try {
+      downloadLogFile({ text, filename });
+      downloaded = true;
+    } catch {}
     try {
       window.location.href =
-        'mailto:?subject=LipSync%20Connect%20log&body=Log%20was%20too%20long%20to%20attach%20%E2%80%94%20email%20it%20from%20the%20downloaded%20file.';
+        'mailto:?subject=LipSync%20Connect%20log&body=Log%20was%20too%20long%20to%20paste%20%E2%80%94%20attach%20the%20downloaded%20file.';
     } catch {
-      downloadFallback();
+      // Navigation failure is not a second failure: the file is already saved.
+    }
+    if (downloaded) {
+      const msg = 'Log downloaded — attach the downloaded file to your email.';
+      log(msg, 'log-info');
+      showNotification(msg);
+      announceStatus(msg);
+    } else {
+      log('The log could not be downloaded — use Copy log instead.', 'log-err');
+      showNotification('The log could not be downloaded — use Copy log instead.');
     }
     return;
   }

@@ -5,6 +5,7 @@
 // module's single source of truth.
 import { showNotification } from './notification.js';
 import { prefersReducedMotion } from './motion.js';
+import { announceStatus } from './a11y.js';
 
 let openSection = null; // id of the currently-open section card (null when none)
 
@@ -92,35 +93,45 @@ export function openSectionById(id) {
     closeCurrentSection();
     return;
   }
-  closeCurrentSection();
+  if (!closeCurrentSection()) return;
   openSection = id;
   const next = document.getElementById(id);
   if (next) animateSectionOpen(next);
   const nextBtn = document.querySelector(`.circle-trigger[data-section="${id}"]`);
   if (nextBtn) {
     nextBtn.classList.add('active');
+    // aria-current describes the user's location in a set of navigation
+    // links; these are disclosure buttons for cards on the same page, so the
+    // expanded state is the whole story.
     nextBtn.setAttribute('aria-expanded', 'true');
-    nextBtn.setAttribute('aria-current', 'page');
   }
   document.querySelectorAll('.circle-trigger').forEach((/** @type {any} */ b) => {
-    if (b.dataset.section !== id) {
-      b.setAttribute('aria-expanded', 'false');
-      b.removeAttribute('aria-current');
-    }
+    if (b.dataset.section !== id) b.setAttribute('aria-expanded', 'false');
   });
   notifySectionChange();
 }
 
+/**
+ * Closes the open card. Returns false when a firmware update is mid-flight:
+ * the wizard panel is the only surface showing progress, the card is exempt
+ * from connection gating while data-wizard is set, and closing it would hide
+ * a running update. Finished/failed panels stay dismissible.
+ */
 export function closeCurrentSection() {
-  if (!openSection) return;
+  if (!openSection) return true;
   const prev = document.getElementById(openSection);
+  const wizardState = prev?.getAttribute?.('data-wizard');
+  if (wizardState && wizardState !== 'done' && wizardState !== 'failed') {
+    announceStatus('The firmware update is still in progress — the Firmware section stays open.');
+    return false;
+  }
   const prevBtn = document.querySelector(`.circle-trigger[data-section="${openSection}"]`);
   if (prevBtn) {
     prevBtn.classList.remove('active');
     prevBtn.setAttribute('aria-expanded', 'false');
-    prevBtn.removeAttribute('aria-current');
   }
   if (prev) animateSectionClose(prev);
   openSection = null;
   notifySectionChange();
+  return true;
 }

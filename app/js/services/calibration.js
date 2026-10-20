@@ -32,6 +32,27 @@ import {
 // run can never hide the strip of a new run started within the 4 s window.
 let stripHideTimer = null;
 
+/**
+ * Session reset: a completed (or interrupted) calibration leaves its status,
+ * step strip, and "in progress" flag behind. Without this, reconnecting or
+ * opening the first-run wizard after a calibration showed "Calibration
+ * complete ✓" for a device/session that had not been calibrated.
+ */
+export function resetCalibrationUi() {
+  clearTimeout(stripHideTimer);
+  stripHideTimer = null;
+  setCalibrationInProgress(false);
+  const status = $('calStatus');
+  if (status) status.textContent = '\u2014';
+  showCalSteps(false);
+  resetCalSteps();
+  for (let i = 1; i <= 4; i++) {
+    cornerState(i, '');
+    const dot = $('dotC' + i);
+    if (dot) dot.hidden = true;
+  }
+}
+
 export function bindCalibration(guard) {
   $('btnInit').addEventListener(
     'click',

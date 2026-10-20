@@ -130,9 +130,13 @@ export function bindDeviceOps(guard) {
     guard(async () => {
       const cmd = String(rawCommandInput.value || '').trim();
       if (!cmd) throw new Error('Enter a command first — e.g. EX,0:0.');
-      if (!/^[A-Z]{1,4},\d+(?::.*)?$/.test(cmd)) {
+      if (!/^[A-Z]{1,4},\d+(?::[!-~]+)?$/.test(cmd)) {
         throw new Error('Not a device command — expected a shape like EX,0:0 or SS,1:8.');
       }
+      // The firmware's line validator caps command length at 11 characters;
+      // anything longer is truncated/rejected on the wire and only produces a
+      // confusing FAIL. The input's maxlength helps, but paste can bypass it.
+      if (cmd.length > 11) throw new Error('Device commands are at most 11 characters long.');
       if (/^(FR|SR|UM),1/.test(cmd)) {
         const confirmed = await showConfirm(
           'Raw command',

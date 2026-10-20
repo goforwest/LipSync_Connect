@@ -212,7 +212,6 @@
         data-section="sec-help"
         aria-controls="sec-help"
         aria-expanded="true"
-        aria-current="page"
       >
         <span class="circle-icon" aria-hidden="true"
           ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1344,7 +1343,7 @@
           <p class="diag-title">Live diagnostic stream</p>
           <div class="row">
             <label for="debugMode">Live diagnostic output</label><span class="value" id="debugModeVal">Off</span
-            ><select id="debugMode">
+            ><select id="debugMode" disabled>
               <option value="0">Off</option>
               <option value="1">Joystick</option>
               <option value="2">Pressure</option>
@@ -1438,7 +1437,7 @@
           <div id="hubScreenWrap" hidden>
             <div class="hub-screen" role="group" aria-label="Mirrored Hub screen">
               <p class="hub-screen-header" id="hubScreenHeader" aria-live="polite"></p>
-              <ol class="hub-screen-items" id="hubScreenItems"></ol>
+              <ol class="hub-screen-items" id="hubScreenItems" role="listbox" aria-label="Mirrored Hub menu items"></ol>
               <p class="hub-screen-note" id="hubScreenNote" hidden></p>
             </div>
             <div class="row">
@@ -1669,8 +1668,8 @@
           <p class="hint">
             Values load one at a time in sequence (31 total on firmware 4.5.0+, 25 on 4.4.0, 18 on older; ~2 seconds on
             firmware 4.2.0+). If one command times out, it shows
-            <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to retry only the
-            failed items.
+            <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to reload every
+            setting, including the failed ones.
           </p>
           <p class="hint">
             If the overall load takes longer than 2 minutes, the app gives up and shows whatever loaded so far. This
@@ -1832,6 +1831,7 @@
             type="text"
             id="rawCommand"
             placeholder="e.g. EX,0:0"
+            maxlength="11"
             list="rawCommandList"
             autocomplete="off"
             spellcheck="false"

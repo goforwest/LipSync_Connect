@@ -8,6 +8,43 @@ import { log } from './log.js';
 
 const HISTORY_KEY = 'lipsync-health-history';
 const HISTORY_MAX = 20;
+const OUTCOMES = new Set(['passed', 'attention', 'error']);
+const STEP_STATES = new Set(['ok', 'warn', 'err', 'running', 'idle']);
+
+/**
+ * localStorage is user-writable and can outlive app upgrades. Only records
+ * with a real outcome, a parseable timestamp, and scalar step states are
+ * rendered; anything else would poison the trend row (invalid dates throw,
+ * object steps stringify to "[object Object]" in the tooltip).
+ * @param {any} raw
+ */
+function sanitizeEntry(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const outcome = typeof raw.outcome === 'string' ? raw.outcome.trim() : '';
+  if (!OUTCOMES.has(outcome)) return null;
+  const at = typeof raw.at === 'string' && Number.isFinite(Date.parse(raw.at)) ? raw.at : '';
+  if (!at) return null;
+  const steps = {};
+  if (raw.steps && typeof raw.steps === 'object' && !Array.isArray(raw.steps)) {
+    for (const [id, state] of Object.entries(raw.steps)) {
+      if (!/^hc[A-Za-z0-9]+$/.test(id) || !STEP_STATES.has(String(state))) continue;
+      steps[id] = String(state);
+    }
+  }
+  const version = typeof raw.version === 'string' ? raw.version.trim().slice(0, 20) : '';
+  return { at, outcome, steps, version };
+}
+
+/** @returns {{at: string, outcome: string, steps: Record<string, string>, version: string}[]} */
+function readHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.map(sanitizeEntry).filter(Boolean).slice(-HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Called by health.js at each run's outcome. `steps` is the live per-cell
@@ -23,11 +60,7 @@ export function recordHealthRun(outcome, steps) {
     steps: { ...(steps || {}) },
     version: ($('version')?.textContent || '').trim(),
   };
-  let list = [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    if (Array.isArray(raw)) list = raw;
-  } catch {}
+  const list = readHistory();
   list.push(entry);
   while (list.length > HISTORY_MAX) list.shift();
   try {
@@ -42,11 +75,7 @@ export function recordHealthRun(outcome, steps) {
 export function renderHealthHistory() {
   const row = $('healthHistory');
   if (!row) return;
-  let list = [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    if (Array.isArray(raw)) list = raw.filter((e) => e && e.at && e.outcome);
-  } catch {}
+  const list = readHistory();
   if (!list.length) {
     while (row.children?.length) row.removeChild(row.children[row.children.length - 1]);
     row.hidden = true;
@@ -61,16 +90,19 @@ export function renderHealthHistory() {
     const dot = document.createElement('span');
     dot.className =
       'health-dot health-dot--' + (entry.outcome === 'passed' ? 'ok' : entry.outcome === 'error' ? 'err' : 'warn');
-    let when = '';
-    try {
-      when = new Date(entry.at).toLocaleString();
-    } catch {}
-    const stepNotes = Object.entries(entry.steps || {})
-      .filter(([, st]) => st && st !== 'ok' && st !== 'running')
+    const when = new Date(entry.at).toLocaleString();
+    const stepNotes = Object.entries(entry.steps)
+      .filter(([, st]) => st !== 'ok' && st !== 'running')
       .map(([id, st]) => id.replace(/^hc/, '') + ' ' + st)
       .join(', ');
-    dot.title =
-      (when ? when : entry.at) + (stepNotes ? ' — ' + stepNotes : '') + (entry.version ? ' — fw ' + entry.version : '');
+    const detail = when + (stepNotes ? ' — ' + stepNotes : '') + (entry.version ? ' — fw ' + entry.version : '');
+    dot.title = detail;
+    // A bare colored dot is invisible to keyboard and screen-reader users.
+    // Expose each result as an image with the same text the sighted user gets
+    // on hover, without adding pointer-only affordances.
+    dot.tabIndex = 0;
+    dot.setAttribute('role', 'img');
+    dot.setAttribute('aria-label', 'Health check ' + entry.outcome + ' — ' + detail);
     row.appendChild(dot);
   }
   const clear = document.createElement('button');
@@ -84,6 +116,9 @@ export function renderHealthHistory() {
 
 /** Clears the stored history and hides the row. */
 export function resetHealthHistory() {
+  // The Clear button disappears with the row; without moving focus the
+  // keyboard user is dropped on <body>. The Run button is the nearest action.
+  const hadFocus = !!document.activeElement?.classList?.contains?.('health-history-clear');
   try {
     localStorage.removeItem(HISTORY_KEY);
   } catch {}
@@ -92,4 +127,5 @@ export function resetHealthHistory() {
     while (row.children?.length) row.removeChild(row.children[row.children.length - 1]);
     row.hidden = true;
   }
+  if (hadFocus) $('btnRunDiagnostics')?.focus?.();
 }

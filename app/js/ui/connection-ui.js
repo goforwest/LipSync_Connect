@@ -5,6 +5,7 @@
 import { serialApi } from '../serial/transport.js';
 import { serialSession } from '../serial/session.js';
 import { $ } from './dom.js';
+import { isSelfTestLocked } from '../services/selftest.js';
 
 export function setStatus(text, connected) {
   const s = $('status');
@@ -61,7 +62,14 @@ export function hideGuide() {
 }
 
 export function setCmdButtons(enabled) {
-  document.querySelectorAll('button.cmd').forEach((/** @type {any} */ b) => (b.disabled = !enabled));
+  // Reconnect/load/calibration all re-enable every .cmd button. A self-test
+  // scheduled its own delayed unlock ("Test Complete" + dwell), and blanking
+  // that lockout here let a second RT command land mid-narration.
+  const selfTestLocked = isSelfTestLocked();
+  document.querySelectorAll('button.cmd').forEach((/** @type {any} */ b) => {
+    const lockThis = selfTestLocked && (b.id === 'btnTestLeds' || b.id === 'btnTestBuzzer');
+    b.disabled = !enabled || lockThis;
+  });
 }
 
 // Serial-dependent cards (everything except Help and Log) are visually dimmed

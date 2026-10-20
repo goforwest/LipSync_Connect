@@ -12,12 +12,40 @@ function osPrefersDark() {
   return !!osDarkQuery?.matches;
 }
 
+const COLOR_KEYS = new Set(Object.values(COLOR_VARS));
+const ALLOWED_SCALES = new Set([1, 1.25, 1.5]);
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * localStorage is user-writable and survives upgrades. Drop anything that is
+ * not a known setting before it reaches style.setProperty: an object scale
+ * becomes "NaN" zoom, an arbitrary CSS value can restyle or break the app, and
+ * prototype keys have no business in the theme object.
+ * @param {any} raw
+ */
+function sanitizeTheme(raw) {
+  const theme = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return theme;
+  if (typeof raw.darkMode === 'boolean') theme.darkMode = raw.darkMode;
+  const scale = Number(raw.scale);
+  if (ALLOWED_SCALES.has(scale)) theme.scale = scale;
+  if (raw.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors)) {
+    const colors = {};
+    for (const [key, value] of Object.entries(raw.colors)) {
+      if (!COLOR_KEYS.has(key) || typeof value !== 'string' || !HEX_COLOR.test(value.trim())) continue;
+      colors[key] = value.trim().toLowerCase();
+    }
+    if (Object.keys(colors).length) theme.colors = colors;
+  }
+  return theme;
+}
+
 function loadTheme() {
   let saved;
   try {
     saved = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY));
   } catch {}
-  return saved || {};
+  return sanitizeTheme(saved);
 }
 function saveTheme(theme) {
   try {
@@ -45,7 +73,8 @@ function applyTheme(theme) {
   // fixed chrome) — the app is Chromium-only (Web Serial), so zoom is the
   // honest lever; a rem-only font scale would leave px paddings behind and
   // split the layout. Absent choice = 100%.
-  const scale = Number(theme.scale ?? 1) || 1;
+  const requestedScale = Number(theme.scale ?? 1);
+  const scale = ALLOWED_SCALES.has(requestedScale) ? requestedScale : 1;
   if (document.body && document.body.style) document.body.style.zoom = String(scale);
   // CSS needs the inverse-aware scale for fixed-position UI: body zoom makes
   // 100vw/100vh stay in unzoomed CSS pixels, so offsets and widths are divided

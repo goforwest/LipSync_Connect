@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testHooks } from './harness/test-hooks.mjs';
 import { app, document as doc } from './harness/setup-gating.mjs';
+const { setCmdButtons } = await import('../app/js/ui/connection-ui.js');
 
 const sec = (id) =>
   Array.from(doc.querySelectorAll('.section-card'))
@@ -239,4 +240,17 @@ test('disconnect clears stale health-check grid + summary', async () => {
   await app.disconnect({ preserveBanner: true, quiet: true });
   assert.equal(hcGrid.hidden, true);
   assert.equal(doc.getElementById('healthSummary').textContent, 'Not run');
+});
+
+test('setCmdButtons(true) mid-self-test keeps the RT buttons locked', () => {
+  openDiagAndConnect();
+  app.lockSelfTestButtons();
+  // A concurrent reconnect/load would blanket-enable every .cmd button.
+  setCmdButtons(true);
+  assert.equal(doc.getElementById('btnTestLeds').disabled, true, 'LED test stays locked');
+  assert.equal(doc.getElementById('btnTestBuzzer').disabled, true, 'buzzer test stays locked');
+  app.unlockSelfTestButtons();
+  assert.equal(doc.getElementById('btnTestLeds').disabled, false);
+  assert.equal(doc.getElementById('btnTestBuzzer').disabled, false);
+  testHooks.detach();
 });

@@ -66,3 +66,28 @@ test('Clear removes the stored history and hides the row', () => {
   assert.equal(localStorage.getItem('lipsync-health-history'), null);
   assert.equal(doc.getElementById('healthHistory').hidden, true);
 });
+
+test('history dots are focusable and describe their outcome to AT', () => {
+  doc.getElementById('version').textContent = '4.5.4';
+  recordHealthRun('attention', { hcNeutral: 'warn' });
+  renderHealthHistory();
+  const dot = Array.from(doc.getElementById('healthHistory').children).find((c) =>
+    String(c.className).includes('health-dot'),
+  );
+  assert.equal(dot.getAttribute('role'), 'img');
+  assert.equal(dot.tabIndex, 0);
+  assert.match(dot.getAttribute('aria-label'), /Health check attention/);
+  assert.match(dot.getAttribute('aria-label'), /Neutral warn/);
+});
+
+test('clearing while focused lands focus on the Run health check button', () => {
+  recordHealthRun('passed', {});
+  renderHealthHistory();
+  const clearBtn = Array.from(doc.getElementById('healthHistory').children).find((c) =>
+    String(c.className).includes('health-history-clear'),
+  );
+  clearBtn.focus();
+  assert.equal(doc.activeElement, clearBtn);
+  resetHealthHistory();
+  assert.equal(doc.activeElement?.id, 'btnRunDiagnostics');
+});

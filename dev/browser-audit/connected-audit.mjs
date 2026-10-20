@@ -272,8 +272,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('profile-apply', profApplied.speed === '7' && profApplied.rows === 1, JSON.stringify(profApplied));
 
     // Profile delete removes the row and restores the empty state (the
-    // delegated delete button with its per-profile aria-label).
+    // delegated delete button with its per-profile aria-label). Deleting
+    // confirms first — accept the dialog, then the row goes.
     await page.click('.profile-row .profile-delete');
+    await page.waitForSelector('#confirmDialog[open]', { timeout: 5000 });
+    await page.click('#confirmOk');
     await page.waitForTimeout(400);
     const profDeleted = await evalCard(() => ({
       rows: document.querySelectorAll('#profileList .profile-row').length,
