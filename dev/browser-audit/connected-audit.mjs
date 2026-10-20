@@ -462,6 +462,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(ladder),
     );
 
+    // Watch holds — the card's practice door into the hold stream. Covered
+    // again (de-flaked + readout-reset + exclusivity) in the phase-2 block
+    // below; the ladder check above already pinned the timeline itself.
+
     // Diagnostics ladder sweep: the DEBUG,5 sip&puff state stream drives the
     // live hold fill (the fake cycles 2 s holds with 2 s gaps — poll until a
     // hold paints).
@@ -552,20 +556,26 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // Watch holds (the Sip & Puff card's practice door into the DEBUG,5
     // stream): the button starts the hold stream, both ladders sweep with the
     // device-measured hold, and the card's Hold readout tracks the state.
+    // The fake cycles 2 s holds with 2 s gaps — poll for a hold instead of
+    // sampling once, so the check never races the cycle phase.
     await page.click('#btnWatchHolds');
-    await page.waitForTimeout(700);
-    const wh = await evalCard(() => {
-      const ladder = document.getElementById('winLadder');
-      const sweep = ladder.children[3];
-      return {
-        pressed: document.getElementById('btnWatchHolds').getAttribute('aria-pressed'),
-        text: document.getElementById('btnWatchHolds').textContent.trim(),
-        sweepWidth: sweep.style.width,
-        ladderAria: ladder.getAttribute('aria-label'),
-        holdReadout: document.getElementById('sapHoldVal').textContent,
-        livePressureOff: document.getElementById('btnLivePressure').getAttribute('aria-pressed') === 'false',
-      };
-    });
+    let wh = null;
+    for (let i = 0; i < 16; i++) {
+      await page.waitForTimeout(300);
+      wh = await evalCard(() => {
+        const ladder = document.getElementById('winLadder');
+        const sweep = ladder.children[3];
+        return {
+          pressed: document.getElementById('btnWatchHolds').getAttribute('aria-pressed'),
+          text: document.getElementById('btnWatchHolds').textContent.trim(),
+          sweepWidth: sweep.style.width,
+          ladderAria: ladder.getAttribute('aria-label'),
+          holdReadout: document.getElementById('sapHoldVal').textContent,
+          livePressureOff: document.getElementById('btnLivePressure').getAttribute('aria-pressed') === 'false',
+        };
+      });
+      if (parseFloat(wh.sweepWidth) > 0 && wh.ladderAria.includes('Hold at')) break;
+    }
     note(
       'watch-holds',
       wh.pressed === 'true' &&
@@ -583,15 +593,43 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       text: document.getElementById('btnWatchHolds').textContent.trim(),
       sweepWidth: document.getElementById('winLadder').children[3].style.width,
       ladderAria: document.getElementById('winLadder').getAttribute('aria-label'),
+      holdReadout: document.getElementById('sapHoldVal').textContent,
     }));
+    // The stop must reset BOTH visualizations — and the always-visible Hold
+    // readout must not freeze on its last frame (a stale "· started").
     note(
       'watch-holds-stop',
       whStopped.pressed === 'false' &&
         whStopped.text === 'Watch holds' &&
         parseFloat(whStopped.sweepWidth) === 0 &&
-        !whStopped.ladderAria.includes('Hold at'),
+        !whStopped.ladderAria.includes('Hold at') &&
+        whStopped.holdReadout === '—',
       JSON.stringify(whStopped),
     );
+    // Mutual exclusivity: starting the pressure live view mid-watch hands
+    // the stream over — watch un-presses, its readout resets.
+    await page.click('#btnWatchHolds');
+    await page.waitForTimeout(500);
+    await page.click('#btnLivePressure');
+    await page.waitForTimeout(600);
+    const whEx = await evalCard(() => ({
+      watch: document.getElementById('btnWatchHolds').textContent.trim(),
+      watchPressed: document.getElementById('btnWatchHolds').getAttribute('aria-pressed'),
+      pressure: document.getElementById('btnLivePressure').textContent.trim(),
+      pressurePressed: document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
+      hold: document.getElementById('sapHoldVal').textContent,
+    }));
+    note(
+      'watch-holds-exclusivity',
+      whEx.watch === 'Watch holds' &&
+        whEx.watchPressed === 'false' &&
+        whEx.pressure === 'Stop live view' &&
+        whEx.pressurePressed === 'true' &&
+        whEx.hold === '—',
+      JSON.stringify(whEx),
+    );
+    await page.click('#btnLivePressure');
+    await page.waitForTimeout(400);
 
     await openCard('sec-device');
     await page.click('#btnRefreshAll');

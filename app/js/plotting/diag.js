@@ -17,6 +17,17 @@ export function showDiagPanel(mode) {
   });
   // A fresh panel must never inherit the previous stream's hold fill.
   paintWindowSweep(0, false);
+  if (String(mode) !== '5') {
+    // Nor its readouts or half-measured holds. The Watch-holds readout is
+    // always visible in the Sip & Puff card, so a stopped stream must not
+    // leave a stale "· started" frozen on it — and a stream stopped
+    // mid-hold must not leave noteSapHold's peak pending, where a later
+    // hold's release would log the old hold's duration as its own.
+    const holdEl = $('sapHoldVal');
+    if (holdEl) holdEl.textContent = '—';
+    sapHoldPeakMs = 0;
+    sapHoldMain = 0;
+  }
   // Keep the rolling technical log silent for AT always — announcements go
   // through #srStatus. Prevents 10 Hz debug streams from flooding screen readers.
   const logEl = $('log');
