@@ -346,6 +346,12 @@ export function installGatingDom(existingEls = null) {
   // UI-scale buttons (index.html's appearance popup): theme.js binds them
   // through querySelectorAll and reads/writes aria-pressed; body.style.zoom
   // is where the applied scale lands.
+  // Wizard step-list items (index.html's Help-card guided-setup panel).
+  const wizStepLis = ['connect', 'calibrate', 'thresholds', 'verify'].map((step) => {
+    const li = makeEl('li');
+    li.dataset.step = step;
+    return li;
+  });
   // Task buttons (index.html's Help-card Common tasks): main.js binds them
   // through querySelectorAll('.task-btn') and drives section jumps.
   const taskButtons = ['cursor', 'clicks', 'accidents', 'health', 'update', 'switches'].map((task) => {
@@ -422,6 +428,7 @@ export function installGatingDom(existingEls = null) {
       if (sel === 'button[data-step]') return stepButtons;
       if (sel === '.scale-btn') return scaleButtons;
       if (sel === '.task-btn') return taskButtons;
+      if (sel === '.wiz-steps li') return wizStepLis;
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
         return (
@@ -437,6 +444,8 @@ export function installGatingDom(existingEls = null) {
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
         return stepButtons.find((b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2]) ?? null;
+      const wizSel = sel.match(/^\.wiz-steps li\[data-step="(.+)"\]$/);
+      if (wizSel) return wizStepLis.find((li) => li.dataset.step === wizSel[1]) ?? null;
       if (sel === 'header .logo') return null;
       return null;
     },

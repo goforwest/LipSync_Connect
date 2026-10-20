@@ -1563,6 +1563,31 @@
           </div>
         </div>
 
+        <div class="diag-group" id="wizardGroup">
+          <p class="diag-title">Guided setup</p>
+          <p class="hint">
+            New user or a freshly configured device? This walks the whole path &mdash; connect, calibrate the joystick,
+            set thresholds from practice, verify with a health check &mdash; and follows along as each step completes.
+          </p>
+          <div class="row">
+            <button type="button" class="cmd" id="btnStartWizard" disabled>Start guided setup</button>
+          </div>
+          <div id="wizardPanel" class="wizard-panel" hidden aria-label="Guided setup">
+            <ol class="wiz-steps" aria-hidden="true">
+              <li data-step="connect">Connect</li>
+              <li data-step="calibrate">Calibrate</li>
+              <li data-step="thresholds">Thresholds</li>
+              <li data-step="verify">Verify</li>
+            </ol>
+            <p id="wizStepText" class="wiz-step-text" role="status"></p>
+            <div class="row">
+              <button type="button" id="wizAction" class="cmd secondary" hidden></button>
+              <button type="button" id="wizNext" class="cmd" hidden>Next</button>
+              <button type="button" id="wizCancel" class="secondary">Exit</button>
+            </div>
+          </div>
+        </div>
+
         <details>
           <summary>Device does not appear in the browser prompt</summary>
           <p class="hint">

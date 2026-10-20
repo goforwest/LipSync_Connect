@@ -135,6 +135,19 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('profile-save', profSaved.rows.includes('Audit profile') && profSaved.empty, JSON.stringify(profSaved));
 
+    // Guided setup: starting on the already-connected device resumes past
+    // the Connect step to Calibrate.
+    await openCard('sec-help');
+    await page.click('#btnStartWizard');
+    await page.waitForTimeout(700);
+    const wiz = await evalCard(() => ({
+      panel: !document.getElementById('wizardPanel').hidden,
+      text: document.getElementById('wizStepText').textContent,
+    }));
+    note('wizard-resume', wiz.panel && wiz.text.includes('Calibrate'), JSON.stringify(wiz));
+    await page.click('#wizCancel');
+    await page.waitForTimeout(200);
+
     await openCard('sec-cursor');
     const cur = await evalCard(() => ({
       speed: document.getElementById('speedVal').textContent,

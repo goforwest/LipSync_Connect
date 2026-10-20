@@ -1119,6 +1119,53 @@ summary {
     padding: 8px 16px 24px;
   }
 }
+/* ---- Guided setup wizard (Help card) ---- */
+.wizard-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.wizard-panel[hidden] {
+  display: none;
+}
+.wiz-steps {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.wiz-steps li {
+  padding-left: 18px;
+  position: relative;
+}
+.wiz-steps li::before {
+  content: '\2022';
+  position: absolute;
+  left: 4px;
+}
+.wiz-steps li.done {
+  color: var(--success);
+}
+.wiz-steps li.done::before {
+  content: '\2713';
+}
+.wiz-steps li.current {
+  color: var(--text);
+  font-weight: 600;
+}
+.wiz-steps li.current::before {
+  content: '\25B8';
+}
+.wiz-step-text {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
 /* ---- Health check history (Diagnostics card) ---- */
 .health-history {
   display: flex;

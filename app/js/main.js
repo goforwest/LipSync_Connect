@@ -44,6 +44,7 @@ import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
+import { bindWizard, exitWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -149,6 +150,7 @@ const clearSessionUi = () => {
   resetSwitchActionsUi();
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   hideHealthHistory(); // the stored trend stays; the row hides with the session
+  exitWizard(); // a wizard mid-flow must not point at a dead session
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
@@ -446,6 +448,7 @@ window.addEventListener('DOMContentLoaded', () => {
     bindDeviceOps(guard);
     bindWriteConfirm(); // the inline write-confirm chip's Undo button
     bindProfiles(); // named per-user settings profiles (Device card)
+    bindWizard(); // the Help card's guided setup flow
     bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
     $('btnSetDebug').addEventListener(
