@@ -226,6 +226,34 @@ window.addEventListener('DOMContentLoaded', () => {
   const circleTriggers = /** @type {NodeListOf<any>} */ (document.querySelectorAll('.circle-trigger'));
   // openSection state is owned by ui/sections.js; nav Reads it via getOpenSection().
 
+  // --- Task-based entry (Help card's Common tasks) ---
+  // Plain-language goals jump straight to the control that answers them —
+  // the caregiver path for people who don't know the vocabulary. The
+  // dimmed-guard case (not connected) already speaks via its own notice, so
+  // the focus/pulse only run when the section actually opened.
+  const TASK_TARGETS = {
+    cursor: { section: 'sec-cursor', focus: 'button[data-target="speed"][data-step="1"]' },
+    clicks: { section: 'sec-sip', focus: 'button[data-target="st"][data-step="1"]' },
+    accidents: { section: 'sec-restrictions', focus: '#sapDisabled' },
+    health: { section: 'sec-diagnostics', focus: '#btnRunDiagnostics' },
+    update: { section: 'sec-firmware', focus: '#btnCheckUpdate' },
+    switches: { section: 'sec-switches', focus: '#swSA0' },
+  };
+  document.querySelectorAll('.task-btn').forEach((/** @type {any} */ btn) => {
+    btn.addEventListener('click', () => {
+      const t = TASK_TARGETS[btn.dataset.task];
+      if (!t) return;
+      openSectionById(t.section);
+      if (getOpenSection() !== t.section) return; // the dimmed guard spoke
+      const target = document.querySelector(t.focus);
+      if (target && typeof target.focus === 'function') {
+        target.focus();
+        target.classList.add('pulse-target');
+        setTimeout(() => target.classList.remove('pulse-target'), 2400);
+      }
+    });
+  });
+
   // Floating button toggles the appearance popup
   const gearBtn = $('btnSettings');
   const popup = $('appearancePopup');

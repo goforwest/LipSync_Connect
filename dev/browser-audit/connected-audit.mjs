@@ -106,6 +106,22 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(strip1),
     );
 
+    // Task-based entry: the Help card's plain-language task opens the right
+    // section and focuses the answering control.
+    await openCard('sec-help');
+    await page.click('.task-btn[data-task="clicks"]');
+    await page.waitForTimeout(400);
+    const taskJump = await evalCard(() => ({
+      open: !document.getElementById('sec-sip').classList.contains('card-off') && document.getElementById('sec-sip').classList.contains('open'),
+      focus: document.activeElement.dataset.target ?? document.activeElement.id ?? null,
+      pulsed: document.activeElement.classList.contains('pulse-target'),
+    }));
+    note(
+      'task-entry',
+      taskJump.open && taskJump.focus === 'st' && taskJump.pulsed,
+      JSON.stringify(taskJump),
+    );
+
     await openCard('sec-cursor');
     const cur = await evalCard(() => ({
       speed: document.getElementById('speedVal').textContent,

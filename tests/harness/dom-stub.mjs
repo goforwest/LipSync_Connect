@@ -346,6 +346,14 @@ export function installGatingDom(existingEls = null) {
   // UI-scale buttons (index.html's appearance popup): theme.js binds them
   // through querySelectorAll and reads/writes aria-pressed; body.style.zoom
   // is where the applied scale lands.
+  // Task buttons (index.html's Help-card Common tasks): main.js binds them
+  // through querySelectorAll('.task-btn') and drives section jumps.
+  const taskButtons = ['cursor', 'clicks', 'accidents', 'health', 'update', 'switches'].map((task) => {
+    const b = makeEl('button');
+    b.classList.add('task-btn');
+    b.dataset.task = task;
+    return b;
+  });
   const scaleButtons = ['1', '1.25', '1.5'].map((scale) => {
     const b = makeEl('button');
     b.classList.add('scale-btn');
@@ -413,6 +421,7 @@ export function installGatingDom(existingEls = null) {
       if (sel === 'button.cmd') return [...els.values()].filter((e) => e && e.classList?.contains('cmd'));
       if (sel === 'button[data-step]') return stepButtons;
       if (sel === '.scale-btn') return scaleButtons;
+      if (sel === '.task-btn') return taskButtons;
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
         return (
