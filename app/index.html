@@ -382,139 +382,156 @@
 
       <section class="section-card" id="sec-sip" aria-label="Sip and Puff">
         <div class="card-head">
-          <h2>Sip &amp; Puff</h2>
+          <h2>Sip & Puff</h2>
           <button type="button" class="card-close" data-close="sec-sip" aria-label="Close Sip and Puff section">
             &times;
           </button>
         </div>
-        <div class="row">
-          <label for="sipInput">Sip threshold (2–150 hPa)</label>
-          <span class="value" id="sipVal">&mdash;</span>
-          <input
-            type="number"
-            id="sipInput"
-            min="2"
-            max="149.99"
-            step="0.25"
-            inputmode="decimal"
-            autocomplete="off"
-            aria-label="New sip threshold"
-            aria-describedby="sapError"
-          />
-          <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
-        </div>
-        <div class="row">
-          <label for="puffInput">Puff threshold (2–150 hPa)</label>
-          <span class="value" id="puffVal">&mdash;</span>
-          <input
-            type="number"
-            id="puffInput"
-            min="2"
-            max="149.99"
-            step="0.25"
-            inputmode="decimal"
-            autocomplete="off"
-            aria-label="New puff threshold"
-            aria-describedby="sapError"
-          />
-          <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
-        </div>
-        <div class="row">
-          <label for="w1Input">Short input window (200–2500 ms)</label>
-          <span class="value" id="w1Val">&mdash;</span>
-          <input
-            type="number"
-            id="w1Input"
-            min="200"
-            max="2500"
-            step="50"
-            inputmode="numeric"
-            autocomplete="off"
-            aria-label="New short input window in milliseconds"
-            aria-describedby="sapError"
-          />
-          <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
-        </div>
-        <div class="row">
-          <label for="w2Input">Long input window (400–6000 ms)</label>
-          <span class="value" id="w2Val">&mdash;</span>
-          <input
-            type="number"
-            id="w2Input"
-            min="400"
-            max="6000"
-            step="50"
-            inputmode="numeric"
-            autocomplete="off"
-            aria-label="New long input window in milliseconds"
-            aria-describedby="sapError"
-          />
-          <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
-        </div>
-        <div class="row">
-          <label for="w3Input">Max input window (1000–10000 ms)</label>
-          <span class="value" id="w3Val">&mdash;</span>
-          <input
-            type="number"
-            id="w3Input"
-            min="1000"
-            max="10000"
-            step="50"
-            inputmode="numeric"
-            autocomplete="off"
-            aria-label="New max input window in milliseconds"
-            aria-describedby="sapError"
-          />
-          <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
-        </div>
-        <p class="hint">
-          Input windows set how long a sip or puff must be held to trigger each action (short &rarr; click/drag, long
-          &rarr; scroll/menu, very long &rarr; more). Requires firmware 4.4.0+. The Hub menu offers the same settings
-          under Sip & Puff &rarr; Timing.
-        </p>
-        <div class="win-ladder-wrap">
+        <div class="diag-group">
+          <p class="diag-title">Thresholds</p>
+          <div class="row">
+            <label for="sipInput">Sip threshold (2–150 hPa)</label>
+            <span class="value" id="sipVal">&mdash;</span>
+            <input
+              type="number"
+              id="sipInput"
+              min="2"
+              max="149.99"
+              step="0.25"
+              inputmode="decimal"
+              autocomplete="off"
+              aria-label="New sip threshold"
+              aria-describedby="sapError"
+            />
+            <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
+          </div>
+          <div class="row">
+            <label for="puffInput">Puff threshold (2–150 hPa)</label>
+            <span class="value" id="puffVal">&mdash;</span>
+            <input
+              type="number"
+              id="puffInput"
+              min="2"
+              max="149.99"
+              step="0.25"
+              inputmode="decimal"
+              autocomplete="off"
+              aria-label="New puff threshold"
+              aria-describedby="sapError"
+            />
+            <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
+          </div>
+          <div class="row">
+            <label>Live pressure</label>
+            <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
+            <span class="value" title="Ambient pressure">Ambient: <span id="pvAmbient">&mdash;</span></span>
+            <span class="value" title="Pressure difference (sip/puff signal)"
+              >&Delta;: <span id="pvDiff">&mdash;</span></span
+            >
+          </div>
+          <div class="row">
+            <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
+            <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
+              Live view
+            </button>
+          </div>
           <div
-            class="win-ladder"
-            id="winLadder"
+            class="gauge"
+            id="mainGauge"
             role="img"
-            aria-label="Input window timeline — waiting for the timing windows to load."
-          ></div>
-          <div class="win-scale" id="winScale" aria-hidden="true"></div>
-        </div>
-        <p class="hint">
-          The timeline shows your three windows to scale: green = short, yellow = long, red = very-long &mdash; the same
-          colors the small light next to the USB-C port shows while you hold.
-        </p>
-        <div class="error" id="sapError" role="alert"></div>
-        <div class="row">
-          <label>Live pressure</label>
-          <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
-          <span class="value" title="Ambient pressure">Ambient: <span id="pvAmbient">&mdash;</span></span>
-          <span class="value" title="Pressure difference (sip/puff signal)"
-            >&Delta;: <span id="pvDiff">&mdash;</span></span
+            aria-label="Pressure gauge: sip fills left, puff fills right, thresholds marked in red"
           >
+            <div class="fill" id="gaugeFill"></div>
+            <div class="zero"></div>
+            <div class="mark" id="gaugeSipMark"></div>
+            <div class="mark" id="gaugePuffMark"></div>
+          </div>
+          <div class="gauge-scale">
+            <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
+          </div>
+          <p class="hint">
+            Red markers show trigger values. Use Live view while adjusting thresholds &mdash; sip fills left, puff fills
+            right.
+          </p>
         </div>
-        <div class="row">
-          <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
-          <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
-            Live view
-          </button>
+        <div class="diag-group">
+          <p class="diag-title">Hold timing</p>
+          <div class="row">
+            <label for="w1Input">Short input window (200–2500 ms)</label>
+            <span class="value" id="w1Val">&mdash;</span>
+            <input
+              type="number"
+              id="w1Input"
+              min="200"
+              max="2500"
+              step="50"
+              inputmode="numeric"
+              autocomplete="off"
+              aria-label="New short input window in milliseconds"
+              aria-describedby="sapError"
+            />
+            <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
+          </div>
+          <div class="row">
+            <label for="w2Input">Long input window (400–6000 ms)</label>
+            <span class="value" id="w2Val">&mdash;</span>
+            <input
+              type="number"
+              id="w2Input"
+              min="400"
+              max="6000"
+              step="50"
+              inputmode="numeric"
+              autocomplete="off"
+              aria-label="New long input window in milliseconds"
+              aria-describedby="sapError"
+            />
+            <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
+          </div>
+          <div class="row">
+            <label for="w3Input">Max input window (1000–10000 ms)</label>
+            <span class="value" id="w3Val">&mdash;</span>
+            <input
+              type="number"
+              id="w3Input"
+              min="1000"
+              max="10000"
+              step="50"
+              inputmode="numeric"
+              autocomplete="off"
+              aria-label="New max input window in milliseconds"
+              aria-describedby="sapError"
+            />
+            <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
+          </div>
+          <p class="hint">
+            How long a sip or puff must be held to trigger each action (short &rarr; click/drag, long &rarr;
+            scroll/menu, very long &rarr; more). Requires firmware 4.4.0+; the Hub menu offers the same settings under
+            Sip & Puff &rarr; Timing.
+          </p>
+          <div class="win-ladder-wrap">
+            <div
+              class="win-ladder"
+              id="winLadder"
+              role="img"
+              aria-label="Input window timeline — waiting for the timing windows to load."
+            ></div>
+            <div class="win-scale" id="winScale" aria-hidden="true"></div>
+          </div>
+          <div class="row">
+            <button type="button" class="cmd secondary" id="btnWatchHolds" disabled aria-pressed="false">
+              Watch holds
+            </button>
+            <span class="value" title="Device-measured hold duration">Hold: <span id="sapHoldVal">&mdash;</span></span>
+          </div>
+          <p class="hint">
+            The timeline is to scale: green = short, yellow = long, red = very-long &mdash; the same colors the small
+            light next to the USB-C port shows while you hold. <strong>Watch holds</strong> streams your real sips and
+            puffs: a live bar sweeps the timeline as the device measures each hold, filling one zone per window &mdash;
+            exactly like the face lights filling 1, 2, 3.
+          </p>
         </div>
-        <div
-          class="gauge"
-          id="mainGauge"
-          role="img"
-          aria-label="Pressure gauge: sip fills left, puff fills right, thresholds marked in red"
-        >
-          <div class="fill" id="gaugeFill"></div>
-          <div class="zero"></div>
-          <div class="mark" id="gaugeSipMark"></div>
-          <div class="mark" id="gaugePuffMark"></div>
-        </div>
-        <div class="gauge-scale">
-          <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
-        </div>
-        <p class="hint">Red markers show trigger values. Use Live view while adjusting thresholds.</p>
+        <div class="error" id="sapError" role="alert"></div>
       </section>
 
       <section class="section-card" id="sec-restrictions" aria-label="Input restrictions">

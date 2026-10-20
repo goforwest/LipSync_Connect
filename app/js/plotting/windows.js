@@ -1,11 +1,13 @@
 // Input-window ladder: the Sip & Puff timing windows (short < long < max,
 // firmware 4.4.0+) drawn as one proportional timeline — green / yellow / red
 // zones matching the micro-LED's window colors next to the USB-C port, so the
-// app and the device teach the same color language. The diagnostics instance
-// adds a live sweep driven by the DEBUG,5 sip & puff state stream: the fill
-// crosses each boundary exactly as the face LEDs fill (1 in short, 2 in long,
-// 3 in very-long), and the zone highlight plus the "n of 3" aria carry the
-// count for anyone who cannot rely on color.
+// app and the device teach the same color language. Both instances (the
+// Sip & Puff card and the Diagnostics sip & puff panel) carry a live sweep
+// driven by the DEBUG,5 stream: the fill crosses each boundary exactly as
+// the face LEDs fill (1 in short, 2 in long, 3 in very-long), and the zone
+// highlight plus the "n of 3" aria carry the count for anyone who cannot
+// rely on color. The Sip & Puff side is driven by its "Watch holds" button,
+// the Diagnostics side by the live-stream dropdown — one picture, two doors.
 import { WINDOW_SETTINGS } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 
@@ -16,13 +18,20 @@ import { $ } from '../ui/dom.js';
 export const LEGACY_SAP_WINDOWS = [1000, 3000, 8000];
 
 const INSTANCES = [
-  { ladderId: 'winLadder', scaleId: 'winScale', sweep: false },
+  { ladderId: 'winLadder', scaleId: 'winScale', sweep: true },
   { ladderId: 'winLadderDiag', scaleId: 'winScaleDiag', sweep: true },
 ];
 
 const readWindowValues = () => WINDOW_SETTINGS.map((w) => Number(($(w.valueId)?.textContent || '').trim()));
 
 const windowsLoaded = (vals) => vals.length === 3 && vals.every((v) => Number.isFinite(v) && v > 0);
+
+const WAITING_ARIA = 'Input window timeline — waiting for the timing windows to load.';
+
+// The static (no-hold) label both ladders share — the color legend the
+// micro LED teaches, with the live boundary values.
+const staticAria = (w1, w2, w3) =>
+  `Input window timeline: short holds to ${w1} ms (green), long to ${w2} ms (yellow), very-long to ${w3} ms (red).`;
 
 /** Configured [short, long, max] boundaries, or the legacy fixed ones. */
 export function windowBoundaries() {
@@ -72,7 +81,7 @@ export function refreshWindowLadders() {
     if (!ladder) continue;
     if (!loaded) {
       ladder.classList.add('win-ladder--empty');
-      ladder.setAttribute('aria-label', 'Input window timeline — waiting for the timing windows to load.');
+      ladder.setAttribute('aria-label', WAITING_ARIA);
       continue;
     }
     ladder.classList.remove('win-ladder--empty');
@@ -84,10 +93,7 @@ export function refreshWindowLadders() {
       const z = ladder.children[i];
       if (z?.style) z.style.flexBasis = widths[i].toFixed(2) + '%';
     }
-    ladder.setAttribute(
-      'aria-label',
-      `Input window timeline: short holds to ${w1} ms (green), long to ${w2} ms (yellow), very-long to ${w3} ms (red).`,
-    );
+    ladder.setAttribute('aria-label', staticAria(w1, w2, w3));
     const scale = $(inst.scaleId);
     if (scale?.children?.length === 4) {
       const marks = [
@@ -111,24 +117,29 @@ export function refreshWindowLadders() {
 }
 
 /**
- * Live hold progress on the diagnostics ladder (DEBUG,5 stream): fills the
- * sweep proportional to the elapsed hold and highlights the zone it is in.
- * `holding` false resets both — release frames and stream switches must not
- * leave a stale fill behind.
+ * Live hold progress on BOTH ladders (the DEBUG,5 stream): fills the sweep
+ * proportional to the elapsed hold and highlights the zone it is in. The
+ * Sip & Puff card's "Watch holds" button and the Diagnostics sip & puff
+ * panel share the same two instances, so wherever the user watches from,
+ * the picture is the same. `holding` false resets both to the static legend —
+ * release frames and stream switches must not leave a stale fill behind.
  */
 export function paintWindowSweep(elapsedMs, holding) {
-  const ladder = $('winLadderDiag');
-  if (!ladder) return;
-  const [w1, w2, w3] = windowBoundaries();
+  const vals = readWindowValues();
+  const loaded = windowsLoaded(vals);
+  const [w1, w2, w3] = loaded ? vals : LEGACY_SAP_WINDOWS;
   const ms = holding && Number.isFinite(elapsedMs) ? Math.max(elapsedMs, 0) : 0;
-  const sweep = ladder.children[3];
-  if (sweep?.style) sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
   const idx = ms <= 0 ? -1 : ms < w1 ? 0 : ms < w2 ? 1 : 2;
-  for (let i = 0; i < 3; i++) ladder.children[i]?.classList?.toggle?.('active', i === idx);
-  ladder.setAttribute(
-    'aria-label',
-    ms > 0
-      ? `Hold at ${ms} ms — in the ${['short', 'long', 'very-long'][idx]} window (${idx + 1} of 3).`
-      : `Input window timeline: short to ${w1} ms, long to ${w2} ms, very-long to ${w3} ms. Hold progress appears here during the sip & puff live stream.`,
-  );
+  const liveAria =
+    ms > 0 ? `Hold at ${ms} ms — in the ${['short', 'long', 'very-long'][idx]} window (${idx + 1} of 3).` : null;
+  for (const inst of INSTANCES) {
+    const ladder = $(inst.ladderId);
+    if (!ladder) continue;
+    const sweep = ladder.children[3];
+    if (sweep?.style) sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
+    for (let i = 0; i < 3; i++) ladder.children[i]?.classList?.toggle?.('active', i === idx);
+    // Resting state restores the static legend exactly — never a stale
+    // "hold at" line, and never the legacy numbers over an unloaded bar.
+    ladder.setAttribute('aria-label', liveAria ?? (loaded ? staticAria(w1, w2, w3) : WAITING_ARIA));
+  }
 }

@@ -106,7 +106,15 @@ export const DEBUG_MODES = {
 
 // ---- Live diagnostic visualizations ----
 export const DIAG_PANELS = { 1: 'diagJoy', 2: 'diagPressure', 3: 'diagButtons', 4: 'diagSwitches', 5: 'diagSap' };
-export const LIVE_STREAM_BUTTONS = { btnLiveJoy: '1', btnLivePressure: '2' };
+export const LIVE_STREAM_BUTTONS = { btnLiveJoy: '1', btnLivePressure: '2', btnWatchHolds: '5' };
+// Idle/active label per live-stream button: syncLiveButtons rewrites the text
+// on every DM change, so each button's pressed state stays named. The hold
+// stream names its own action ("Watch holds") — the Sip & Puff card owns it.
+export const LIVE_STREAM_LABELS = {
+  btnLiveJoy: ['Live view', 'Stop live view'],
+  btnLivePressure: ['Live view', 'Stop live view'],
+  btnWatchHolds: ['Watch holds', 'Stop watching'],
+};
 export const LIVE_READ_BUTTONS = { btnLiveJoy: 'btnReadJoy', btnLivePressure: 'btnReadPressure' };
 
 // ---- Operating mode presets ----

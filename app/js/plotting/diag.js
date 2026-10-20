@@ -1,6 +1,6 @@
 // Live diagnostic visualizations (DEBUG,<mode> streams): which panel is
 // visible, the per-mode renderers, and the rAF-batched live-stream paints.
-import { DIAG_PANELS, LIVE_STREAM_BUTTONS, LIVE_READ_BUTTONS } from '../config/constants.js';
+import { DIAG_PANELS, LIVE_STREAM_BUTTONS, LIVE_READ_BUTTONS, LIVE_STREAM_LABELS } from '../config/constants.js';
 import { timers } from '../utils/timers.js';
 import { parsePoint } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
@@ -28,7 +28,8 @@ export function syncLiveButtons(mode) {
     const btn = $(id);
     if (!btn || !btn.setAttribute) return;
     const on = String(mode) === m;
-    btn.textContent = on ? 'Stop live view' : 'Live view';
+    const labels = LIVE_STREAM_LABELS[id] ?? ['Live view', 'Stop live view'];
+    btn.textContent = on ? labels[1] : labels[0];
     btn.setAttribute('aria-pressed', String(on));
     const readBtn = $(LIVE_READ_BUTTONS[id]);
     if (readBtn) readBtn.disabled = on || !serialSession.port;
@@ -111,6 +112,7 @@ export function applyDebugData(mode, value) {
     if (sip && sip.classList) sip.classList.toggle('on', p[0] === 1);
     if (puff && puff.classList) puff.classList.toggle('on', p[0] === 2);
     setDiagSubState('diagSapTime', p);
+    setDiagSubState('sapHoldVal', p); // the Sip & Puff card's Watch-holds readout
     paintWindowSweep(Number.isFinite(p[2]) ? p[2] : 0, p[0] !== 0 && p[1] === 1);
     noteSapHold(p);
   }
