@@ -427,7 +427,8 @@ window.addEventListener('DOMContentLoaded', () => {
       // hide the only surface showing update progress, and mid-update the
       // card is exempt from gating so it could not be reopened. A finished
       // panel may be dismissed.
-      const openEl = document.getElementById(getOpenSection());
+      const closingId = getOpenSection();
+      const openEl = document.getElementById(closingId);
       const wizardState = openEl?.getAttribute('data-wizard');
       // 'failed' panels stay dismissible: everything they say is already in
       // the log, the panel is reopenable (the card is exempt from gating
@@ -437,7 +438,20 @@ window.addEventListener('DOMContentLoaded', () => {
         announceStatus('The firmware update is still in progress — the Firmware section stays open.');
         return;
       }
-      closeCurrentSection();
+      if (!closeCurrentSection()) return;
+      // The card just went inert; focus left inside it falls back to <body>;
+      // the in-card × already hands off to the nav trigger — Escape must do
+      // the same or the keyboard/AT user is stranded with nothing focused.
+      if (
+        openEl?.contains?.(document.activeElement) ||
+        !document.activeElement ||
+        document.activeElement === document.body
+      ) {
+        const trigger = /** @type {HTMLElement|null} */ (
+          document.querySelector(`.circle-trigger[data-section="${closingId}"]`)
+        );
+        if (trigger && typeof trigger.focus === 'function') trigger.focus();
+      }
     }
   });
 
@@ -472,9 +486,29 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if (!['sec-help', 'sec-log'].includes(el.id)) el.classList.add('needs-conn');
   });
-  openSectionById('sec-help');
+  // --- Hash deep links (#sec-cursor, #sec-firmware, …) ---
+  // A shared/bookmarked link opens the right card on load. The hash must be
+  // read BEFORE the default Help open — sections.js syncs the URL on every
+  // open, so the default would overwrite the incoming link first. The dimmed
+  // guard still applies, so a pre-connect link answers with its
+  // connect-first notice instead of pretending.
+  const sectionFromHash = () => {
+    try {
+      const id = String(window.location?.hash ?? '').replace(/^#/, '');
+      return id && document.getElementById(id)?.classList?.contains?.('section-card') ? id : '';
+    } catch {
+      return '';
+    }
+  };
+  openSectionById(sectionFromHash() || 'sec-help');
   updateConnectionGating();
   initWindowLadders();
+  // Manual hash edits and history navigation open their section too (the
+  // skip link's #main-content is not a section and is ignored).
+  window.addEventListener('hashchange', () => {
+    const id = sectionFromHash();
+    if (id && id !== getOpenSection()) openSectionById(id);
+  });
 
   // Service worker registration
   const canRegisterServiceWorker =
@@ -843,6 +877,16 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnClearLog').addEventListener('click', () => {
       $('log').textContent = '';
     });
+    // "Errors only" (support triage): one toggle isolates the session's
+    // error lines from the RX echoes and info notes.
+    const logFilterBtn = $('btnLogErrorsOnly');
+    if (logFilterBtn) {
+      logFilterBtn.addEventListener('click', () => {
+        const on = logFilterBtn.getAttribute('aria-pressed') === 'true';
+        logFilterBtn.setAttribute('aria-pressed', String(!on));
+        $('log').classList.toggle('errors-only', !on);
+      });
+    }
     // The native share sheet doubles as the privacy confirm (the user picks
     // the destination app), so it must fire directly from the click — any
     // in-app dialog first burns transient activation and the sheet fails

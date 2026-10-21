@@ -144,6 +144,22 @@ body {
 a {
   color: var(--info);
 }
+/* target=_blank links get a small "opens in a new tab" arrow. A masked box,
+   not a content glyph, so screen readers don't announce it — the accessible
+   wording lives in the link's sr-only span instead. */
+a[target='_blank']::after {
+  content: '';
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  margin-left: 3px;
+  vertical-align: 0.05em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17L17 7M9 7h8v8'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17L17 7M9 7h8v8'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
 /* Brand-tinted text selection in both themes. */
 ::selection {
   background: color-mix(in srgb, var(--info) 25%, transparent);
@@ -203,10 +219,15 @@ header .logo:hover {
 header .status {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-size: 0.85rem;
   font-weight: 500;
   padding: 4px 12px 4px 8px;
+  /* "Not connected" ↔ "Connected" ↔ "Loading…" swapped widths every state
+     change and shoved the Connect/Disconnect buttons sideways; a fixed
+     min-width keeps the header steady. */
+  min-width: 130px;
   border-radius: 100px;
   border: 1px solid var(--border);
   background: var(--value-bg);
@@ -223,6 +244,16 @@ header .status {
   color: var(--danger);
   font-size: 0.9rem;
   font-weight: 500;
+}
+/* Slides in from under the header instead of snapping the page down. */
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.conn-banner:not([hidden]) {
+  animation: bannerIn 0.25s ease;
 }
 .conn-banner[hidden] {
   display: none;
@@ -434,6 +465,17 @@ select {
   font-size: 1rem;
   min-height: 48px;
 }
+/* Pointer affordance: the edge darkens on hover the same way the secondary
+   buttons do, so fields read as interactive before the first click. */
+input[type='number']:hover:not(:disabled),
+input[type='text']:hover:not(:disabled),
+select:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
 /* Immediate invalid feedback once the user has actually interacted with a
    field (:user-invalid, not :invalid, so empty untouched inputs stay calm).
    The full message still arrives on Set — this is the early cue. */
@@ -452,6 +494,9 @@ progress {
   padding: 14px;
   height: 200px;
   overflow-y: auto;
+  /* A wheel-flick inside the log (or the appearance popup) must not scroll
+     the page out from under the user. */
+  overscroll-behavior: contain;
   font-family: ui-monospace, monospace;
   font-size: 0.92rem;
   white-space: pre-wrap;
@@ -461,6 +506,21 @@ progress {
   overflow-wrap: break-word;
   color: var(--log-text);
   line-height: 1.6;
+}
+/* Keyboard users can scroll the box (tabindex="0" in the HTML) — give that
+   focus stop a visible ring like every other focusable control. */
+#log:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+/* "Errors only" filter (the Log card's toggle): hides every non-error line
+   so support can read the failures without scanning hundreds of RX echoes. */
+#log.errors-only > :not(.log-err) {
+  display: none;
+}
+#log.errors-only:not(:empty):not(:has(.log-err))::after {
+  content: 'No errors in this session.';
+  color: var(--log-info);
 }
 /* Empty-state hint so a first-run user sees the log is where activity lands. */
 #log:empty::before {
@@ -696,12 +756,63 @@ progress {
 details {
   margin-top: 14px;
 }
+/* Custom disclosure chevron: replaces the UA triangle with an icon that
+   matches the app's colors and rotates open. Kept as a ::after box with a
+   mask image (not a content glyph) so screen readers never announce it, and
+   visible in every display mode — the native marker needs list-item display,
+   which flex strips, and touch users must keep their expand/collapse cue. */
 summary {
   cursor: pointer;
   color: var(--info);
   font-weight: 600;
   font-size: 1rem;
   padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+summary::after {
+  content: '';
+  width: 0.6em;
+  height: 0.6em;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5.5l7 6.5-7 6.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5.5l7 6.5-7 6.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  transition: transform 0.15s ease;
+}
+details[open] > summary::after {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+/* Balance ragged headings; pretty-wrap the longer body copy blocks. */
+h1,
+h2,
+h3,
+.diag-title {
+  text-wrap: balance;
+}
+.hint,
+.notice,
+.fw-step,
+.wiz-step-text,
+#confirmBody {
+  text-wrap: pretty;
 }
 footer {
   max-width: 960px;
@@ -1255,6 +1366,10 @@ summary {
   color: var(--muted);
   box-shadow: inset 0 0 0 1.5px var(--border);
 }
+.health-history-clear:hover:not(:disabled) {
+  background: var(--value-bg);
+  color: var(--text);
+}
 
 /* ---- User profiles (Device card) ---- */
 .profile-list {
@@ -1310,9 +1425,31 @@ summary {
   font-weight: 500;
   border-radius: 10px;
   padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Trailing arrow: says "this jumps somewhere else" before the first click.
+   A masked box, not a content glyph, so screen readers hear only the label. */
+.task-btn::after {
+  content: '';
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  transition: transform 0.15s ease;
 }
 .task-btn:hover {
   border-color: var(--accent);
+}
+.task-btn:hover::after {
+  background: var(--accent);
+  transform: translateX(3px);
 }
 @media (prefers-reduced-motion: no-preference) {
   .pulse-target {
@@ -1417,6 +1554,16 @@ button.ready-chip:hover {
 .write-confirm[hidden] {
   display: none;
 }
+/* Slides up with the same easing as the toast instead of popping in. */
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.write-confirm:not([hidden]) {
+  animation: chipIn 0.2s ease;
+}
 .write-confirm-undo {
   pointer-events: auto;
   padding: 4px 14px;
@@ -1428,7 +1575,9 @@ button.ready-chip:hover {
   box-shadow: inset 0 0 0 1.5px var(--success);
 }
 .write-confirm-undo:hover:not(:disabled) {
-  background: var(--success);
+  /* Darkened success fill: plain --success left white text below AA on the
+     light-green dark-theme token (2.1:1). */
+  background: color-mix(in srgb, var(--success) 65%, #000);
   color: #fff;
 }
 @media (max-width: 700px) {
@@ -1467,6 +1616,25 @@ button.ready-chip:hover {
 }
 #notification[hidden] {
   display: none;
+}
+/* Leading icon badge: the tone is currently color-only (red vs blue fill) —
+   invisible to color-blind users and easy to miss at a glance. A glyph badge
+   carries it, and as a background image it is never announced by screen
+   readers (the message text remains the whole announcement). */
+#notification::before {
+  content: '';
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.18);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5.5v8'/%3E%3Cpath d='M12 17.2v.01'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
+}
+#notification.warning::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 10.5v6.5'/%3E%3Cpath d='M12 7v.01'/%3E%3C/svg%3E");
 }
 @keyframes notifIn {
   from {
@@ -1537,6 +1705,13 @@ dialog[open] {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  animation: dialogIn 0.18s ease;
+}
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
 }
 dialog p {
   margin: 0;
@@ -1953,6 +2128,25 @@ html.dark-mode .guide-card {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
+/* The summary readout carries its outcome in color too — "Passed"/"Needs
+   attention"/"Error" is the first thing a clinician looks for, and text
+   alone reads as neutral in both themes. health.js sets data-state. */
+#healthSummary[data-state='running'] {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 45%, transparent);
+}
+#healthSummary[data-state='passed'] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+#healthSummary[data-state='attention'] {
+  color: var(--warning-text);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
+}
+#healthSummary[data-state='error'] {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 
 /* ---- Calibration step strip ---- */
 .cal-steps {
@@ -1993,6 +2187,11 @@ html.dark-mode .guide-card {
   background: color-mix(in srgb, var(--success) 15%, transparent);
   border-color: var(--success);
   color: var(--success);
+}
+/* Same ✓ completion glyph the self-test list, health cells, and wizard steps
+   already use — the strip is aria-hidden (calStatus carries the state). */
+.cal-steps li.done::before {
+  content: '\2713\00a0';
 }
 .cal-steps li.pending {
   opacity: 0.55;
@@ -2225,6 +2424,7 @@ html.dark-mode .floating-gear {
   width: min(calc(280px / var(--ui-scale, 1)), calc((100vw - 48px) / var(--ui-scale, 1)));
   max-height: calc(70vh / var(--ui-scale, 1));
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
@@ -2525,5 +2725,14 @@ html.dark-mode .appearance-popup {
   }
   #notification {
     border: 1px solid ButtonText;
+  }
+  /* The chevron/arrow cues are background+mask images — forced colors would
+     flatten the background to nothing and erase them. Keep their own colors
+     so the disclosure/navigation affordances stay visible. */
+  summary::after,
+  .task-btn::after,
+  a[target='_blank']::after,
+  #notification::before {
+    forced-color-adjust: none;
   }
 }

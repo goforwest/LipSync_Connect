@@ -94,14 +94,20 @@ export function clearHealthResults() {
   }
   const summary = $('healthSummary');
   const details = $('healthDetails');
-  if (summary) summary.textContent = 'Not run';
+  if (summary) {
+    summary.textContent = 'Not run';
+    summary.removeAttribute('data-state');
+  }
   if (details) details.textContent = '';
 }
 export async function runDiagnostics() {
   cancelDetailsFade();
   setCmdButtons(false);
   $('btnDisconnect').disabled = true;
+  // data-state colors the readout's border/text (CSS); the visible text and
+  // the live region remain the accessible state — the attribute is visual.
   $('healthSummary').textContent = 'Running…';
+  $('healthSummary').dataset.state = 'running';
   $('healthDetails').textContent = 'Starting health check — reading device sensors…';
   resetHealthSteps();
   const findings = [];
@@ -198,6 +204,7 @@ export async function runDiagnostics() {
       }
     }
     $('healthSummary').textContent = findings.length ? 'Needs attention' : 'Passed';
+    $('healthSummary').dataset.state = findings.length ? 'attention' : 'passed';
     recordHealthRun(findings.length ? 'attention' : 'passed', { ...healthStepState }, lastRunMetrics);
     updateReadiness();
     // On a clean pass, show a short confirmation and fade it out gently — the
@@ -230,6 +237,7 @@ export async function runDiagnostics() {
     renderHealthHistory();
   } catch (e) {
     $('healthSummary').textContent = 'Error';
+    $('healthSummary').dataset.state = 'error';
     recordHealthRun('error', { ...healthStepState }, lastRunMetrics);
     updateReadiness();
     healthEl.textContent = 'Diagnostics failed: ' + e.message;

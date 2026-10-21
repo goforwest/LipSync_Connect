@@ -98,6 +98,8 @@ export function bindDeviceOps(guard) {
         const el = $(id);
         if (el) el.textContent = '—';
       });
+      // The '—' placeholder must not keep a colored Passed/Error frame.
+      $('healthSummary')?.removeAttribute('data-state');
       resetPlotState();
       // The device is about to reboot with defaults, so the live-diagnostic
       // selection and the OM/CM mode state must not keep showing pre-reset

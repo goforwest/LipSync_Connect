@@ -299,6 +299,7 @@
               id="profileName"
               maxlength="40"
               autocomplete="off"
+              placeholder="A person&rsquo;s name &mdash; or leave blank to save by today&rsquo;s date"
               aria-label="Name for a new settings profile"
             />
             <button type="button" class="cmd secondary" id="btnSaveProfile" disabled>Save profile</button>
@@ -1492,7 +1493,9 @@
           <div class="row"><label>Latest available</label><span class="value" id="fwLatestVersion">&mdash;</span></div>
           <p id="fwUpdateStatus" role="status" class="fw-status"></p>
           <p>
-            <a id="fwNotesLink" hidden rel="noopener noreferrer" target="_blank">What&#8217;s new in this release</a>
+            <a id="fwNotesLink" hidden rel="noopener noreferrer" target="_blank"
+              >What&#8217;s new in this release<span class="sr-only"> (opens in a new tab)</span></a
+            >
           </p>
         </div>
         <div class="row" id="fwActionsRow">
@@ -1833,7 +1836,8 @@
         <div class="row">
           <button type="button" id="btnDownloadLog" class="secondary">Download log</button
           ><button type="button" id="btnShareLog" class="secondary">Share log</button
-          ><button type="button" id="btnClearLog" class="secondary">Clear log</button>
+          ><button type="button" id="btnClearLog" class="secondary">Clear log</button
+          ><button type="button" id="btnLogErrorsOnly" class="secondary" aria-pressed="false">Errors only</button>
         </div>
         <div class="row">
           <label for="rawCommand">Raw command</label
@@ -1868,7 +1872,7 @@
           Advanced: send a raw serial command — e.g. EX,0:0 for a full settings dump. The response lands in the log
           below; commands that restart the device still ask before sending.
         </p>
-        <div id="log" role="log" aria-live="off" aria-label="Command log"></div>
+        <div id="log" role="log" tabindex="0" aria-live="off" aria-label="Command log"></div>
       </section>
     </main>
 
@@ -1876,8 +1880,12 @@
       <p>
         <small
           >Open Assistive Technology by
-          <a href="https://www.makersmakingchange.com/" target="_blank" rel="noopener">Makers Making Change</a>, a
-          program of <a href="https://www.neilsquire.ca/" target="_blank" rel="noopener">Neil Squire</a>.</small
+          <a href="https://www.makersmakingchange.com/" target="_blank" rel="noopener"
+            >Makers Making Change<span class="sr-only"> (opens in a new tab)</span></a
+          >, a program of
+          <a href="https://www.neilsquire.ca/" target="_blank" rel="noopener"
+            >Neil Squire<span class="sr-only"> (opens in a new tab)</span></a
+          >.</small
         >
       </p>
     </footer>

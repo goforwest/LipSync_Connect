@@ -21,6 +21,21 @@ const notifySectionChange = () => {
   if (changeHandler) changeHandler(openSection);
 };
 
+// URL sync for the open card (#sec-cursor): the state is shareable and
+// bookmarkable, and main.js boots/restores the section from the hash.
+// replaceState, not pushState — opening cards is same-page navigation, not
+// history entries to step back through. Guarded: test harnesses and file://
+// contexts may not offer a usable history.
+function syncSectionHash(id) {
+  try {
+    if (id) history.replaceState(null, '', '#' + id);
+    else {
+      const loc = /** @type {{ pathname?: string, search?: string }} */ (window.location ?? {});
+      history.replaceState(null, '', (loc.pathname ?? '/') + (loc.search ?? ''));
+    }
+  } catch {}
+}
+
 export function animateSectionOpen(el) {
   el.removeAttribute('inert');
   el.removeAttribute('aria-hidden');
@@ -108,6 +123,7 @@ export function openSectionById(id) {
   document.querySelectorAll('.circle-trigger').forEach((/** @type {any} */ b) => {
     if (b.dataset.section !== id) b.setAttribute('aria-expanded', 'false');
   });
+  syncSectionHash(id);
   notifySectionChange();
 }
 
@@ -132,6 +148,7 @@ export function closeCurrentSection() {
   }
   if (prev) animateSectionClose(prev);
   openSection = null;
+  syncSectionHash(null);
   notifySectionChange();
   return true;
 }
