@@ -153,6 +153,7 @@ const clearSessionUi = () => {
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
+  autoLivePending = false;
   clearLoadTimer();
 };
 // The DISCONNECT reset additionally closes the guided wizard: a mid-flow
@@ -174,6 +175,8 @@ const resetSessionUiOnDisconnect = () => {
 // is theirs and is never touched.
 const AUTO_LIVE_SECTION_MODES = { 'sec-sip': '2', 'sec-joystick': '1' };
 let autoLiveMode = null; // the DM mode the app auto-started; null = not ours
+let autoLivePending = false; // our start's echo hasn't landed yet
+let autoLiveTakenFrom = '0'; // the select value when our start was sent
 const syncAutoLive = (sectionId) => {
   const dmEl = $('debugMode');
   // Before the settings load lands the select is disabled and still shows its
@@ -182,13 +185,23 @@ const syncAutoLive = (sectionId) => {
   const dmReady = !!dmEl && !dmEl.disabled;
   const dm = String(dmEl?.value ?? '0');
   // If the stream we started was replaced or stopped elsewhere, it is no
-  // longer ours to manage.
-  if (autoLiveMode !== null && dm !== String(autoLiveMode)) autoLiveMode = null;
+  // longer ours to manage. While our own start's echo is still in flight the
+  // select legitimately shows the value we started FROM (staleness, not a
+  // takeover — treating it as one orphaned the stream whenever the section
+  // closed inside the echo round-trip); only a move to a third value is a
+  // user takeover.
+  if (autoLiveMode !== null) {
+    const replacedElsewhere = autoLivePending
+      ? dm !== String(autoLiveMode) && dm !== String(autoLiveTakenFrom)
+      : dm !== String(autoLiveMode);
+    if (replacedElsewhere) autoLiveMode = null;
+  }
   if (autoLiveMode !== null) {
     const wantMode = sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
     if (!wantMode || String(wantMode) !== String(autoLiveMode)) {
       const stopping = autoLiveMode;
       autoLiveMode = null;
+      autoLivePending = false;
       if (serialSession.port) {
         void setSimpleSetting('DM', '0', 'debugModeVal', DEBUG_MODES).catch(() => {
           void stopping; // a failed stop is retried by the next transition
@@ -198,11 +211,17 @@ const syncAutoLive = (sectionId) => {
   }
   const wantMode = serialSession.port && sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
   if (wantMode && autoLiveMode === null && dmReady && dm === '0') {
+    autoLiveTakenFrom = dm;
     autoLiveMode = wantMode;
+    autoLivePending = true;
     void setSimpleSetting('DM', wantMode, 'debugModeVal', DEBUG_MODES)
-      .then(() => log('Live view started for this section — Stop live view turns it off.', 'log-info'))
+      .then(() => {
+        autoLivePending = false; // echo landed — the select now shows our mode
+        log('Live view started for this section — Stop live view turns it off.', 'log-info');
+      })
       .catch(() => {
         autoLiveMode = null; // never started: nothing to manage
+        autoLivePending = false;
       });
   }
 };

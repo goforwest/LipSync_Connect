@@ -3,6 +3,13 @@
 // live stream when the device is idle, closing/leaving stops what the app
 // started, a user-started stream is never touched, and a user REPLACING the
 // auto stream (Watch holds over the pressure stream) makes it theirs.
+//
+// Assertions poll observed state (waitFor) instead of racing fixed sleeps:
+// the first queued command of a fresh process lands 10–50 ms after the
+// section opens (JIT/GC/event-loop alignment), which a fixed 40 ms sleep
+// lost on slower CI runners. Negative assertions still use a settle window —
+// enough for the (now always-detached, so never cross-contaminating)
+// command chain to fire if it were going to.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
@@ -14,6 +21,16 @@ const { openSectionById, closeCurrentSection } = await import('../app/js/ui/sect
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Polls until `fn()` is true; fails with `desc` after 2 s instead of hanging. */
+const waitFor = async (fn, desc, timeoutMs = 2000) => {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (fn()) return;
+    if (Date.now() > deadline) throw new Error('timed out waiting for: ' + desc);
+    await sleep(5);
+  }
+};
 
 const launch = (replies = {}) => {
   const sent = [];
@@ -39,84 +56,99 @@ const launch = (replies = {}) => {
   return sent;
 };
 
+/** Runs `body` with the guarantee that the injected port detaches even when
+ *  an assertion throws — a leaked writer would deliver a previous test's
+ *  queued writes into the next test's `sent` array. */
+const withPort = async (body) => {
+  try {
+    await body();
+  } finally {
+    testHooks.detach();
+  }
+};
+
 const dmSent = (sent) => sent.filter((s) => s.startsWith('DM,'));
 
 test('opening Sip & Puff while connected auto-starts the pressure stream; closing stops it', async () => {
-  const sent = launch({
-    SETTINGS: 'SUCCESS,0:SETTINGS',
-    'DM,1:2': 'SUCCESS,0:DM,1:2',
-    'DM,1:0': 'SUCCESS,0:DM,1:0',
+  await withPort(async () => {
+    const sent = launch({
+      SETTINGS: 'SUCCESS,0:SETTINGS',
+      'DM,1:2': 'SUCCESS,0:DM,1:2',
+      'DM,1:0': 'SUCCESS,0:DM,1:0',
+    });
+    doc.getElementById('debugMode').value = '0';
+    openSectionById('sec-sip');
+    await waitFor(() => dmSent(sent).length === 1, 'the auto DM,1:2 start');
+    assert.deepEqual(dmSent(sent), ['DM,1:2']);
+    closeCurrentSection();
+    await waitFor(() => dmSent(sent).length === 2, 'the auto DM,1:0 stop');
+    assert.deepEqual(dmSent(sent), ['DM,1:2', 'DM,1:0']);
   });
-  doc.getElementById('debugMode').value = '0';
-  openSectionById('sec-sip');
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), ['DM,1:2'], JSON.stringify(sent));
-  closeCurrentSection();
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), ['DM,1:2', 'DM,1:0'], JSON.stringify(sent));
-  testHooks.detach();
 });
 
 test('a busy device is left alone — no auto-start over a user stream, no auto-stop after', async () => {
-  const sent = launch({
-    SETTINGS: 'SUCCESS,0:SETTINGS',
-    'DM,1:1': 'SUCCESS,0:DM,1:1',
+  await withPort(async () => {
+    const sent = launch({
+      SETTINGS: 'SUCCESS,0:SETTINGS',
+      'DM,1:1': 'SUCCESS,0:DM,1:1',
+    });
+    doc.getElementById('debugMode').value = '1'; // the user's own stream is running
+    openSectionById('sec-sip');
+    await sleep(150);
+    assert.deepEqual(dmSent(sent), [], 'no auto DM writes over the user stream: ' + JSON.stringify(sent));
+    closeCurrentSection();
+    await sleep(150);
+    assert.deepEqual(dmSent(sent), [], 'the user stream survives the section close');
   });
-  doc.getElementById('debugMode').value = '1'; // the user's own stream is running
-  openSectionById('sec-sip');
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), [], 'no auto DM writes over the user stream: ' + JSON.stringify(sent));
-  closeCurrentSection();
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), [], 'the user stream survives the section close');
-  testHooks.detach();
 });
 
 test('replacing the auto stream makes it the user\u2019s — leaving never stops it', async () => {
-  const sent = launch({
-    SETTINGS: 'SUCCESS,0:SETTINGS',
-    'DM,1:2': 'SUCCESS,0:DM,1:2',
-    'DM,1:5': 'SUCCESS,0:DM,1:5',
+  await withPort(async () => {
+    const sent = launch({
+      SETTINGS: 'SUCCESS,0:SETTINGS',
+      'DM,1:2': 'SUCCESS,0:DM,1:2',
+      'DM,1:5': 'SUCCESS,0:DM,1:5',
+      'DM,1:0': 'SUCCESS,0:DM,1:0', // a real device acks everything
+    });
+    doc.getElementById('debugMode').value = '0';
+    openSectionById('sec-sip');
+    await waitFor(() => dmSent(sent).length === 1, 'the auto DM,1:2 start'); // the app auto-started mode 2
+    assert.deepEqual(dmSent(sent), ['DM,1:2']);
+    // The user presses Watch holds (mode 5); the DM response renderer syncs
+    // the select exactly like this.
+    doc.getElementById('debugMode').value = '5';
+    openSectionById('sec-log'); // leaving must NOT stop the user's stream
+    await sleep(150);
+    assert.ok(!dmSent(sent).includes('DM,1:0'), 'a replaced stream is the user\u2019s, never auto-stopped');
   });
-  doc.getElementById('debugMode').value = '0';
-  openSectionById('sec-sip');
-  await sleep(40); // the app auto-started mode 2
-  assert.deepEqual(dmSent(sent), ['DM,1:2']);
-  // The user presses Watch holds (mode 5); the DM response renderer syncs
-  // the select exactly like this.
-  doc.getElementById('debugMode').value = '5';
-  openSectionById('sec-log'); // leaving must NOT stop the user's stream
-  await sleep(40);
-  assert.ok(!dmSent(sent).includes('DM,1:0'), 'a replaced stream is the user\u2019s, never auto-stopped');
-  testHooks.detach();
 });
 
 test('sections without a live mapping change nothing', async () => {
-  const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
-  doc.getElementById('debugMode').value = '0';
-  openSectionById('sec-switches');
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
-  testHooks.detach();
+  await withPort(async () => {
+    const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
+    doc.getElementById('debugMode').value = '0';
+    openSectionById('sec-switches');
+    await sleep(150);
+    assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
+  });
 });
 
 test('before the settings load lands (select disabled), no auto-start is sent', async () => {
-  const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
-  const dmEl = doc.getElementById('debugMode');
-  dmEl.disabled = true; // the pre-load state clearSessionUi establishes
-  dmEl.value = '0'; // the markup default that must not be trusted
-  openSectionById('sec-sip');
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
-  // Once the DM read lands (the renderer enables the select), the next
-  // transition may start the stream under the normal rules.
-  dmEl.disabled = false;
-  closeCurrentSection();
-  await sleep(40);
-  openSectionById('sec-sip');
-  await sleep(40);
-  assert.deepEqual(dmSent(sent), ['DM,1:2'], JSON.stringify(sent));
-  closeCurrentSection();
-  await sleep(40);
-  testHooks.detach();
+  await withPort(async () => {
+    const sent = launch({ SETTINGS: 'SUCCESS,0:SETTINGS' });
+    const dmEl = doc.getElementById('debugMode');
+    dmEl.disabled = true; // the pre-load state clearSessionUi establishes
+    dmEl.value = '0'; // the markup default that must not be trusted
+    openSectionById('sec-sip');
+    await sleep(150);
+    assert.deepEqual(dmSent(sent), [], JSON.stringify(sent));
+    // Once the DM read lands (the renderer enables the select), the next
+    // transition may start the stream under the normal rules.
+    dmEl.disabled = false;
+    closeCurrentSection();
+    openSectionById('sec-sip');
+    await waitFor(() => dmSent(sent).length === 1, 'the post-load auto DM,1:2 start');
+    assert.deepEqual(dmSent(sent), ['DM,1:2']);
+    closeCurrentSection();
+  });
 });
