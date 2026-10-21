@@ -91,7 +91,8 @@ dev/                      dev server, lint/type/format configs, test runner entr
   firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
 tests/                    unit + integration tests (node) and firmware simulators
   harness/                DOM stubs, firmware + bootloader simulators, ESM load-order helpers
-docs/                     scope and feature-list documents
+docs/                     roadmap ledger, bench logs, upstream drafts;
+                          STATUS.md = the live state; history/ = 2023 scope docs
 ```
 
 A note on the module graph: `serial/` never imports `plotting/` or `ui/` layout code directly — endpoint renderers are registered into `services/registry.js` so the dependency graph stays acyclic.

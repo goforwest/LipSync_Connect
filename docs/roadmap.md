@@ -55,10 +55,26 @@ so nothing ships that any user must relearn. (4) The load summary now counts
 attempted settings, and the app's load grew to 31 tasks (18 base + 7
 gated 4.4.0 + 6 gated 4.5.0).
 
+**2026-10-20 housekeeping:** this file is the master ledger, renamed from
+`firmware-4.2.0-future-improvements.md` (nothing referenced the old name).
+The one-screen live state now lives in `docs/STATUS.md`, the folder index
+in `docs/README.md`, and the 2023 scope/feature-list documents moved to
+`docs/history/` — provenance, not current scope (their two "Not
+Implemented" rows, rotation angle and tolerance values, are moot: no 4.x
+serial endpoint exists for either; "tolerance" survives only as internal
+firmware constants, one already flagged "no longer used?"). Firmware
+state this pass: the branch holds untagged **4.5.4** (`0e393c1`, the
+`CH,5` menu-state push — the remote's last one-way gap, shipped app-first
+and already consumed by the app), built on 4.5.3's dual-channel LED
+indicator (`424f3e9`), whose commit explicitly supersedes V4.5.2 as the
+publish target; the newest tag remains V4.5.2, never published.
+
 ## Upstream issue map — open issues (43)
 
-Dispositions reflect the 2026-10-19 state: firmware 4.5.2 is tagged and
-bench-confirmed, and the 2026-10-16/17/18/19 bench sessions validated
+Dispositions reflect the 2026-10-20 state: the firmware branch holds
+untagged 4.5.4 (V4.5.2 is the newest tag but was never published —
+superseded as publish target per the 4.5.3 commit; see
+`docs/STATUS.md`), and the 2026-10-16/17/18/19 bench sessions validated
 checklist parts A-F. Items marked ✅ are shipped and (unless the row says
 otherwise) hardware-verified; the closeable ones wait only on posting the
 paste-ready drafts in `docs/upstream-issue-comments.md`.
@@ -639,14 +655,16 @@ the outer bearing; **#15** rubber feet / hook-and-loop for the hub stand.
 > `docs/upstream-issue-comments.md` — posting them from the org account
 > is the maintainer action that closes this item.
 
-## Blocked / maintainer action (2026-10-19 state of the leftovers)
+## Blocked / maintainer action (2026-10-20 state of the leftovers)
 
 Everything above is done or carries its own Done/deferral note. The
 2026-10-16/17/18/19 bench sessions validated checklist parts A-F
 (restrictions, timing windows + level scale, LED tier, regression sweep,
 flaky-sensor repro, update path) and closed the 4.5.x follow-up backlog
 (`docs/4.5.x-followups.md` — all five items shipped, bench-confirmed,
-V4.5.1/V4.5.2 tagged). What remains, and exactly why:
+V4.5.1/V4.5.2 tagged; since then the branch has grown untagged 4.5.3 —
+the dual-channel LED redesign — and 4.5.4, the `CH,5` push; see
+`docs/STATUS.md`). What remains, and exactly why:
 
 - **One more bench window, two deferred parts.** Checklist part G
   (Android/OTG flash session) needs an Android phone + OTG adapter —
@@ -670,9 +688,15 @@ V4.5.1/V4.5.2 tagged). What remains, and exactly why:
   on the interface lines) — these remove the reversed-cable and
   static-shock failure classes at the source; **#26** (PCB labels)
   rides the same next PCB rev.
-- **Maintainer/community action (the only human steps left):** publish
-  the V4.5.2 artifacts from `dev/firmware/dist/` to the update-check
-  path (4.5.1 was never published and is superseded); post the drafts in
+- **Maintainer/community action (the only human steps left):** bench-
+  confirm the one `CH,5` line the 4.5.4 commit names (physical Next →
+  `MANUAL,0:CH,5:1,0,1`; close/timeout → `MANUAL,0:CH,5:0,<page>,<row>`;
+  no CH,5 line during value-screen adjusts or long-text scrolls; the
+  app's mirror follows physical navigation), then tag **V4.5.4** and
+  publish its `dev/firmware/dist/` artifacts (manifest 4.5.4, rebuilt
+  from the 4.5.4 tree) to the update-check path (4.5.1/4.5.2/4.5.3 were
+  never published and are superseded — 4.5.3's commit says so explicitly,
+  4.5.4 carries the CH,5 push on top); post the drafts in
   `docs/upstream-issue-comments.md` from the org account (then
   #73/#75/#63/#74/#37 and the closeable notes — #36/#67/#61/#86, plus
   the bench-validated #21/#22/#43/#44/#62/#68/#77 — can close); pass the

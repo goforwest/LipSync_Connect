@@ -128,51 +128,63 @@ back off); the device still shows its safe-mode/error page, no longer reset
 loops (see the watchdog note above), and fully recovers once the cable is
 re-seated. A keyed connector remains the source fix (see #73).
 
-## Two-way Hub remote — proposed `CH,5` menu-state push (new firmware work)
+## Two-way Hub remote — the `CH,5` menu-state push (shipped: app first, firmware 4.5.4)
 
-The LipSync Connect remote Hub mirror is one-way today in exactly one
-place: app-driven presses reconcile from device truth (4.5.1+'s
+The LipSync Connect remote Hub mirror was one-way in exactly one place
+until 4.5.4: app-driven presses reconcile from device truth (4.5.1+'s
 `CH,0:0` read after every press), but *physical* navigation — Next/
 Select on the Hub, joystick-driven menu steps, the inactivity timeout —
-redraws the OLED with no serial traffic, so a mirror left open drifts
+redraws the OLED with no serial traffic, so a mirror left open drifted
 until the next app press or a manual Open-resync. Settings changes made
-on the Hub already push as `MANUAL` lines; the menu *position* is the
-one state that never rides the wire unprompted.
+on the Hub already push as `MANUAL` lines; the menu *position* was the
+one state that never rode the wire unprompted.
 
-Proposal: on every Hub menu redraw while a serial session is open, emit
+Shipped: the app half first (push and poll share one code path), then
+firmware 4.5.4 (`0e393c1`, untagged at this writing — one bench line
+before the V4.5.4 tag, see below) emits
 
     MANUAL,0:CH,5:<active>,<pageId>,<row>
 
-— the exact triple `CH,0:0` already answers with (active flag, the
-LSScreen.h page id, the selectable-row cursor), in a `MANUAL` frame
-with sequence 0. Everything about the wire safety is already proven in
-the tree:
+whenever that triple changes — the exact values `CH,0:0` already answers
+with (active flag, the LSScreen.h page id, the selectable-row cursor),
+in a `MANUAL` frame with sequence 0. Everything about the wire safety is
+proven in the tree:
 
 - `MANUAL` + device-initiated is the 4.5.2 initiator contract — the
   same shape as the boot re-center's `MANUAL,0:IN,1` — so a push can
   never falsely resolve a pending command waiter (the app gates
   SUCCESS-gated flows on the ack type and treats MANUAL pushes as
   readouts; its straggler-ack contract test pins the boot case).
-- The value is human-paced (one line per redraw; menus redraw on
-  navigation and scheduled transitions, not in a loop), so there is no
-  flood risk and no new rate limiting.
+- The value is human-paced by construction — the shipped rate limiter is
+  the change-detect itself: emission is hooked at the `flushDisplay`
+  choke point (every menu redraw ends there), and value screens that
+  re-render on every adjust step or the long-text scroll that flushes
+  every 100 ms do not change the triple, so neither prints; the boot
+  member state {0,0,0} means the closed-menu triple never prints by
+  itself.
 - The app side is deliberately trivial because the reconciliation
   already exists: `applyMenuState()` — the same function the press
   polls feed — consumes the push unchanged, so the mirror follows
   device presses, opens when the physical menu opens, and closes on
-  the inactivity timeout. It is implemented, tested, and shipping in
-  the app now; a firmware build that starts emitting the line makes
-  the remote both-ways with zero app changes.
+  the inactivity timeout. Both halves are now shipped and the remote is
+  both-ways on a 4.5.4 device with zero further app changes.
 - Older firmware simply never sends the line — the app's own
   press-then-poll behavior stands unchanged (and `CH,0:0` itself stays
   version-gated at 4.5.1).
 
-Implementation pointer: the natural hook is wherever LSScreen redraws
-(activeMenu state transitions and cursor moves), gated on the serial
-session being open, emitting at most once per redraw — the OLED update
-path is already the rate limiter. A `VN`-independent emission rule is
-fine: hosts that do not know `CH,5` ignore it as an unrecognized MANUAL
-readout (the reference app logs nothing and reconciles).
+As shipped: a `VN`-independent emission rule — hosts that do not know
+`CH,5` ignore it as an unrecognized MANUAL readout (the reference app
+logs nothing and reconciles) — printed unconditionally like every
+unsolicited line this firmware emits (the CDC stack drops writes with
+no host listening). A wedged/demoted display pauses pushes (nothing is
+shown to drift from) while the `CH,0:0` poll keeps answering the same
+truth; pushes resume from the latest state on recovery. The one bench
+line the 4.5.4 commit names gates the V4.5.4 tag: with a serial session
+open, a physical Next must arrive as `MANUAL,0:CH,5:1,0,1`; a physical
+close or timeout as `MANUAL,0:CH,5:0,<page>,<row>`; no CH,5 line may
+appear during a value-screen adjust or a long-text scroll; and
+LipSync Connect's mirror must follow physical navigation with no app
+press.
 
 ## Optional: closeable-now notes
 
