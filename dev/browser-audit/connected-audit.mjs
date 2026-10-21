@@ -484,6 +484,17 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('health-history', !hist.hidden && hist.dots === 1 && hist.firstTitle.length > 0, JSON.stringify(hist));
 
+    // Value-level health drift: a second run (identical values from the
+    // fake) renders the drift line — restrained: 'none measured' when the
+    // neutral and corners have not moved between runs.
+    await page.click('#btnRunDiagnostics');
+    await page.waitForTimeout(1600);
+    const drift = await evalCard(() => ({
+      text: document.querySelector('#healthHistory .health-drift')?.textContent ?? 'NOT FOUND',
+      exists: !!document.querySelector('#healthHistory .health-drift'),
+    }));
+    note('health-drift', drift.exists && /none|no drift/i.test(drift.text), JSON.stringify(drift));
+
     // Self-test: mid-narration, completion, linger, unlock
     await page.click('#btnTestLeds');
     await page.waitForTimeout(600);
@@ -1051,6 +1062,59 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       refresh.status === 'Connected' && refresh.w1 === '600' && !refresh.sap && refresh.hint === '',
       JSON.stringify(refresh),
     );
+
+    // Readiness profile mismatch (the shared-device signal): clean the
+    // profile slate, save one at the current state, change two settings
+    // past their tolerance, refresh — the borrowed-and-tweaked chip appears
+    // and jumps to the Device card.
+    await evalCard(() => localStorage.removeItem('lipsync-profiles'));
+    await page.fill('#profileName', 'Mismatch test');
+    await page.click('#btnSaveProfile');
+    await page.waitForTimeout(500);
+    await openCard('sec-cursor');
+    await page.click('[data-target="speed"][data-step="1"]');
+    await page.waitForTimeout(300);
+    await page.click('[data-target="speed"][data-step="1"]');
+    await page.waitForTimeout(300);
+    await openCard('sec-sip');
+    await page.fill('#sipInput', '20');
+    await page.click('#btnSetSip');
+    await page.waitForTimeout(500);
+    await openCard('sec-device');
+    await page.click('#btnRefreshAll');
+    await page.waitForTimeout(2500);
+    const mmState = await evalCard(() => ({
+      chips: [...document.querySelectorAll('.ready-chip')].map((c) => ({
+        text: c.textContent,
+        isButton: c.tagName === 'BUTTON',
+        tone: c.className,
+      })),
+    }));
+    const mmChip = mmState.chips.find((c) => c.text.includes('differs from'));
+    note(
+      'readiness-profile-mismatch',
+      !!mmChip && mmChip.isButton && mmChip.text.includes('Mismatch test'),
+      JSON.stringify(mmState),
+    );
+    if (mmChip) {
+      // The Device card is open from the refresh; the accordion toggle would
+      // close it on this click. Close it first so the chip's open is honest.
+      await page.click('.circle-trigger[data-section="sec-device"]');
+      await page.waitForTimeout(400);
+      const btns = await page.$$('.ready-chip');
+      for (const b of btns) {
+        const txt = await b.textContent();
+        if (txt.includes('differs from')) {
+          await b.click();
+          break;
+        }
+      }
+      await page.waitForTimeout(400);
+      const afterChip = await evalCard(() => ({
+        deviceOpen: document.getElementById('sec-device').classList.contains('open'),
+      }));
+      note('readiness-mismatch-opens-device', afterChip.deviceOpen, JSON.stringify(afterChip));
+    }
 
     await openCard('sec-maintenance');
     await page.click('#btnFactoryReset');
