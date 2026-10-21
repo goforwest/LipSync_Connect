@@ -271,9 +271,29 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('profile-apply', profApplied.speed === '7' && profApplied.rows === 1, JSON.stringify(profApplied));
 
-    // Profile delete removes the row and restores the empty state (the
-    // delegated delete button with its per-profile aria-label). Deleting
-    // confirms first — accept the dialog, then the row goes.
+    // Profile files: import a profile from an in-memory file — the row
+    // appears in the list with its Download affordance.
+    await page.setInputFiles('#profileFileInput', {
+      name: 'lipsync-profile-AuditImport.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(
+        JSON.stringify({ name: 'AuditImport', createdAt: new Date().toISOString(), snapshot: { SS: '6' } }),
+      ),
+    });
+    await page.waitForTimeout(400);
+    const profImport = await evalCard(() => ({
+      rows: [...document.querySelectorAll('#profileList .profile-name')].map((n) => n.textContent),
+      downloadBtn: !!document.querySelector('#profileList .profile-download'),
+    }));
+    note(
+      'profile-import',
+      profImport.rows.includes('AuditImport') && profImport.downloadBtn,
+      JSON.stringify(profImport),
+    );
+
+    // Profile delete removes the row (the delegated delete button with its
+    // per-profile aria-label; deleting confirms first). With the imported
+    // profile also in the list, one deletion leaves exactly the other.
     await page.click('.profile-row .profile-delete');
     await page.waitForSelector('#confirmDialog[open]', { timeout: 5000 });
     await page.click('#confirmOk');
@@ -285,7 +305,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'profile-delete',
-      profDeleted.rows === 0 && profDeleted.emptyShown && profDeleted.logHasDelete,
+      // One deletion against a two-entry list (saved + imported): exactly
+      // the other row remains, so the empty state stays hidden.
+      profDeleted.rows === 1 && profDeleted.emptyShown === false && profDeleted.logHasDelete,
       JSON.stringify(profDeleted),
     );
 

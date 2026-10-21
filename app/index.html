@@ -305,6 +305,14 @@
               aria-label="Name for a new settings profile"
             />
             <button type="button" class="cmd secondary" id="btnSaveProfile" disabled>Save profile</button>
+            <button type="button" class="secondary" id="btnImportProfile">Import&hellip;</button>
+            <input
+              type="file"
+              id="profileFileInput"
+              accept=".json,application/json"
+              hidden
+              aria-label="Profile file to import"
+            />
           </div>
           <div id="profileNameChips" class="profile-chips" role="group" aria-label="Quick profile names"></div>
           <p class="hint">

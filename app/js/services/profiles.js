@@ -13,6 +13,7 @@ import { announceStatus } from '../ui/a11y.js';
 import { showConfirm } from '../ui/formatting.js';
 import { captureSettingsSnapshot, restoreSettingsSnapshot } from './firmware-update.js';
 import { serialSession } from '../serial/session.js';
+import { downloadLogFile } from './log-export.js';
 
 const PROFILES_KEY = 'lipsync-profiles';
 const PROFILE_NAME_MAX = 40;
@@ -195,6 +196,74 @@ export function deleteProfile(id) {
   renderProfiles();
 }
 
+/** Builds the downloadable profile file: the stored entry, verbatim (the
+ *  same sanitizer every untrusted input passes), with a safe filename.
+ *  Pure — no DOM — so the round trip is testable. */
+export function buildProfileFile(profile) {
+  const clean = sanitizeProfile(profile);
+  if (!clean) return null;
+  const safeName =
+    clean.name
+      .replace(/[^\w\- ]+/g, '')
+      .trim()
+      .replace(/\s+/g, '-') || 'profile';
+  return {
+    text: JSON.stringify({ ...clean, exportedBy: 'lipsync-connect' }, null, 2),
+    filename: `lipsync-profile-${safeName}.json`,
+  };
+}
+
+/** Parses imported file text into a storable entry — the same sanitizer
+ *  guards localStorage junk. Pure; null on anything unparseable. */
+export function parseProfileFile(text) {
+  let raw;
+  try {
+    raw = JSON.parse(String(text));
+  } catch {
+    return null;
+  }
+  return sanitizeProfile(raw);
+}
+
+/** Downloads a stored profile as a file (the same download path the
+ *  settings export uses). */
+export function downloadProfile(id) {
+  const p = loadProfiles().find((x) => String(x.id) === String(id));
+  if (!p) {
+    log('That profile no longer exists.', 'log-err');
+    return;
+  }
+  const file = buildProfileFile(p);
+  if (!file) return;
+  downloadLogFile(file);
+  log(`Profile "${p.name}" downloaded — share it or move it to another machine’s browser.`, 'log-info');
+}
+
+/** Imports a profile file into the list. Picking a file is a deliberate act
+ *  (unlike a chip tap), so a same-name import replaces without a second
+ *  confirm — the log names what happened. The id is regenerated: ids from
+ *  another machine’s storage must never collide with local ones. */
+export function importProfileText(text) {
+  const entry = parseProfileFile(text);
+  if (!entry) {
+    log('That file is not a LipSync Connect profile.', 'log-err');
+    return false;
+  }
+  const list = loadProfiles().filter((p) => p.name !== entry.name);
+  const replaced = list.length !== loadProfiles().length;
+  list.push({ ...entry, id: Date.now() });
+  if (!saveProfiles(list)) return false;
+  log(
+    replaced
+      ? `Profile "${entry.name}" imported — replaced the existing profile of that name.`
+      : `Profile "${entry.name}" imported. Apply it from the list when the device is connected.`,
+    'log-info',
+  );
+  announceStatus(`Profile ${entry.name} imported.`);
+  renderProfiles();
+  return true;
+}
+
 /** Rebuilds the profile list UI. Indexed child access on both real DOM and
  *  stub (the windows.js convention). */
 export function renderProfiles() {
@@ -227,10 +296,17 @@ export function renderProfiles() {
     del.textContent = 'Delete';
     del.setAttribute('aria-label', `Delete profile "${p.name}"`);
     del.dataset.profileId = String(p.id);
+    const dl = document.createElement('button');
+    dl.type = 'button';
+    dl.className = 'secondary profile-download';
+    dl.textContent = 'Download';
+    dl.setAttribute('aria-label', `Download profile "${p.name}" as a file`);
+    dl.dataset.profileId = String(p.id);
     row.appendChild(name);
     row.appendChild(when);
     row.appendChild(apply);
     row.appendChild(del);
+    row.appendChild(dl);
     listEl.appendChild(row);
   }
   const empty = $('profileEmpty');
@@ -297,6 +373,20 @@ export function bindProfiles() {
       chips.appendChild(chip);
     }
   }
+  const importBtn = $('btnImportProfile');
+  const importInput = $('profileFileInput');
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', () => {
+      const file = importInput.files && importInput.files[0];
+      importInput.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => void importProfileText(String(reader.result ?? ''));
+      reader.onerror = () => log('The profile file could not be read.', 'log-err');
+      reader.readAsText(file);
+    });
+  }
   const listEl = $('profileList');
   if (listEl) {
     listEl.addEventListener('click', async (e) => {
@@ -310,6 +400,8 @@ export function bindProfiles() {
         } finally {
           target.disabled = !serialSession.port;
         }
+      } else if (target.classList?.contains('profile-download')) {
+        downloadProfile(id);
       } else if (target.classList?.contains('profile-delete')) {
         const ok = await showConfirm('Delete profile', 'Delete this saved profile? This cannot be undone.', {
           danger: true,

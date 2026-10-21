@@ -99,7 +99,10 @@ test('quick-name chips render with the suggestion palette and save in one tap', 
     named.btn.dispatch('click');
     await sleep(30);
     const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
-    assert.ok(stored.some((p) => p.name === 'Daytime'), JSON.stringify(stored.map((p) => p.name)));
+    assert.ok(
+      stored.some((p) => p.name === 'Daytime'),
+      JSON.stringify(stored.map((p) => p.name)),
+    );
   });
 });
 
@@ -227,4 +230,70 @@ test('apply with no port refuses before any wire write', async () => {
       .slice(logCount)
       .some((entry) => entry.includes('Connect the LipSync before applying a profile')),
   );
+});
+
+// ---- Profile files: export/import round trip ------------------------------
+
+test('buildProfileFile round-trips a stored entry with a safe filename', async () => {
+  const { buildProfileFile, parseProfileFile } = await import('../app/js/services/profiles.js');
+  const file = buildProfileFile({
+    id: 1,
+    name: 'Daytime',
+    createdAt: '2026-10-20T00:00:00.000Z',
+    snapshot: { SS: '7', ST: '12.50' },
+  });
+  assert.ok(file);
+  assert.equal(file.filename, 'lipsync-profile-Daytime.json');
+  const parsed = parseProfileFile(file.text);
+  assert.equal(parsed.name, 'Daytime');
+  assert.equal(parsed.snapshot.SS, '7');
+  // Filenames strip hostile characters; the name field itself is bounded.
+  const weird = buildProfileFile({ id: 2, name: 'A/B: wee!rd', createdAt: '', snapshot: { SS: '1' } });
+  assert.equal(weird.filename, 'lipsync-profile-AB-weerd.json');
+});
+
+test('parseProfileFile rejects junk and strips invalid endpoint keys', async () => {
+  const { parseProfileFile } = await import('../app/js/services/profiles.js');
+  assert.equal(parseProfileFile('{not json'), null);
+  assert.equal(parseProfileFile('null'), null);
+  assert.equal(parseProfileFile(JSON.stringify({ name: '', snapshot: { SS: '5' } })), null);
+  assert.equal(parseProfileFile(JSON.stringify({ name: 'No settings' })), null);
+  const hostile = parseProfileFile(
+    JSON.stringify({ name: 'Hostile', snapshot: { SS: '5', EVIL_KEY: 'x', CA: { nested: true } } }),
+  );
+  assert.ok(hostile);
+  assert.equal(hostile.snapshot.SS, '5');
+  assert.equal(hostile.snapshot.EVIL_KEY, undefined); // only 2-letter endpoint keys survive
+  assert.equal(hostile.snapshot.CA, undefined); // non-scalar values are dropped
+});
+
+test('importProfileText adds with a fresh id and replaces same-name entries', async () => {
+  const { importProfileText, saveCurrentProfile } = await import('../app/js/services/profiles.js');
+  // The file's storage is shared across tests — start from a clean list.
+  localStorage.removeItem('lipsync-profiles');
+  seedSettings();
+  assert.equal(saveCurrentProfile('Local copy'), true);
+  // A file from another machine: same name, different content and id.
+  const foreign = JSON.stringify({
+    id: 123456,
+    name: 'Local copy',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    snapshot: { SS: '3' },
+  });
+  assert.equal(importProfileText(foreign), true);
+  const after = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  assert.equal(after.length, 1, 'same-name import replaces, not duplicates');
+  assert.notEqual(after[0].id, 123456, 'foreign ids are regenerated');
+  assert.equal(after[0].snapshot.SS, '3');
+  // And a fresh name appends.
+  assert.equal(importProfileText(JSON.stringify({ name: 'From file', snapshot: { SS: '9' } })), true);
+  assert.equal(JSON.parse(localStorage.getItem('lipsync-profiles')).length, 2);
+  assert.equal(importProfileText('junk'), false, 'unparseable files refuse politely');
+});
+
+test('downloadProfile with an unknown id refuses politely', async () => {
+  const { downloadProfile } = await import('../app/js/services/profiles.js');
+  downloadProfile('999999'); // must not throw (the download helper is never reached)
+  const stored = JSON.parse(localStorage.getItem('lipsync-profiles') || '[]');
+  assert.ok(Array.isArray(stored)); // storage untouched
 });
