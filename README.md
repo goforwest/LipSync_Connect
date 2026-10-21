@@ -37,9 +37,12 @@ npm run typecheck       # tsc --checkJs over app/js
 npm test                # unit + integration tests (node)
 npm run test:e2e        # real-browser offline precache test (Playwright Chromium required:
                         # `npm --prefix dev exec playwright-core install chromium`)
-npm run test:browser-audit # real-browser connected-state + viewport audits against a firmware
-                        # fake (same Chromium requirement as the e2e) — exercises layout, focus,
-                        # the a11y tree, and timing the node stubs cannot see
+npm run test:browser-audit # real-browser audits against a firmware fake (same Chromium requirement):
+                        # 104 checks in 3 phases — connected-state flows (the whole app driven
+                        #   end to end: load, steppers, thresholds, calibration, self-tests,
+                        #   hub remote, profiles, the full firmware-update wizard),
+                        #   viewport matrix (no horizontal scroll at phone/narrow/landscape
+                        #   widths), and the first-run guided-setup wizard. dev/browser-audit/.
 ```
 
 CI (`.github/workflows/ci.yml`) runs everything above on every push/PR. Secrets and local cert files are never allowed to be tracked.
@@ -81,7 +84,10 @@ app/                      served application (front end)
     state/ modes.js       operating/communication mode state
   service-worker.js       offline precache
 dev/                      dev server, lint/type/format configs, test runner entry
-  browser-audit/          real-browser connected-state + viewport audits (firmware fake)
+  browser-audit/          real-browser audits against a browser-side firmware fake:
+                          3 phases, 104 checks — connected-state flows, viewport
+                          matrix, first-run wizard (run.mjs, connected-audit.mjs,
+                          fake-firmware.mjs — extend by adding checks/notes there)
   firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
 tests/                    unit + integration tests (node) and firmware simulators
   harness/                DOM stubs, firmware + bootloader simulators, ESM load-order helpers
