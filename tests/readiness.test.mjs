@@ -13,8 +13,7 @@ const { updateReadiness } = await import('../app/js/services/readiness.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const strip = () => doc.getElementById('readinessStrip');
-const chips = () =>
-  Array.from(strip().children ?? []).map((c) => ({ text: c.textContent, cls: c.className, el: c }));
+const chips = () => Array.from(strip().children ?? []).map((c) => ({ text: c.textContent, cls: c.className, el: c }));
 const connected = () => {
   testHooks.attach({ simulated: true }, { write() {} });
   // A real connect undims the nav (updateConnectionGating); the stub stays
@@ -96,5 +95,100 @@ test('a running health check contributes no transient chip', () => {
   updateReadiness();
   const c = chips();
   assert.match(c[0].text, /All set/); // transient state reads as green
+  testHooks.detach();
+});
+
+// ---- Profile mismatch chip ---------------------------------------------------
+
+const seedProfile = (snapshot) => {
+  localStorage.setItem(
+    'lipsync-profiles',
+    JSON.stringify([{ id: 1, name: 'Sarah', createdAt: new Date().toISOString(), snapshot }]),
+  );
+};
+const seedLive = (values) => {
+  for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
+};
+const mismatchChips = () =>
+  chips()
+    .filter((c) => c.text.includes('differs from'))
+    .map((c) => c.text);
+
+const LIVE = {
+  speedVal: '7',
+  scrollVal: '5',
+  accelVal: '3',
+  brightnessVal: '8',
+  sipVal: '12.50',
+  puffVal: '25.00',
+  innerDeadzoneVal: '0.10',
+  outerDeadzoneVal: '0.90',
+  w1Val: '600',
+  w2Val: '1000',
+  w3Val: '2500',
+  soundModeVal: 'Basic',
+  lightModeVal: 'Basic',
+};
+
+test('a mostly-in-force profile with one real drift shows the mismatch chip', async () => {
+  connected();
+  const { updateReadiness } = await import('../app/js/services/readiness.js');
+  seedLive(LIVE);
+  seedProfile({ SS: '7', SL: '5', AV: '3', LL: '8', ST: '11.00', PT: '25.00' });
+  updateReadiness();
+  const m = mismatchChips();
+  assert.equal(m.length, 1);
+  assert.equal(m[0], 'Device differs from \u201cSarah\u201d in 1 setting');
+  // Within the coarse stepper granularity, no chip: 12.50 vs 12.30 is a
+  // rounding distance, not a config change.
+  seedProfile({ SS: '7', SL: '5', AV: '3', LL: '8', ST: '12.30', PT: '25.00' });
+  updateReadiness();
+  assert.equal(mismatchChips().length, 0);
+  testHooks.detach();
+});
+
+test('an exact match and a wholly-different config are both silent', async () => {
+  connected();
+  const { updateReadiness } = await import('../app/js/services/readiness.js');
+  seedLive(LIVE);
+  seedProfile({ SS: '7', SL: '5', AV: '3', LL: '8', ST: '12.50', PT: '25.00' });
+  updateReadiness();
+  assert.equal(mismatchChips().length, 0); // in force
+  seedProfile({ SS: '2', SL: '2', AV: '0', LL: '3', ST: '4.00', PT: '5.00' });
+  updateReadiness();
+  assert.equal(mismatchChips().length, 0); // someone else's config entirely
+  testHooks.detach();
+});
+
+test('thin profiles are not judgeable — no chip below six comparable keys', async () => {
+  connected();
+  const { updateReadiness } = await import('../app/js/services/readiness.js');
+  seedLive(LIVE);
+  seedProfile({ SS: '7', ST: '4.00', PT: '5.00' }); // only 3 comparable
+  updateReadiness();
+  assert.equal(mismatchChips().length, 0);
+  testHooks.detach();
+});
+
+test('feedback modes compare by label, restrictions by checkbox state', async () => {
+  connected();
+  const { updateReadiness } = await import('../app/js/services/readiness.js');
+  seedLive(LIVE);
+  doc.getElementById('sapDisabled').checked = true;
+  seedProfile({
+    SS: '7',
+    SL: '5',
+    AV: '3',
+    LL: '8',
+    ST: '12.50',
+    PT: '25.00',
+    SM: '1',
+    LM: '1',
+    SD: '0', // expects sound/light Basic (in force) + restriction OFF (live: ON)
+  });
+  updateReadiness();
+  const m = mismatchChips();
+  assert.equal(m.length, 1);
+  assert.match(m[0], /in 1 setting/); // only the restriction differs
   testHooks.detach();
 });

@@ -14,6 +14,7 @@ import { showConfirm } from '../ui/formatting.js';
 import { captureSettingsSnapshot, restoreSettingsSnapshot } from './firmware-update.js';
 import { serialSession } from '../serial/session.js';
 import { downloadLogFile } from './log-export.js';
+import { updateReadiness } from './readiness.js';
 
 const PROFILES_KEY = 'lipsync-profiles';
 const PROFILE_NAME_MAX = 40;
@@ -56,6 +57,12 @@ function sanitizeProfile(raw) {
   const createdAt =
     typeof raw.createdAt === 'string' && Number.isFinite(Date.parse(raw.createdAt)) ? raw.createdAt : '';
   return { id: Number.isFinite(id) ? id : 0, name, createdAt, snapshot };
+}
+
+/** The saved profiles, sanitized — exported for the readiness strip's
+ *  mismatch check (the Device card's own group goes through the render). */
+export function listProfiles() {
+  return loadProfiles();
 }
 
 /** @returns {{id: number, name: string, createdAt: string, snapshot: Record<string, string>}[]} */
@@ -311,6 +318,8 @@ export function renderProfiles() {
   }
   const empty = $('profileEmpty');
   if (empty) empty.hidden = profiles.length > 0;
+  // A profile list change re-derives the readiness strip's mismatch chip.
+  updateReadiness();
   // Apply buttons respect the connection like every cmd button (setCmdButtons
   // handles connect/disconnect); re-derive their disabled state here so a
   // freshly rendered list matches the current port state.
