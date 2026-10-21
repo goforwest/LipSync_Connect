@@ -318,11 +318,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       chips: [...document.querySelectorAll('#profileNameChips .profile-chip')].map((c) => c.dataset.name),
       disabled: document.querySelector('#profileNameChips .profile-chip').disabled,
     }));
-    note(
-      'profile-chips-render',
-      chipInfo.chips.length >= 5 && !chipInfo.disabled,
-      JSON.stringify(chipInfo),
-    );
+    note('profile-chips-render', chipInfo.chips.length >= 5 && !chipInfo.disabled, JSON.stringify(chipInfo));
     await page.click('.profile-chip[data-name="Gentle"]');
     await page.waitForTimeout(500);
     const chipSaved = await evalCard(() => ({
@@ -390,11 +386,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       panel: !document.getElementById('wizardPanel').hidden,
       text: document.getElementById('wizStepText').textContent,
     }));
-    note(
-      'task-setup-wizard',
-      setupTask.panel && /Calibrate/.test(setupTask.text),
-      JSON.stringify(setupTask),
-    );
+    note('task-setup-wizard', setupTask.panel && /Calibrate/.test(setupTask.text), JSON.stringify(setupTask));
     await page.click('#wizCancel');
     await page.waitForTimeout(200);
 
@@ -1032,6 +1024,16 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       !practice.hidden && practice.copyBtn && /holds?/.test(practice.text),
       JSON.stringify(practice),
     );
+    // The copy affordance puts the block on the clipboard for clinical notes
+    // — headless Chromium's clipboard works, and the log confirms the copy.
+    if (!practice.hidden && practice.copyBtn) {
+      await page.click('#btnCopyPracticeStats');
+      await page.waitForTimeout(400);
+      const copied = await evalCard(() => ({
+        log: document.getElementById('log').textContent.includes('copied to the clipboard'),
+      }));
+      note('practice-stats-copy', copied.log, JSON.stringify(copied));
+    }
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
@@ -1416,8 +1418,26 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'wizard-verify-completes',
-      done.text.includes('Guided setup complete') && done.allDone && done.actionLabel === 'Save this setup as a profile',
+      done.text.includes('Guided setup complete') &&
+        done.allDone &&
+        done.actionLabel === 'Save this setup as a profile',
       JSON.stringify(done),
+    );
+
+    // The handoff itself: one zero-typing save lands a profile (auto-named)
+    // and latches the button to 'Saved ✓' — the tuned setup is captured.
+    await page.click('#wizAction');
+    await page.waitForTimeout(500);
+    const profileHandoff = await page.evaluate(() => ({
+      label: document.getElementById('wizAction').textContent,
+      disabled: document.getElementById('wizAction').disabled,
+      saved: document.getElementById('wizAction').textContent.includes('Saved'),
+      profiles: [...JSON.parse(localStorage.getItem('lipsync-profiles') || '[]')].map((p) => p.name),
+    }));
+    note(
+      'wizard-save-profile',
+      profileHandoff.saved && profileHandoff.disabled && profileHandoff.profiles.length > 0,
+      JSON.stringify(profileHandoff),
     );
 
     // Exit: the panel hides and the entry point returns.
