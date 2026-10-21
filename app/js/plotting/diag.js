@@ -7,6 +7,7 @@ import { $ } from '../ui/dom.js';
 import { plotDot, toScreen, orientFromOutput, scheduleRenderPlot, plotState } from './plot.js';
 import { gaugeDelta } from './gauge.js';
 import { paintWindowSweep, windowBoundaries } from './windows.js';
+import { notePracticeHold, renderPracticeStats } from '../services/practice-stats.js';
 import { serialSession } from '../serial/session.js';
 import { log } from '../services/log.js';
 
@@ -160,6 +161,10 @@ function noteSapHold(p) {
       `${name} ${verb} — device measured the hold at ${logged} ms (windows: 0–${w1} click, ${w1}–${w2} drag/scroll, ${w2}–${w3} menu/middle).`,
       'log-info',
     );
+    // Practice metrics: the completed hold joins the session aggregate and
+    // refreshes the stats line (the one view that keeps the session's shape).
+    notePracticeHold(sapHoldMain === 2 ? 'puff' : 'sip', logged);
+    renderPracticeStats();
     sapHoldPeakMs = 0;
   }
 }

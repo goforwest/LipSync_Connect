@@ -1009,6 +1009,29 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         whEx.hold === '—',
       JSON.stringify(whEx),
     );
+
+    // Practice metrics: a hold only AGGREGATES on its release frame, and
+    // the fake's cycle is 2 s holding / 2 s released — start the stream and
+    // poll through a full cycle, then the row shows the completed hold with
+    // the copy affordance for clinical notes.
+    await page.click('#btnWatchHolds');
+    let practice = null;
+    for (let i = 0; i < 24; i++) {
+      await page.waitForTimeout(300);
+      practice = await evalCard(() => ({
+        hidden: document.getElementById('practiceStatsRow').hidden,
+        text: document.getElementById('practiceStatsText').textContent,
+        copyBtn: !!document.getElementById('btnCopyPracticeStats'),
+      }));
+      if (!practice.hidden) break;
+    }
+    await page.click('#btnWatchHolds');
+    await page.waitForTimeout(300);
+    note(
+      'practice-stats',
+      !practice.hidden && practice.copyBtn && /holds?/.test(practice.text),
+      JSON.stringify(practice),
+    );
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 

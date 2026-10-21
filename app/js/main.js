@@ -38,6 +38,7 @@ import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
+import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
 import { bindWizard, exitWizard, startWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
@@ -150,6 +151,7 @@ const clearSessionUi = () => {
   const dmSelect = $('debugMode');
   if (dmSelect) dmSelect.disabled = true;
   hideHealthHistory(); // the stored trend stays; the row hides with the session
+  resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
@@ -633,6 +635,12 @@ window.addEventListener('DOMContentLoaded', () => {
         },
         { quiet: true },
       ),
+    );
+    $('btnCopyPracticeStats').addEventListener(
+      'click',
+      guard(async () => {
+        await copyPracticeStats();
+      }),
     );
     $('btnDismissSuggestion').addEventListener('click', () => {
       $('sapSuggestion').hidden = true;
