@@ -88,7 +88,7 @@ test('older firmware reports the bus step as unavailable instead of failing', as
   await runDiagnostics();
   await sleep(30);
   assert.ok(!sent.includes('BH,0:0'), 'the BH endpoint is never asked of old firmware');
-  assert.equal(doc.getElementById('hcBus').textContent, 'I2C bus (needs firmware 4.3.0+)');
+  assert.equal(doc.getElementById('hcBus').textContent, 'I2C bus (needs a newer firmware)');
   assert.equal(doc.getElementById('healthSummary').textContent, 'Passed');
   assert.match(doc.getElementById('healthDetails').textContent, /All 4 checks passed/);
   await app.disconnect({ quiet: true });

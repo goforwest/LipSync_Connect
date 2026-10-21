@@ -38,7 +38,7 @@ import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
 import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
-import { bindWizard, exitWizard } from './services/wizard.js';
+import { bindWizard, exitWizard, startWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -275,6 +275,16 @@ window.addEventListener('DOMContentLoaded', () => {
   // dimmed-guard case (not connected) already speaks via its own notice, so
   // the focus/pulse only run when the section actually opened.
   const TASK_TARGETS = {
+    // First: the natural entry for a shared device — the guided flow owns its
+    // own connect step, so it runs directly (no section navigation, no
+    // dimmed-guard dependency) and works while disconnected.
+    setup: {
+      run: () => {
+        startWizard();
+        const a = $('wizAction');
+        if (a && typeof a.focus === 'function') a.focus();
+      },
+    },
     cursor: { section: 'sec-cursor', focus: 'button[data-target="speed"][data-step="1"]' },
     clicks: { section: 'sec-sip', focus: 'button[data-target="st"][data-step="1"]' },
     accidents: { section: 'sec-restrictions', focus: '#sapDisabled' },
@@ -286,6 +296,10 @@ window.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       const t = TASK_TARGETS[btn.dataset.task];
       if (!t) return;
+      if (t.run) {
+        t.run();
+        return;
+      }
       openSectionById(t.section);
       if (getOpenSection() !== t.section) return; // the dimmed guard spoke
       const target = document.querySelector(t.focus);

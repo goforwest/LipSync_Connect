@@ -71,3 +71,53 @@ test('the action button runs the step affordance', () => {
 test('an unstarted wizard panel stays hidden', () => {
   assert.equal(doc.getElementById('wizardPanel').hidden, true);
 });
+
+// ---- Done-state profile handoff ---------------------------------------------
+
+const seedLoadedSettings = () => {
+  const values = {
+    speedVal: '7',
+    scrollVal: '5',
+    accelVal: '3',
+    sipVal: '12.50',
+    puffVal: '25.00',
+    innerDeadzoneVal: '0.10',
+    outerDeadzoneVal: '0.90',
+    soundModeVal: 'Basic',
+    lightModeVal: 'Basic',
+    brightnessVal: '8',
+    w1Val: '600',
+    w2Val: '1000',
+    w3Val: '2500',
+  };
+  for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
+};
+
+test('the done state offers a zero-typing profile save that lands and latches', async () => {
+  testHooks.attach({ simulated: true }, { write() {} });
+  seedLoadedSettings();
+  doc.getElementById('version').textContent = '4.5.4';
+  doc.getElementById('calStatus').textContent = 'Calibration complete ✓';
+  doc.getElementById('healthSummary').textContent = 'Passed';
+  localStorage.removeItem('lipsync-profiles');
+  startWizard();
+  doc.getElementById('wizNext').dispatch('click'); // past the manual Thresholds step
+  await sleep(650); // verify auto-completes to done
+  const action = doc.getElementById('wizAction');
+  assert.equal(action.hidden, false);
+  assert.equal(action.textContent, 'Save this setup as a profile');
+  action.dispatch('click');
+  const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].snapshot.SS, '7'); // the tuned setup, captured
+  assert.match(action.textContent, /Saved/);
+  assert.equal(action.disabled, true); // latched: one save per run
+  // Restarting the flow re-arms the offer (a fresh run may save again).
+  exitWizard();
+  startWizard();
+  doc.getElementById('wizNext').dispatch('click');
+  await sleep(650);
+  assert.equal(doc.getElementById('wizAction').textContent, 'Save this setup as a profile');
+  exitWizard();
+  testHooks.detach();
+});

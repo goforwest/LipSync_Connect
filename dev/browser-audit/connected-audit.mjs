@@ -381,6 +381,23 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify({ ...badImport, preInvalid }),
     );
 
+    // The setup task starts the guided flow in place — first Common task,
+    // works from any state.
+    await openCard('sec-help');
+    await page.click('.task-btn[data-task="setup"]');
+    await page.waitForTimeout(500);
+    const setupTask = await evalCard(() => ({
+      panel: !document.getElementById('wizardPanel').hidden,
+      text: document.getElementById('wizStepText').textContent,
+    }));
+    note(
+      'task-setup-wizard',
+      setupTask.panel && /Calibrate/.test(setupTask.text),
+      JSON.stringify(setupTask),
+    );
+    await page.click('#wizCancel');
+    await page.waitForTimeout(200);
+
     await openCard('sec-switches');
     const sw = await evalCard(() => ({
       sa0: document.getElementById('swSA0').value,
@@ -407,7 +424,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'auto-live-joystick',
-      autoJoy.pressed === 'true' && autoJoy.readOnce && /\d+\.\d+ \| -?\d+\.\d+/.test(autoJoy.raw),
+      autoJoy.pressed === 'true' && autoJoy.readOnce && /\d+(\.\d+)? \| -?\d+(\.\d+)?/.test(autoJoy.raw),
       JSON.stringify(autoJoy),
     );
     await page.click('#btnLiveJoy');
@@ -1370,11 +1387,13 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
     const done = await page.evaluate(() => ({
       text: document.getElementById('wizStepText').textContent,
       allDone: [...document.querySelectorAll('.wiz-steps li')].every((li) => li.classList.contains('done')),
-      actionHidden: document.getElementById('wizAction').hidden,
+      // The done state's action is now the profile handoff — the wizard's
+      // whole tuned setup, one zero-typing save away.
+      actionLabel: document.getElementById('wizAction').textContent,
     }));
     note(
       'wizard-verify-completes',
-      done.text.includes('Guided setup complete') && done.allDone && done.actionHidden,
+      done.text.includes('Guided setup complete') && done.allDone && done.actionLabel === 'Save this setup as a profile',
       JSON.stringify(done),
     );
 

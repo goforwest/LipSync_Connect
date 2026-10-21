@@ -12,6 +12,7 @@ import { log } from './log.js';
 import { connect } from '../serial/connection.js';
 import { serialSession } from '../serial/session.js';
 import { openSectionById, getOpenSection } from '../ui/sections.js';
+import { saveCurrentProfile } from './profiles.js';
 
 // Step order and shape. `done` is a predicate over live UI state, polled
 // while the wizard is open; `action` is the step's primary affordance.
@@ -76,6 +77,7 @@ const POLL_MS = 500;
 let active = false;
 let stepIndex = 0;
 let pollTimer = 0;
+let profileSaved = false;
 
 function renderStep() {
   const done = stepIndex >= STEPS.length;
@@ -90,12 +92,20 @@ function renderStep() {
   const text = $('wizStepText');
   if (text)
     text.textContent = done
-      ? 'Guided setup complete — the device is calibrated, configured, and verified. You can exit any time; every setting stays adjustable in its card.'
+      ? 'Guided setup complete \u2014 the device is calibrated, configured, and verified. Save this setup as a profile so the next person (or the next session) starts from here; profiles live in the Device card.'
       : `Step ${stepIndex + 1} of ${STEPS.length} \u2014 ${STEPS[stepIndex].title}: ${STEPS[stepIndex].text}`;
   const actionBtn = $('wizAction');
   if (actionBtn) {
-    actionBtn.textContent = done ? '' : (STEPS[stepIndex].actionLabel ?? '');
-    actionBtn.hidden = done;
+    // The done state hands the tuned setup to the profiles machinery —
+    // zero-typing (the auto-named save path), never a mandatory text field
+    // at the end of a flow the user just finished.
+    actionBtn.hidden = false;
+    actionBtn.disabled = done && profileSaved;
+    actionBtn.textContent = done
+      ? profileSaved
+        ? 'Saved \u2713'
+        : 'Save this setup as a profile'
+      : (STEPS[stepIndex].actionLabel ?? '');
   }
   const next = $('wizNext');
   if (next) next.hidden = !(stepIndex < STEPS.length && STEPS[stepIndex].done === null);
@@ -139,6 +149,7 @@ function finish() {
 /** Starts (or resumes) the wizard at the first incomplete step. */
 export function startWizard() {
   active = true;
+  profileSaved = false;
   const panel = $('wizardPanel');
   if (panel) panel.hidden = false;
   const start = $('btnStartWizard');
@@ -183,7 +194,22 @@ export function bindWizard() {
   const action = $('wizAction');
   if (action)
     action.addEventListener('click', () => {
-      if (active && stepIndex < STEPS.length && STEPS[stepIndex].action) STEPS[stepIndex].action();
+      if (!active) return;
+      if (stepIndex >= STEPS.length) {
+        // Done state: save the tuned setup (auto-named — the same zero-typing
+        // path the profile chips use). A refused capture (settings mid-load)
+        // logs its own recovery message and leaves the button for a retry.
+        if (!profileSaved && saveCurrentProfile('')) {
+          profileSaved = true;
+          const b = $('wizAction');
+          if (b) {
+            b.textContent = 'Saved \u2713';
+            b.disabled = true;
+          }
+        }
+        return;
+      }
+      if (STEPS[stepIndex].action) STEPS[stepIndex].action();
     });
   const next = $('wizNext');
   if (next)

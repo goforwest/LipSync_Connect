@@ -58,7 +58,9 @@ test('input-state light mode (roadmap item 16, upstream #43) surfaces consistent
   const fm = constantsSource.match(/FEEDBACK_MODES = \{([^}]*)\}/)?.[1] ?? '';
   assert.match(fm, /3: 'Input state'/, 'FEEDBACK_MODES carries the tier-3 label');
   assert.ok(
-    indexHtml.includes('<option value="3">Input state (4.4.0+)</option>'),
+    // The (4.4.0+) version note left the option text with the production
+    // copy edit (c86a61d) — the tier itself is still pinned above.
+    indexHtml.includes('<option value="3">Input state</option>'),
     'the light-feedback select offers the input-state tier with its version note',
   );
 });

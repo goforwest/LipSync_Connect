@@ -367,7 +367,7 @@ export function installGatingDom(existingEls = null) {
   });
   // Task buttons (index.html's Help-card Common tasks): main.js binds them
   // through querySelectorAll('.task-btn') and drives section jumps.
-  const taskButtons = ['cursor', 'clicks', 'accidents', 'health', 'update', 'switches'].map((task) => {
+  const taskButtons = ['setup', 'cursor', 'clicks', 'accidents', 'health', 'update', 'switches'].map((task) => {
     const b = makeEl('button');
     b.classList.add('task-btn');
     b.dataset.task = task;

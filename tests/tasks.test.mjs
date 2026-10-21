@@ -59,3 +59,15 @@ test('disconnected, the task defers to the dimmed guard — nothing opens', () =
   taskBtn('cursor').dispatch('click');
   assert.equal(getOpenSection(), null); // nothing opened — the guard spoke
 });
+
+test('the setup task starts the wizard directly — no section navigation', async () => {
+  const { isWizardActive } = await import('../app/js/services/wizard.js');
+  taskBtn('setup').dispatch('click');
+  assert.equal(isWizardActive(), true);
+  assert.equal(doc.getElementById('wizardPanel').hidden, false);
+  // The wizard's own Connect step is the flow's first screen — works while
+  // disconnected (no port attached in this test).
+  assert.match(doc.getElementById('wizStepText').textContent, /Connect/);
+  const { exitWizard } = await import('../app/js/services/wizard.js');
+  exitWizard();
+});
