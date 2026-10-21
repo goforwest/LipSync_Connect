@@ -9,6 +9,7 @@
 // (version-gated writes, chip suppression, failure reporting) unchanged.
 import { $ } from '../ui/dom.js';
 import { log } from './log.js';
+import { announceStatus } from '../ui/a11y.js';
 import { showConfirm } from '../ui/formatting.js';
 import { captureSettingsSnapshot, restoreSettingsSnapshot } from './firmware-update.js';
 import { serialSession } from '../serial/session.js';
@@ -16,6 +17,17 @@ import { serialSession } from '../serial/session.js';
 const PROFILES_KEY = 'lipsync-profiles';
 const PROFILE_NAME_MAX = 40;
 const APPLYING_MSG = 'A profile is already being applied — wait for it to finish.';
+
+/** Zero-typing save paths: a tap on a suggestion chip saves under that name,
+ *  and saving with an empty field picks today's date. The name field stays
+ *  for caregivers typing a person's name — it is no longer the only way in.
+ *  @type {string[]} */
+export const PROFILE_NAME_SUGGESTIONS = ['Daytime', 'Night', 'Gentle', 'Firm', 'Precision', 'Guest'];
+
+// One restore at a time: the shared command queue would serialize the writes
+// anyway, but two overlapping restores would interleave their failure counts
+// — and a save captured mid-restore would snapshot half-written values.
+let applyingProfile = false;
 
 /**
  * localStorage is user-writable and can outlive several app versions. Treat it
@@ -78,19 +90,35 @@ function saveProfiles(list) {
   }
 }
 
-/** Saves the current in-force settings under `name` (the name is the only
- *  user-authored field; a duplicate name overwrites the older entry — a
- *  stale duplicate is the one thing worse than a re-save). */
+/** A fresh name for a nameless save: "Profile <Mon D>", deduplicated against
+ *  the saved list with a counter — never a silent overwrite, never a prompt
+ *  the user has to read. */
+function autoProfileName() {
+  const base = 'Profile ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const existing = new Set(loadProfiles().map((p) => p.name));
+  if (!existing.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base} (${n})`;
+    if (!existing.has(candidate) && candidate.length <= PROFILE_NAME_MAX) return candidate;
+  }
+}
+
+/** Saves the current in-force settings under `name`. An empty/whitespace name
+ *  saves under an auto-generated dated name instead of refusing — the
+ *  zero-typing path. A duplicate name overwrites the older entry (a stale
+ *  duplicate is the one thing worse than a re-save); auto-names never
+ *  collide, so they never overwrite. */
 export function saveCurrentProfile(name) {
-  const clean = String(name || '').trim();
-  if (!clean) {
-    log('Give the profile a name first.', 'log-err');
+  if (applyingProfile) {
+    log(APPLYING_MSG, 'log-err');
     return false;
   }
+  const clean = String(name || '').trim();
   if (clean.length > PROFILE_NAME_MAX) {
     log(`Profile names must be ${PROFILE_NAME_MAX} characters or fewer.`, 'log-err');
     return false;
   }
+  const finalName = clean || autoProfileName();
   let snapshot;
   try {
     snapshot = captureSettingsSnapshot();
@@ -101,25 +129,26 @@ export function saveCurrentProfile(name) {
     log('Profile not saved — ' + e.message, 'log-err');
     return false;
   }
-  const list = loadProfiles().filter((p) => p.name !== clean);
+  const list = loadProfiles().filter((p) => p.name !== finalName);
   // Re-saving a name replaces its snapshot in place (the row keeps its id and
   // position), so an open confirmation/focus target cannot jump to a new row.
-  const previous = loadProfiles().find((p) => p.name === clean);
+  const previous = loadProfiles().find((p) => p.name === finalName);
   list.push({
     id: previous?.id ?? Date.now(),
-    name: clean,
+    name: finalName,
     createdAt: new Date().toISOString(),
     snapshot,
   });
   if (!saveProfiles(list)) return false;
-  log(`Profile "${clean}" saved (${Object.keys(snapshot).length - 1} settings, calibration excluded).`, 'log-info');
+  const suffix = clean ? '' : ' (no name given — saved by date)';
+  log(
+    `Profile "${finalName}" saved${suffix} (${Object.keys(snapshot).length - 1} settings, calibration excluded).`,
+    'log-info',
+  );
+  announceStatus(`Profile "${finalName}" saved.`);
   renderProfiles();
   return true;
 }
-
-// One restore at a time: the shared command queue would serialize the writes
-// anyway, but two overlapping restores would interleave their failure counts.
-let applyingProfile = false;
 
 /** Applies a profile through the validated restore path. */
 export async function applyProfile(id) {
@@ -217,26 +246,56 @@ export function renderProfiles() {
   }
 }
 
+/** The one save path for every control: an intentional duplicate name asks
+ *  before replacing (silent data loss otherwise); anything else saves
+ *  directly (auto-names never collide). */
+async function confirmAndSave(name) {
+  if (name && loadProfiles().some((p) => p.name === name)) {
+    // The dialog holds no user data in its hardcoded markup; the name is
+    // only logged after the decision.
+    const ok = await showConfirm(
+      'Replace profile',
+      'A profile with this name already exists. Replace its saved settings?',
+      { danger: true },
+    );
+    if (!ok) return false;
+  }
+  return saveCurrentProfile(name);
+}
+
 /** Button wiring from main.js (composition root). */
 export function bindProfiles() {
   const save = $('btnSaveProfile');
   if (save) {
     save.addEventListener('click', async () => {
       const input = $('profileName');
-      const name = String(input?.value ?? '').trim();
-      // Overwriting is silent data loss for the old snapshot: ask first. The
-      // dialog holds no user data in its hardcoded markup; the name is only
-      // logged after the decision.
-      if (name && loadProfiles().some((p) => p.name === name)) {
-        const ok = await showConfirm(
-          'Replace profile',
-          'A profile with this name already exists. Replace its saved settings?',
-          { danger: true },
-        );
-        if (!ok) return;
-      }
-      if (saveCurrentProfile(name) && input) input.value = '';
+      const ok = await confirmAndSave(String(input?.value ?? '').trim());
+      if (ok && input) input.value = '';
     });
+  }
+  // Quick-name chips: one tap saves the current settings under a suggested
+  // name — the zero-typing save path for switch/sip users. The name field
+  // stays for caregivers typing a person's name. Like every cmd button, the
+  // chips gate on the connection through setCmdButtons.
+  const chips = $('profileNameChips');
+  if (chips) {
+    for (const suggestion of PROFILE_NAME_SUGGESTIONS) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'cmd secondary profile-chip';
+      chip.textContent = suggestion;
+      chip.dataset.name = suggestion;
+      chip.setAttribute('aria-label', `Save profile as ${suggestion}`);
+      chip.addEventListener('click', async () => {
+        chip.disabled = true;
+        try {
+          await confirmAndSave(suggestion);
+        } finally {
+          chip.disabled = !serialSession.port;
+        }
+      });
+      chips.appendChild(chip);
+    }
   }
   const listEl = $('profileList');
   if (listEl) {

@@ -1263,6 +1263,19 @@ summary {
   gap: 8px;
   margin-top: 8px;
 }
+.profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.profile-chip {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  min-height: 40px;
+  min-width: unset;
+}
 .profile-row {
   display: flex;
   align-items: center;

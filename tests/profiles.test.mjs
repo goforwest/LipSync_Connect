@@ -47,7 +47,6 @@ const seedSettings = () => {
 
 test('save captures the live snapshot, persists, and renders the list', () => {
   seedSettings();
-  assert.equal(saveCurrentProfile('  '), false, 'empty name refuses');
   assert.equal(saveCurrentProfile('Sarah'), true);
   const chips = listChips();
   assert.equal(chips.length, 1);
@@ -56,6 +55,78 @@ test('save captures the live snapshot, persists, and renders the list', () => {
   assert.equal(stored.length, 1);
   assert.equal(stored[0].name, 'Sarah');
   assert.equal(stored[0].snapshot.SS, '7'); // the snapshot machinery's keys
+});
+
+/** The file's tests chain state through localStorage; tests that save extra
+ *  profiles snapshot the storage and restore it so the chain stays intact. */
+const withIsolatedProfiles = async (body) => {
+  const saved = localStorage.getItem('lipsync-profiles');
+  localStorage.removeItem('lipsync-profiles');
+  try {
+    await body();
+  } finally {
+    if (saved === null) localStorage.removeItem('lipsync-profiles');
+    else localStorage.setItem('lipsync-profiles', saved);
+    renderProfiles();
+  }
+};
+
+test('an empty name saves under an auto-generated dated name instead of refusing', async () => {
+  await withIsolatedProfiles(async () => {
+    seedSettings();
+    assert.equal(saveCurrentProfile('  '), true, 'the empty field is the zero-typing path, not a refusal');
+    const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+    const auto = stored[stored.length - 1];
+    assert.match(auto.name, /^Profile /);
+    assert.ok(auto.name.length <= 40);
+    const logEntry = getLogHistory().at(-1);
+    assert.ok(logEntry.includes('no name given'), logEntry);
+    // A second nameless save never overwrites the first — it increments.
+    assert.equal(saveCurrentProfile(''), true);
+    const names = JSON.parse(localStorage.getItem('lipsync-profiles')).map((p) => p.name);
+    assert.equal(new Set(names).size, names.length, 'auto-names never collide');
+  });
+});
+
+test('quick-name chips render with the suggestion palette and save in one tap', async () => {
+  await withIsolatedProfiles(async () => {
+    seedSettings();
+    const chipRow = doc.getElementById('profileNameChips');
+    const chips = Array.from(chipRow.children ?? []).map((b) => ({ name: b.dataset.name, btn: b }));
+    assert.ok(chips.length >= 4, 'the palette rendered');
+    assert.ok(chips.every((c) => c.btn.classList.contains('profile-chip')));
+    const named = chips.find((c) => c.name === 'Daytime');
+    named.btn.dispatch('click');
+    await sleep(30);
+    const stored = JSON.parse(localStorage.getItem('lipsync-profiles'));
+    assert.ok(stored.some((p) => p.name === 'Daytime'), JSON.stringify(stored.map((p) => p.name)));
+  });
+});
+
+test('a chip tap on an existing name asks before replacing', async () => {
+  await withIsolatedProfiles(async () => {
+    seedSettings();
+    const named = Array.from(doc.getElementById('profileNameChips').children ?? []).find(
+      (b) => b.dataset.name === 'Daytime',
+    );
+    named.dispatch('click');
+    await sleep(30); // first save: no confirm
+    doc.getElementById('speedVal').textContent = '2'; // a distinct snapshot to detect the replace
+    const before = JSON.parse(localStorage.getItem('lipsync-profiles')).find((p) => p.name === 'Daytime');
+    named.dispatch('click');
+    await sleep(30);
+    // The danger confirm is up, Cancel-first; the old snapshot survives cancel.
+    doc.getElementById('confirmCancel').dispatch('click');
+    await sleep(30);
+    const afterCancel = JSON.parse(localStorage.getItem('lipsync-profiles')).find((p) => p.name === 'Daytime');
+    assert.equal(afterCancel.snapshot.SS, before.snapshot.SS, 'cancel kept the old snapshot');
+    named.dispatch('click');
+    await sleep(30);
+    doc.getElementById('confirmOk').dispatch('click');
+    await sleep(30);
+    const replaced = JSON.parse(localStorage.getItem('lipsync-profiles')).find((p) => p.name === 'Daytime');
+    assert.equal(replaced.snapshot.SS, '2', 'ok replaced the snapshot');
+  });
 });
 
 test('a duplicate name overwrites the older entry', () => {
