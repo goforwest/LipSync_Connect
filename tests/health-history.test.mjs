@@ -91,3 +91,50 @@ test('clearing while focused lands focus on the Run health check button', () => 
   resetHealthHistory();
   assert.equal(doc.activeElement?.id, 'btnRunDiagnostics');
 });
+
+// ---- Value-level drift metrics ---------------------------------------------
+
+test('parseHealthMetrics computes neutral offset, weakest corner, recoveries', async () => {
+  const { parseHealthMetrics } = await import('../app/js/services/health-history.js');
+  const m = parseHealthMetrics(
+    '1.20|-1.60',
+    '0.00|0.00,-13.00|13.00,10.00|10.00,13.00|-13.00,-12.00|-5.00',
+    '3,1,1,1,1,600',
+  );
+  assert.equal(m.neutral, 2); // hypot(1.2, 1.6)
+  assert.equal(m.cornerMin, 13); // weakest corner: -12|-5 → hypot(12,5)
+  assert.equal(m.busRecoveries, 3);
+  // Malformed reads record nothing for the missing fields — never a lie.
+  const partial = parseHealthMetrics('', 'garbage');
+  assert.equal(partial.neutral, undefined);
+  assert.equal(partial.cornerMin, undefined);
+});
+
+test('the drift line compares latest to first, with restraint', async () => {
+  const { recordHealthRun, renderHealthHistory } = await import('../app/js/services/health-history.js');
+  resetHistoryForDrift();
+  recordHealthRun('passed', {}, { neutral: 0.1, cornerMin: 18 });
+  recordHealthRun('passed', {}, { neutral: 0.1, cornerMin: 18 }); // no drift → "none measured"
+  recordHealthRun('attention', {}, { neutral: 0.5, cornerMin: 16.8 });
+  renderHealthHistory();
+  const row = doc.getElementById('healthHistory');
+  const drift = Array.from(row.children ?? []).find((c) => String(c.className).includes('health-drift'));
+  assert.ok(drift, 'the drift line renders once two metric runs exist');
+  assert.match(drift.textContent, /neutral \+0\.4/);
+  assert.match(drift.textContent, /corners -1\.2/);
+});
+
+test('fewer than two metric runs render no drift line', async () => {
+  const { recordHealthRun, renderHealthHistory } = await import('../app/js/services/health-history.js');
+  resetHistoryForDrift();
+  recordHealthRun('passed', {}, { neutral: 0.1 });
+  renderHealthHistory();
+  const row = doc.getElementById('healthHistory');
+  const drift = Array.from(row.children ?? []).find((c) => String(c.className).includes('health-drift'));
+  assert.ok(!drift, 'a single metric run renders no drift line');
+});
+
+function resetHistoryForDrift() {
+  localStorage.removeItem('lipsync-health-history');
+  doc.getElementById('healthHistory').hidden = true;
+}

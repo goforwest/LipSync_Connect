@@ -9,7 +9,7 @@ import { setCmdButtons } from '../ui/connection-ui.js';
 import { validFiniteList } from '../utils/format.js';
 import { log } from './log.js';
 import { updateReadiness } from './readiness.js';
-import { recordHealthRun, renderHealthHistory } from './health-history.js';
+import { recordHealthRun, renderHealthHistory, parseHealthMetrics } from './health-history.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 
@@ -109,6 +109,9 @@ export async function runDiagnostics() {
   const setHealthStatus = (text) => {
     healthEl.textContent = text;
   };
+  // Value-level drift metrics, filled as the run reads land — a failed run
+  // still records whatever was collected before the throw.
+  let lastRunMetrics = null;
   try {
     setHealthStep('hcPressure', 'running', 'Checking pressure sensors…');
     setHealthStatus('Checking pressure sensors…');
@@ -144,6 +147,10 @@ export async function runDiagnostics() {
     setHealthStep('hcCalibration', 'running', 'Validating stored calibration…');
     setHealthStatus('Neutral position verified. Validating stored calibration…');
     const calibration = await sendCommand('CA,0:0');
+    // Value-level drift metrics ride the history entry: the neutral's
+    // distance from center and the weakest corner, from the values this
+    // check already read (bus recoveries join below when BH answers).
+    lastRunMetrics = parseHealthMetrics(neutral.value || '', calibration.value || '');
     if ((calibration.value || '').split(',').length !== 5) {
       findings.push('Calibration data does not contain four corners and a center.');
       setHealthStep('hcCalibration', 'err');
@@ -162,6 +169,8 @@ export async function runDiagnostics() {
       setHealthStatus('Stored calibration validated. Checking the I2C bus…');
       const bus = await sendCommand('BH,0:0');
       const bh = (bus.value || '').split(',').map(Number);
+      // The bus telemetry completes the run's metrics (recovery count).
+      if (validFiniteList(bus.value, 6)) lastRunMetrics.busRecoveries = bh[0];
       if (!validFiniteList(bus.value, 6)) {
         findings.push('The I2C bus health reading was incomplete.');
         setHealthStep('hcBus', 'err');
@@ -189,7 +198,7 @@ export async function runDiagnostics() {
       }
     }
     $('healthSummary').textContent = findings.length ? 'Needs attention' : 'Passed';
-    recordHealthRun(findings.length ? 'attention' : 'passed', { ...healthStepState });
+    recordHealthRun(findings.length ? 'attention' : 'passed', { ...healthStepState }, lastRunMetrics);
     updateReadiness();
     // On a clean pass, show a short confirmation and fade it out gently — the
     // header summary ("Passed") plus the ✓ cells carry the lasting state,
@@ -221,7 +230,7 @@ export async function runDiagnostics() {
     renderHealthHistory();
   } catch (e) {
     $('healthSummary').textContent = 'Error';
-    recordHealthRun('error', { ...healthStepState });
+    recordHealthRun('error', { ...healthStepState }, lastRunMetrics);
     updateReadiness();
     healthEl.textContent = 'Diagnostics failed: ' + e.message;
     // Mark any still-running step as errored so the user sees exactly where it stopped

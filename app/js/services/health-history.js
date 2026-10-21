@@ -32,7 +32,17 @@ function sanitizeEntry(raw) {
     }
   }
   const version = typeof raw.version === 'string' ? raw.version.trim().slice(0, 20) : '';
-  return { at, outcome, steps, version };
+  // Value-level drift metrics (neutral offset, weakest corner, bus recovery
+  // count): finite, non-negative numbers on a fixed key whitelist — the same
+  // treatment every other field gets.
+  const metrics = {};
+  if (raw.metrics && typeof raw.metrics === 'object' && !Array.isArray(raw.metrics)) {
+    for (const key of ['neutral', 'cornerMin', 'busRecoveries']) {
+      const v = Number(raw.metrics[key]);
+      if (Number.isFinite(v) && v >= 0) metrics[key] = v;
+    }
+  }
+  return Object.keys(metrics).length ? { at, outcome, steps, version, metrics } : { at, outcome, steps, version };
 }
 
 /** @returns {{at: string, outcome: string, steps: Record<string, string>, version: string}[]} */
@@ -52,14 +62,25 @@ function readHistory() {
  * record, not just the aggregate.
  * @param {'passed'|'attention'|'error'} outcome
  * @param {Record<string, string>} steps
+ * @param {{neutral?: number, cornerMin?: number, busRecoveries?: number}} [metrics]
  */
-export function recordHealthRun(outcome, steps) {
+export function recordHealthRun(outcome, steps, metrics) {
   const entry = {
     at: new Date().toISOString(),
     outcome,
     steps: { ...(steps || {}) },
     version: ($('version')?.textContent || '').trim(),
   };
+  if (metrics && typeof metrics === 'object') {
+    // Only finite numbers survive — a refused/malformed read records
+    // nothing rather than a lie.
+    const clean = {};
+    for (const key of ['neutral', 'cornerMin', 'busRecoveries']) {
+      const v = Number(metrics[key]);
+      if (Number.isFinite(v)) clean[key] = v;
+    }
+    if (Object.keys(clean).length) entry.metrics = clean;
+  }
   const list = readHistory();
   list.push(entry);
   while (list.length > HISTORY_MAX) list.shift();
@@ -111,7 +132,34 @@ export function renderHealthHistory() {
   clear.textContent = 'Clear history';
   clear.addEventListener('click', resetHealthHistory);
   row.appendChild(clear);
+  // The drift line — value-level trend, with restraint: ONE line comparing
+  // the latest metrics to the first recorded run, not a chart (the card is
+  // dense; direction is the signal, precision lives in the support export).
+  const drift = driftLine(list);
+  if (drift) {
+    const note = document.createElement('span');
+    note.className = 'hint health-drift';
+    note.textContent = drift;
+    row.appendChild(note);
+  }
   row.hidden = false;
+}
+
+/** @returns {string|null} e.g. "Drift since first run: neutral +0.4 · corners −1.2" */
+function driftLine(list) {
+  const withMetrics = list.filter((e) => e.metrics && e.metrics.neutral !== undefined);
+  if (withMetrics.length < 2) return null;
+  const first = withMetrics[0].metrics;
+  const last = withMetrics[withMetrics.length - 1].metrics;
+  const parts = [];
+  const dNeutral = Math.round((last.neutral - first.neutral) * 100) / 100;
+  if (dNeutral) parts.push(`neutral ${dNeutral > 0 ? '+' : ''}${dNeutral}`);
+  if (first.cornerMin !== undefined && last.cornerMin !== undefined) {
+    const dCorner = Math.round((last.cornerMin - first.cornerMin) * 100) / 100;
+    if (dCorner) parts.push(`corners ${dCorner > 0 ? '+' : ''}${dCorner}`);
+  }
+  if (!parts.length) return 'Drift since first run: none measured.';
+  return `Drift since first run: ${parts.join(' \u00b7 ')}.`;
 }
 
 /** Clears the stored history and hides the row. */
@@ -128,4 +176,40 @@ export function resetHealthHistory() {
     row.hidden = true;
   }
   if (hadFocus) $('btnRunDiagnostics')?.focus?.();
+}
+
+/**
+ * The drift line's raw material: distance of the stored neutral from the
+ * electrical center, and the weakest calibration corner's magnitude — both
+ * parsed from the values the health check already read (IN and CA). The bus
+ * recovery count rides along when BH answered. Pure; null fields on malformed
+ * input.
+ * @param {string} neutralValue IN's answer ("x|y")
+ * @param {string} calValue CA's answer ("center,corner1..corner4", x|y pairs)
+ * @param {string} [busValue] BH's answer (recoveries first)
+ */
+export function parseHealthMetrics(neutralValue, calValue, busValue) {
+  const point = (pair) => {
+    const [x, y] = String(pair || '')
+      .split('|')
+      .map(Number);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return Math.hypot(x, y);
+  };
+  const metrics = /** @type {{neutral?: number, cornerMin?: number, busRecoveries?: number}} */ ({});
+  const neutral = point(neutralValue);
+  if (neutral !== null) metrics.neutral = Math.round(neutral * 100) / 100;
+  const parts = String(calValue || '').split(',');
+  if (parts.length === 5) {
+    const corners = parts
+      .slice(1)
+      .map(point)
+      .filter((m) => m !== null);
+    if (corners.length === 4) metrics.cornerMin = Math.round(Math.min(...corners) * 100) / 100;
+  }
+  if (busValue !== undefined) {
+    const recoveries = Number(String(busValue || '').split(',')[0]);
+    if (Number.isFinite(recoveries)) metrics.busRecoveries = recoveries;
+  }
+  return metrics;
 }
