@@ -15,7 +15,7 @@ import { noteDeviceVersion } from './commands.js';
 
 export const ENDPOINT_RENDERERS = {
   MN: (v) => {
-    setValue('model', MODELS[v] ? MODELS[v] + ' (' + v + ')' : v);
+    setValue('model', MODELS[v] ?? v);
     applyModelFeatures(v);
   },
   VN: (v) => {

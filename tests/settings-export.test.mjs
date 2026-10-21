@@ -14,7 +14,7 @@ const { collectSettingsExport, buildSettingsExportFile } = await import(
 
 function setLoadedValues(v = {}) {
   const defaults = {
-    model: 'LipSync 4 (1)',
+    model: 'LipSync 4',
     version: '4.3.0',
     opmode: 'Mouse',
     commode: 'USB',
@@ -43,7 +43,7 @@ test('a loaded device exports labeled settings with no holes', () => {
   const data = collectSettingsExport();
   assert.equal(data.device, 'LipSync');
   assert.equal(data.settings.firmwareVersion, '4.3.0');
-  assert.equal(data.settings.model, 'LipSync 4 (1)');
+  assert.equal(data.settings.model, 'LipSync 4');
   assert.equal(data.settings.operatingMode, 'Mouse');
   assert.equal(data.settings.accelVal, undefined, 'wire keys are not exported — human labels only');
   assert.equal(data.settings.cursorSpeedLevel, '5');

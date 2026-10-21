@@ -171,7 +171,7 @@ test('factory reset confirms then sends FR,1:1; readouts clear', async () => {
   const { sent, detach } = launch((text) =>
     text === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [{ delay: 5, line: 'SUCCESS,0:FR,1:1' }],
   );
-  doc.getElementById('model').textContent = 'LipSync 4 (1)'; // pretend a load landed
+  doc.getElementById('model').textContent = 'LipSync 4'; // pretend a load landed
   app.setConnectedUI(true);
   await clickAndDrain('btnFactoryReset', { confirm: true });
   detach();

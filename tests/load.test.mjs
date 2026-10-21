@@ -102,7 +102,7 @@ test('settings load populates every endpoint and clears loading placeholders', a
     'SETTINGS',
     'DM,0:0',
   ]);
-  assert.equal(doc.getElementById('model').textContent, 'LipSync 4 (1)');
+  assert.equal(doc.getElementById('model').textContent, 'LipSync 4');
   assert.equal(doc.getElementById('version').textContent, '4.1.0');
   assert.equal(doc.getElementById('speedVal').textContent, '6');
   assert.equal(doc.getElementById('modeGuardHint').textContent, '');
