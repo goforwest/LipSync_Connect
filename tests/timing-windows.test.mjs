@@ -257,7 +257,7 @@ test('window writes must be whole milliseconds', async () => {
 test('the 10000 ms maximum is refused before the wire on firmware below 4.5.0', async () => {
   resetWireNewlineFraming();
   const sent = launchDevice({ version: '4.4.0' });
-  await assert.rejects(() => setTimingWindow('WM', 10000), /firmware 4\.5\.0/);
+  await assert.rejects(() => setTimingWindow('WM', 10000), /newer firmware/);
   assert.ok(!sent.includes('WM,1:10000'), 'the five-digit parameter never reaches old firmware');
   await app.disconnect({ quiet: true });
   testHooks.detach();

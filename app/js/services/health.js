@@ -156,7 +156,7 @@ export async function runDiagnostics() {
     // read-only endpoint. Older firmware reports the step as unavailable
     // instead of failing.
     if (!firmwareAtLeast(BUS_HEALTH_MIN_FIRMWARE)) {
-      setHealthStep('hcBus', 'idle', 'I2C bus (needs firmware 4.3.0+)');
+      setHealthStep('hcBus', 'idle', 'I2C bus (needs a newer firmware)');
     } else {
       setHealthStep('hcBus', 'running', 'Checking the I2C bus…');
       setHealthStatus('Stored calibration validated. Checking the I2C bus…');

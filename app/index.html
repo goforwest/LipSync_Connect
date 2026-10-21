@@ -284,10 +284,7 @@
           <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
           ><span id="loadProgressLabel">Loading device settings…</span>
         </div>
-        <p class="hint">
-          Full refresh takes ~2 seconds on firmware 4.2.0+ (up to ~30 seconds on older firmware). Values appear as they
-          load.
-        </p>
+        <p class="hint">Full refresh takes a few seconds on current firmware (up to ~30 seconds on older devices).</p>
         <div class="diag-group">
           <p class="diag-title">User profiles</p>
           <p class="hint">
@@ -783,7 +780,7 @@
           </details>
           <p class="hint">
             How long a sip or puff must be held to trigger each action (short &rarr; click/drag, long &rarr;
-            scroll/menu, very long &rarr; more). Requires firmware 4.4.0+; the Hub menu offers the same settings under
+            scroll/menu, very long &rarr; more). Requires a recent firmware; the Hub menu offers the same settings under
             Sip & Puff &rarr; Timing.
           </p>
           <div class="win-ladder-wrap">
@@ -827,8 +824,7 @@
         <div class="row check-row">
           <input type="checkbox" id="sapDisabled" disabled aria-describedby="restrictionsNote" />
           <label for="sapDisabled"
-            >Disable sip & puff
-            <span class="row-hint">Mouthpiece inputs stop triggering actions entirely (upstream #21)</span></label
+            >Disable sip & puff <span class="row-hint">Mouthpiece inputs stop triggering actions entirely</span></label
           >
         </div>
         <div class="row check-row">
@@ -836,7 +832,7 @@
           <label for="menuButtonsOnly"
             >Menu: hub buttons only
             <span class="row-hint"
-              >Sip & puff and external switches can no longer open or navigate the menu (#77)</span
+              >Sip & puff and external switches can no longer open or navigate the menu</span
             ></label
           >
         </div>
@@ -844,16 +840,14 @@
           <input type="checkbox" id="modeLock" disabled aria-describedby="restrictionsNote" />
           <label for="modeLock"
             >Lock operating mode
-            <span class="row-hint"
-              >The device refuses input-driven mode changes; LipSync Connect still can (#68)</span
-            ></label
+            <span class="row-hint">The device refuses input-driven mode changes; LipSync Connect still can</span></label
           >
         </div>
         <div class="row check-row">
           <input type="checkbox" id="cursorHold" disabled aria-describedby="restrictionsNote" />
           <label for="cursorHold"
             >Freeze cursor during sip & puff
-            <span class="row-hint">The pointer holds still while a mouthpiece input is in progress (#44)</span></label
+            <span class="row-hint">The pointer holds still while a mouthpiece input is in progress</span></label
           >
         </div>
         <p class="hint">
@@ -1242,14 +1236,13 @@
             <option value="0">Off</option>
             <option value="1">Basic</option>
             <option value="2">All</option>
-            <option value="3">Input state (4.4.0+)</option></select
+            <option value="3">Input state</option></select
           ><button type="button" class="cmd" id="btnSetLight" disabled>Set</button>
         </div>
         <p class="hint">
           <strong>Input state</strong> lights the LEDs by how long you hold — the three face LEDs fill up as the hold
           progresses (1 in the short window, 2 in the long, 3 in the very-long), and the small light next to the USB-C
-          port shows the matching color (green, yellow, red). Requires firmware 4.4.0+; the face-LED progress fill needs
-          4.5.3+.
+          port shows the matching color (green, yellow, red).
         </p>
         <div class="row">
           <label>LED brightness</label
@@ -1558,8 +1551,8 @@
         </div>
         <div class="notice">
           Connect via USB, click <strong>Connect</strong>, select your LipSync from the browser dialog, and wait for all
-          values to load (~2 seconds on firmware 4.2.0+, up to ~30 seconds on older firmware). Change one setting at a
-          time and wait for confirmation in the log.
+          values to load (a few seconds on current firmware, up to ~30 seconds on older devices). Change one setting at
+          a time and wait for confirmation in the log.
         </div>
 
         <div class="diag-group">
@@ -1679,8 +1672,7 @@
         <details>
           <summary>Settings won&rsquo;t load &mdash; values show ERR or stay stuck on &hellip;</summary>
           <p class="hint">
-            Values load one at a time in sequence (31 total on firmware 4.5.0+, 25 on 4.4.0, 18 on older; ~2 seconds on
-            firmware 4.2.0+). If one command times out, it shows
+            Values load one at a time in sequence. If one command times out, it shows
             <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to reload every
             setting, including the failed ones.
           </p>

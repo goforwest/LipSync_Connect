@@ -185,7 +185,7 @@ export async function setTimingWindow(endpoint, valueMs) {
   // endpoint but reject this one value, so refuse it before the wire and say
   // why instead of surfacing a generic FAIL.
   if (endpoint === 'WM' && valueMs === 10000 && !deviceFirmwareAtLeast(4, 5, 0))
-    throw new Error('The 10000 ms maximum needs firmware 4.5.0+; use 9950 ms or lower on this device.');
+    throw new Error('The 10000 ms maximum needs a newer firmware — use 9950 ms or lower.');
   // The full triple with the new value in place; ordering is only checked
   // when both siblings have loaded (the firmware still guards it either way).
   // > 0, not just finite: an unloaded readout parses empty as 0, which would
