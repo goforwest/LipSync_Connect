@@ -311,6 +311,76 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(profDeleted),
     );
 
+    // Quick-name chips: a suggestion tap saves without typing (the zero-typing
+    // path); a repeat tap on the same name asks before replacing, and Cancel
+    // carries the danger focus.
+    const chipInfo = await evalCard(() => ({
+      chips: [...document.querySelectorAll('#profileNameChips .profile-chip')].map((c) => c.dataset.name),
+      disabled: document.querySelector('#profileNameChips .profile-chip').disabled,
+    }));
+    note(
+      'profile-chips-render',
+      chipInfo.chips.length >= 5 && !chipInfo.disabled,
+      JSON.stringify(chipInfo),
+    );
+    await page.click('.profile-chip[data-name="Gentle"]');
+    await page.waitForTimeout(500);
+    const chipSaved = await evalCard(() => ({
+      names: [...document.querySelectorAll('#profileList .profile-name')].map((n) => n.textContent),
+    }));
+    note('profile-chip-save', chipSaved.names.includes('Gentle'), JSON.stringify(chipSaved));
+    await page.click('.profile-chip[data-name="Gentle"]');
+    await page.waitForTimeout(500);
+    const replaceDlg = await evalCard(() => ({
+      open: document.getElementById('confirmDialog').open,
+      focus: document.activeElement.id,
+      title: document.getElementById('confirmTitle').textContent,
+    }));
+    note(
+      'profile-chip-replace-confirm',
+      replaceDlg.open && replaceDlg.focus === 'confirmCancel' && replaceDlg.title === 'Replace profile',
+      JSON.stringify(replaceDlg),
+    );
+    await page.click('#confirmCancel');
+    await page.waitForTimeout(300);
+
+    // Auto-name: an empty-field save picks today's date.
+    await page.evaluate(() => document.getElementById('btnSaveProfile').click());
+    await page.waitForTimeout(500);
+    const autoNamed = await evalCard(() => ({
+      names: [...document.querySelectorAll('#profileList .profile-name')].map((n) => n.textContent),
+      cleared: document.getElementById('profileName').value === '',
+    }));
+    note(
+      'profile-auto-name',
+      autoNamed.names.some((n) => n.startsWith('Profile ')) && autoNamed.cleared,
+      JSON.stringify(autoNamed),
+    );
+
+    // Download (export): the file download fires with the profile's name.
+    const dlPromise = page.waitForEvent('download', { timeout: 5000 });
+    await page.click('.profile-download');
+    const dl = await dlPromise;
+    note('profile-download', dl.suggestedFilename().startsWith('lipsync-profile-'), dl.suggestedFilename());
+
+    // Invalid import: garbage is rejected with an honest message, no row added.
+    const preInvalid = await evalCard(() => document.querySelectorAll('#profileList .profile-row').length);
+    await page.setInputFiles('#profileFileInput', {
+      name: 'bad.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"name": 123, "snapshot": "not-an-object"}'),
+    });
+    await page.waitForTimeout(400);
+    const badImport = await evalCard(() => ({
+      rejected: document.getElementById('log').textContent.includes('not a LipSync Connect profile'),
+      rows: document.querySelectorAll('#profileList .profile-row').length,
+    }));
+    note(
+      'profile-import-invalid',
+      badImport.rejected && badImport.rows === preInvalid,
+      JSON.stringify({ ...badImport, preInvalid }),
+    );
+
     await openCard('sec-switches');
     const sw = await evalCard(() => ({
       sa0: document.getElementById('swSA0').value,
