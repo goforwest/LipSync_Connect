@@ -835,18 +835,32 @@ export function bindHubRemote(guard) {
   $('btnHubNext').addEventListener(
     'click',
     guarded(async () => {
+      // Snapshot the mirror before the press (bench 2026-10-22): the
+      // firmware prints its CH,5 menu-state push BEFORE the press ack
+      // (push-before-ack is the designed ordering, so a push never trails
+      // the flow it reports), and applyHubMenuPush → applyMenuState will
+      // have reconciled the mirror to the new row by the time press()
+      // resolves. Running the optimistic advance on top of that
+      // double-advances the cursor. If anything moved the mirror during the
+      // await, device truth is already in force — skip the local step. The
+      // unchanged case (a dropped press in a frozen window pushes nothing)
+      // advances exactly as before, and the post-press poll still corrects.
+      const preScreen = screen;
+      const preSel = sel;
       await press('next', '3');
-      const items = screen ? (SCREENS[screen]().items ?? []) : [];
-      if (items.length) {
-        // nextMenuItem() wraps to the first item; display-only rows can
-        // never hold the cursor, so the wrap skips them.
-        let n = sel;
-        for (let steps = 0; steps < items.length; steps++) {
-          n = (n + 1) % items.length;
-          if (!items[n].displayOnly) break;
+      if (screen === preScreen && sel === preSel) {
+        const items = screen ? (SCREENS[screen]().items ?? []) : [];
+        if (items.length) {
+          // nextMenuItem() wraps to the first item; display-only rows can
+          // never hold the cursor, so the wrap skips them.
+          let n = sel;
+          for (let steps = 0; steps < items.length; steps++) {
+            n = (n + 1) % items.length;
+            if (!items[n].displayOnly) break;
+          }
+          if (!items[n].displayOnly) sel = n;
+          render();
         }
-        if (!items[n].displayOnly) sel = n;
-        render();
       }
       syncMenuFromDevice(); // a dropped press (frozen window) shows here
     }),
@@ -854,9 +868,24 @@ export function bindHubRemote(guard) {
   $('btnHubSelect').addEventListener(
     'click',
     guarded(async () => {
+      // Same pre-press snapshot as Next (bench 2026-10-22): the select's
+      // CH,5 push lands the mirror on the page the select opened BEFORE the
+      // ack, so running the optimistic advance afterwards executes the
+      // already-current screen's row handler instead of the one the user
+      // aimed at — a select on main's "Exit Menu" fired the just-landed
+      // exit-confirm page's Confirm row and closed the mirror while the Hub
+      // sat on its confirm page (the exit grace window then swallowed the
+      // corrective poll, so this one did not self-heal). Skip the local
+      // advance whenever a push reconciled the mirror first; the unchanged
+      // case (a dropped press, or a value-screen adjust that pushes nothing
+      // because the triple did not change) advances as before.
+      const preScreen = screen;
+      const preSel = sel;
       await press('select', '2');
-      const items = screen ? (SCREENS[screen]().items ?? []) : [];
-      items[sel]?.select?.();
+      if (screen === preScreen && sel === preSel) {
+        const items = screen ? (SCREENS[screen]().items ?? []) : [];
+        items[sel]?.select?.();
+      }
       // A refused select (LK-locked mode row) or a transition the device
       // drives itself is exactly what the re-read corrects — the optimistic
       // advance above stays visible only until the device answers.

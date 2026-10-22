@@ -597,3 +597,50 @@ test('a pushed unmapped page shows the honest notice instead of a guess', async 
   await app.disconnect({ quiet: true });
   dev.detach();
 });
+
+// ---- Push-before-ack race (bench 2026-10-22) ------------------------------
+// The firmware prints the CH,5 menu-state push BEFORE the press's SUCCESS
+// ack (so a push never trails the flow it reports). The mirror's optimistic
+// local advance runs after the ack resolves — and against a mirror the push
+// already reconciled, it executes the WRONG row's handler. The bench catch:
+// a Select on main's "Exit Menu" fired the just-landed exit-confirm page's
+// Confirm row, closing the mirror while the Hub sat on its confirm page (the
+// exit grace window then swallowed the corrective poll, so it did not
+// self-heal). The local advance must be skipped when the push moved first.
+test('a CH,5 push landing before the select ack must not double-advance', async () => {
+  let page = 0; // the device's live menu page: 0 main, 1 exit-confirm
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice((text) => {
+    const cmd = text.replace(/\r?\n$/, '');
+    if (cmd === 'SETTINGS') return [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }];
+    if (cmd === 'CH,1:2') {
+      // Select on main row 0 ("Exit Menu"): the device opens its exit-confirm
+      // page and PUSHES that state before acking the press.
+      page = 1;
+      return [
+        { delay: 5, line: 'MANUAL,0:CH,5:1,1,0' },
+        { delay: 5, line: 'SUCCESS,0:CH,1:2' },
+      ];
+    }
+    if (cmd === 'CH,0:0') return [{ delay: 5, line: `SUCCESS,0:CH,0:1,${page},0` }];
+    return [{ delay: 5, line: `SUCCESS,0:${cmd}` }];
+  });
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.5.4');
+
+  await click('btnHubOpen');
+  await settle();
+  assert.equal(selectedLabel(), 'Exit Menu');
+
+  await click('btnHubSelect');
+  await settle();
+
+  // The Hub is on its exit-confirm page — the mirror must show it, not the
+  // phantom "menu closed" the double-advanced Confirm row produced.
+  assert.equal(wrapHidden(), false, 'the exit-confirm page is open on the Hub; the mirror must show it');
+  assert.equal(header(), 'Exiting settings?');
+  assert.equal(selectedLabel(), 'Confirm');
+
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
