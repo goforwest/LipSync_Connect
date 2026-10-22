@@ -63,6 +63,18 @@
     --focus: #8ecbff;
     --log-bg: #0d1117;
   }
+  :root:not(.light-mode) .section-card.open {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+  :root:not(.light-mode) .circle-trigger {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  }
+  :root:not(.light-mode) .circle-trigger:hover:not(:disabled) {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+  :root:not(.light-mode) .circle-trigger.active {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
   :root:not(.light-mode) .unsupported {
     background: color-mix(in srgb, var(--danger) 16%, transparent);
     color: var(--danger);
@@ -108,6 +120,18 @@ html.dark-mode {
   --focus: #8ecbff;
   --log-bg: #0d1117;
 }
+html.dark-mode .section-card.open {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+html.dark-mode .circle-trigger {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+html.dark-mode .circle-trigger:hover:not(:disabled) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+html.dark-mode .circle-trigger.active {
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
+}
 html.dark-mode .unsupported {
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
@@ -135,11 +159,13 @@ body {
     -apple-system,
     'Segoe UI',
     Roboto,
+    Helvetica,
+    Arial,
     sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 a {
   color: var(--info);
@@ -168,27 +194,27 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 20px;
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  padding: 10px 24px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
   border-bottom: 2px solid var(--accent);
   flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transition: box-shadow 0.2s ease;
 }
 header.scrolled {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
 }
 @media (prefers-color-scheme: dark) {
   header.scrolled {
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   }
 }
 html.dark-mode header.scrolled {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
 }
 header h1 {
   font-size: 1.15rem;
@@ -306,16 +332,16 @@ header .status.connected::before {
   min-height: 40px;
 }
 main {
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 24px 20px 40px;
   display: grid;
   /* Bounded single column: with the implicit auto track, a wide min-content
      child (e.g. a long unbreakable log line) stretched the track past the
      viewport and horizontal-scrolled the whole app on narrow screens. */
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
-  scroll-margin-top: 72px;
+  scroll-margin-top: 88px;
 }
 .row {
   display: flex;
@@ -347,8 +373,9 @@ main {
 }
 .check-row label .row-hint {
   font-weight: 400;
-  font-size: 0.85em;
+  font-size: 0.875em;
   color: var(--muted);
+  line-height: 1.4;
 }
 .check-row input:disabled + label,
 .check-row input:disabled ~ label {
@@ -361,7 +388,7 @@ main {
   text-align: center;
   background: var(--value-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 8px 14px;
   font-size: 1rem;
 }
@@ -388,7 +415,7 @@ button {
   color: var(--btn-text);
   font-weight: 600;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px 20px;
   font-size: 1rem;
   cursor: pointer;
@@ -396,14 +423,18 @@ button {
   min-width: 48px;
   transition:
     background 0.15s ease,
-    transform 0.1s ease;
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
   position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 button:hover:not(:disabled) {
   background: var(--accent2);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent2) 25%, transparent);
 }
 button:active:not(:disabled) {
   transform: scale(0.98);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent2) 20%, transparent);
 }
 button:disabled {
   opacity: 0.4;
@@ -438,10 +469,12 @@ button.secondary {
   background: var(--value-bg);
   color: var(--text);
   border: 1px solid var(--border);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.01);
 }
 button.secondary:hover:not(:disabled) {
   background: var(--border);
   border-color: var(--muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 button.danger {
   background: var(--danger-fill);
@@ -461,7 +494,7 @@ select {
   /* --field-border, not --border: the field fill matches the panel, so this
      1px edge is the only thing identifying the control (WCAG 1.4.11). */
   border: 1px solid var(--field-border);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 1rem;
   min-height: 48px;
 }
@@ -490,7 +523,7 @@ progress {
 #log {
   background: var(--log-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 14px;
   height: 200px;
   overflow-y: auto;
@@ -550,8 +583,8 @@ progress {
 .hint {
   color: var(--muted);
   font-size: 0.9rem;
-  margin-top: 8px;
-  line-height: 1.5;
+  margin: 6px 0;
+  line-height: 1.55;
 }
 .spacer {
   height: 12px;
@@ -815,9 +848,9 @@ h3,
   text-wrap: pretty;
 }
 footer {
-  max-width: 960px;
-  margin: 28px auto 0;
-  padding: 10px 20px 28px;
+  max-width: 1080px;
+  margin: 40px auto 0;
+  padding: 16px 24px 32px;
   text-align: center;
   border-top: 2px solid var(--accent);
 }
@@ -827,12 +860,34 @@ footer p {
   font-size: 0.78rem;
   line-height: 1.6;
 }
+@media (max-width: 700px) {
+  main {
+    padding: 16px 12px 32px;
+  }
+  footer {
+    padding: 12px 16px 28px;
+    margin-top: 32px;
+  }
+}
 @media (max-width: 560px) {
   main {
-    padding: 14px;
+    padding: 12px 10px 28px;
+  }
+  footer {
+    padding: 10px 12px 24px;
+    margin-top: 28px;
   }
   .row label {
     min-width: 100%;
+  }
+  .card-head {
+    margin: 14px 12px 10px;
+  }
+  .section-card > *:not(.card-head):not(.hint) {
+    margin: 10px 12px;
+  }
+  .section-card > .hint {
+    margin: 6px 12px 10px;
   }
 }
 
@@ -1135,6 +1190,10 @@ summary {
   select {
     min-height: 52px;
   }
+  .card-close {
+    min-width: 48px;
+    min-height: 48px;
+  }
   /* Taller tap target only — display:inline-block here used to strip the
      disclosure marker (::marker needs list display), leaving touch users
      with no expand/collapse arrow on the help topics. */
@@ -1190,7 +1249,7 @@ summary {
 }
 @media (max-width: 700px) {
   header {
-    padding: 8px 12px;
+    padding: 8px 14px;
     gap: 6px;
   }
   header .logo {
@@ -1210,7 +1269,7 @@ summary {
   .header-actions button {
     padding: 6px 12px;
     font-size: 0.85rem;
-    min-height: 36px;
+    min-height: 44px;
   }
   main {
     padding: 12px;
@@ -1273,7 +1332,8 @@ summary {
     width: 8px;
   }
   footer {
-    padding: 8px 16px 24px;
+    padding: 12px 16px 28px;
+    margin-top: 32px;
   }
 }
 /* ---- Guided setup wizard (Help card) ---- */
@@ -1885,8 +1945,11 @@ html.dark-mode .guide-card {
   justify-content: center;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px 10px;
+  padding: 16px 20px 12px;
   flex-wrap: wrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 .circle-trigger {
   width: 84px;
@@ -1911,6 +1974,7 @@ html.dark-mode .guide-card {
     background 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 .circle-trigger .circle-icon {
   font-size: 2rem;
@@ -1949,15 +2013,17 @@ html.dark-mode .guide-card {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.circle-trigger:hover {
+.circle-trigger:hover:not(:disabled) {
   background: var(--value-bg);
   color: var(--text);
   border-color: var(--muted);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 .circle-trigger.active {
   background: var(--accent);
   color: var(--btn-text);
   border-color: var(--accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .circle-trigger.active .circle-label {
   opacity: 1;
@@ -1973,6 +2039,7 @@ html.dark-mode .guide-card {
   border: 0 solid var(--border);
   border-radius: 12px;
   overflow: clip;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   max-height: 0;
   opacity: 0;
   transition:
@@ -1988,6 +2055,7 @@ html.dark-mode .guide-card {
   opacity: 1;
   padding-bottom: 20px;
   border-width: 1px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
 }
 /* Serial-dependent cards are de-emphasized until a device connects */
 .section-card.card-off.open {
@@ -2259,10 +2327,10 @@ html.dark-mode .guide-card {
 .section-card h2 {
   margin: 0;
   flex: 1;
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 /* Quiet square close affordance — the nav trigger stays the keyboard path;
@@ -2297,9 +2365,23 @@ html.dark-mode .guide-card {
 
 /* ---- Responsive ---- */
 @media (max-width: 700px) {
+  .card-head {
+    margin: 16px 16px 12px;
+    gap: 6px;
+  }
+  .section-card > *:not(.card-head):not(.hint) {
+    margin: 10px 16px;
+  }
+  .section-card > .hint {
+    margin: 6px 16px 10px;
+  }
+  .row label {
+    min-width: 100%;
+  }
   .circle-nav {
     gap: 6px;
-    padding: 10px 10px 6px;
+    padding: 12px 10px 8px;
+    justify-content: flex-start;
   }
   .circle-trigger {
     width: 66px;

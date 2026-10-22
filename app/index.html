@@ -35,7 +35,7 @@
     <header id="appHeader">
       <img src="./assets/mmc_logo.jpeg" alt="Makers Making Change logo" class="logo" />
       <h1>LipSync Connect</h1>
-      <span class="status" id="status" role="status">Not connected</span>
+      <span class="status" id="status" role="status" aria-live="polite">Not connected</span>
       <div id="connectStage" class="connect-stage" hidden aria-live="polite"></div>
       <div class="header-actions">
         <button type="button" id="btnConnect">Connect</button>
@@ -61,7 +61,7 @@
       </div>
     </div>
 
-    <nav class="circle-nav" aria-label="Section navigation">
+    <nav class="circle-nav" aria-label="Section navigation" id="sectionNav">
       <button
         type="button"
         class="circle-trigger"
@@ -244,7 +244,7 @@
       </div></noscript
     >
 
-    <main id="main-content" tabindex="-1">
+    <main id="main-content" tabindex="-1" aria-label="Main content">
       <div id="readinessStrip" class="readiness-strip" hidden aria-label="Device readiness"></div>
       <section class="section-card" id="sec-device" aria-label="Device Information">
         <div class="card-head">
