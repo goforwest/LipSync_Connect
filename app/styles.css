@@ -365,6 +365,9 @@ main {
   margin-left: 2px;
 }
 .check-row label {
+  /* flex-basis 0 keeps the label on the checkbox's line even when its hint is
+     wider than the row (flex-wrap would otherwise push it to the next line). */
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -877,7 +880,7 @@ footer p {
     padding: 10px 12px 24px;
     margin-top: 28px;
   }
-  .row label {
+  .row:not(.check-row) label {
     min-width: 100%;
   }
   .card-head {
@@ -888,6 +891,27 @@ footer p {
   }
   .section-card > .hint {
     margin: 6px 12px 10px;
+  }
+  /* Threshold and hold-timing steppers: the two coarse and two fine buttons
+     wrapped so + and +1 fell to a second line (and the unit chip was left
+     orphaned at 320px). Trim them to the 44px touch floor, tighten the gap,
+     and drop the duplicated unit chip — the label already says hPa/ms. */
+  .row:has(> button[data-step]:nth-of-type(3)) {
+    gap: 6px;
+  }
+  .row:has(> button[data-step]:nth-of-type(3)) > button[data-step] {
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: 0.85rem;
+  }
+  .row:has(> button[data-step]:nth-of-type(3)) > .value {
+    min-width: 64px;
+    padding: 8px 6px;
+  }
+  .row:has(> button[data-step]:nth-of-type(3)) > .hint.row-hint[aria-hidden='true'] {
+    display: none;
   }
 }
 
@@ -1226,26 +1250,6 @@ summary {
   .appearance-popup::before {
     right: calc(20px / var(--ui-scale, 1));
   }
-  /* UI scale: a segmented 100/125/150 control (body zoom — the whole
-   interface scales, not just the fonts). */
-  .scale-seg {
-    display: inline-flex;
-    gap: 4px;
-  }
-  .scale-btn {
-    padding: 6px 12px;
-    min-height: 34px;
-    font-size: 0.85rem;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted);
-    box-shadow: inset 0 0 0 1.5px var(--border);
-  }
-  .scale-btn[aria-pressed='true'] {
-    background: var(--accent);
-    color: var(--btn-text);
-    box-shadow: none;
-  }
 }
 @media (max-width: 700px) {
   header {
@@ -1277,7 +1281,9 @@ summary {
   .row {
     gap: 10px;
   }
-  .row label {
+  /* Checkbox rows stay control + label on one line; every other row's label
+     is a full-width heading over its controls. */
+  .row:not(.check-row) label {
     min-width: 100%;
     margin-bottom: -2px;
   }
@@ -2375,13 +2381,19 @@ html.dark-mode .guide-card {
   .section-card > .hint {
     margin: 6px 16px 10px;
   }
-  .row label {
+  .row:not(.check-row) label {
     min-width: 100%;
   }
   .circle-nav {
     gap: 6px;
     padding: 12px 10px 8px;
     justify-content: flex-start;
+    /* One swipeable row instead of 2–3 wrapped rows. At 150% text size the
+       wrapped nav alone took most of a phone screen; the partly-visible tile
+       at the right edge is the cue that more sections are a swipe away. */
+    flex-wrap: nowrap;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
   }
   .circle-trigger {
     width: 66px;
@@ -2389,6 +2401,8 @@ html.dark-mode .guide-card {
     min-height: 66px;
     min-width: 66px;
     border-radius: 14px;
+    flex: 0 0 auto;
+    scroll-snap-align: start;
   }
   .circle-trigger .circle-icon {
     font-size: 1.6rem;
@@ -2564,6 +2578,30 @@ html.dark-mode .floating-gear {
   font-size: 0.9rem;
   flex: 1;
 }
+/* UI scale: a segmented 100/125/150 control (body zoom — the whole interface
+   scales, not just the fonts). Base styles, not touch-only: on a fine-pointer
+   desktop the bare buttons inherited the primary red fill, so all three
+   looked selected and the third wrapped onto its own line. */
+.scale-seg {
+  display: inline-flex;
+  gap: 4px;
+}
+.scale-btn {
+  flex: 1 1 0;
+  padding: 6px 8px;
+  min-height: 34px;
+  min-width: 44px;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--border);
+}
+.scale-btn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--btn-text);
+  box-shadow: none;
+}
 .popup-colors {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2616,6 +2654,71 @@ html.dark-mode .appearance-popup {
   .appearance-popup::after,
   .appearance-popup::before {
     right: calc(16px / var(--ui-scale, 1));
+  }
+}
+/* On phones the appearance control lives in the header: the fixed FAB sat on
+   top of the controls beneath it (including the stepper a user was reaching
+   for). The popup becomes a bottom sheet so the panel and its header trigger
+   are both fully visible. Desktop keeps the floating gear. */
+.header-gear {
+  display: none;
+}
+@media (max-width: 700px) {
+  #btnSettings {
+    display: none;
+  }
+  /* Keep Connect/Disconnect/the gear on one row at 150% text: dividing the
+     horizontal padding by the body zoom keeps it physically constant while
+     the labels grow. */
+  .header-actions button {
+    padding: 6px calc(12px / var(--ui-scale, 1));
+  }
+  .header-actions .header-gear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: static;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--value-bg);
+    color: var(--text);
+    box-shadow: none;
+    flex: 0 0 auto;
+  }
+  .header-actions .header-gear svg {
+    width: 22px;
+    height: 22px;
+  }
+  .header-actions .header-gear:hover:not(:disabled) {
+    background: var(--border);
+    border-color: var(--muted);
+    box-shadow: none;
+    transform: none;
+  }
+  .header-actions .header-gear.active {
+    background: var(--border);
+    box-shadow: none;
+  }
+  html.dark-mode .header-actions .header-gear {
+    box-shadow: none;
+  }
+  .appearance-popup {
+    top: auto;
+    left: calc(10px / var(--ui-scale, 1));
+    right: calc(10px / var(--ui-scale, 1));
+    bottom: calc(10px / var(--ui-scale, 1));
+    width: auto;
+    max-height: calc(80vh / var(--ui-scale, 1));
+    transform-origin: bottom center;
+  }
+  .appearance-popup::after,
+  .appearance-popup::before {
+    display: none;
   }
 }
 

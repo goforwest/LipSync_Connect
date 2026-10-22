@@ -86,6 +86,7 @@ export const VALUE_LABELS = {
   soundModeVal: 'Sound feedback',
   lightModeVal: 'Light feedback',
   brightnessVal: 'LED brightness',
+  debugModeVal: 'Live diagnostic output',
   w1Val: 'Short input window',
   w2Val: 'Long input window',
   w3Val: 'Max input window',

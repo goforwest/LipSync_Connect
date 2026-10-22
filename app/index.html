@@ -12,7 +12,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'; object-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'; object-src 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <link rel="stylesheet" href="./styles.css" />
@@ -40,6 +40,24 @@
       <div class="header-actions">
         <button type="button" id="btnConnect">Connect</button>
         <button type="button" id="btnDisconnect" class="secondary" disabled>Disconnect</button>
+        <button
+          type="button"
+          id="btnSettingsMobile"
+          class="header-gear"
+          aria-controls="appearancePopup"
+          aria-expanded="false"
+          aria-label="Open appearance settings"
+          title="Appearance settings"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.55-.22-1.05-.58-1.41-.36-.36-.58-.86-.58-1.41 0-1.1.9-2 2-2H16c3.31 0 6-2.69 6-6 0-4.42-4.48-8-10-8z"
+            />
+            <circle cx="6.5" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="17" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -1015,7 +1033,9 @@
           </div>
         </div>
         <div class="row">
-          <button type="button" class="cmd" id="btnResetSwitchActions" disabled>Restore default switch mappings</button>
+          <button type="button" class="cmd secondary" id="btnResetSwitchActions" disabled>
+            Restore default switch mappings
+          </button>
         </div>
         <div class="error" id="switchError" role="alert"></div>
         <p class="hint">
@@ -1188,7 +1208,7 @@
           </div>
         </div>
         <div class="row">
-          <button type="button" class="cmd" id="btnInit" disabled>Reset neutral position (initialize)</button>
+          <button type="button" class="cmd secondary" id="btnInit" disabled>Reset neutral position (initialize)</button>
           <button type="button" class="cmd" id="btnCalibrate" disabled>Start full calibration</button>
         </div>
         <ol class="cal-steps" id="calSteps" hidden aria-label="Calibration steps">

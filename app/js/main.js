@@ -35,7 +35,12 @@ import { openSectionById, closeCurrentSection, getOpenSection, onSectionChange }
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
-import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
+import {
+  bindWriteConfirm,
+  hideWriteConfirm,
+  suppressNextWriteConfirm,
+  clearWriteConfirmSuppression,
+} from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
 import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
@@ -205,7 +210,10 @@ const syncAutoLive = (sectionId) => {
       autoLiveMode = null;
       autoLivePending = false;
       if (serialSession.port) {
+        // App housekeeping, not a user edit: no confirmation chip or Undo.
+        suppressNextWriteConfirm('DM');
         void setSimpleSetting('DM', '0', 'debugModeVal', DEBUG_MODES).catch(() => {
+          clearWriteConfirmSuppression('DM');
           void stopping; // a failed stop is retried by the next transition
         });
       }
@@ -216,12 +224,14 @@ const syncAutoLive = (sectionId) => {
     autoLiveTakenFrom = dm;
     autoLiveMode = wantMode;
     autoLivePending = true;
+    suppressNextWriteConfirm('DM');
     void setSimpleSetting('DM', wantMode, 'debugModeVal', DEBUG_MODES)
       .then(() => {
         autoLivePending = false; // echo landed — the select now shows our mode
         log('Live view started for this section — Stop live view turns it off.', 'log-info');
       })
       .catch(() => {
+        clearWriteConfirmSuppression('DM');
         autoLiveMode = null; // never started: nothing to manage
         autoLivePending = false;
       });
@@ -313,16 +323,20 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Floating button toggles the appearance popup
-  const gearBtn = $('btnSettings');
+  // The appearance popup has two triggers: the desktop floating gear and the
+  // mobile header icon (the FAB covered the controls beneath it on phones).
+  const gearBtns = /** @type {HTMLElement[]} */ (
+    ['btnSettings', 'btnSettingsMobile'].map((id) => $(id)).filter(Boolean)
+  );
   const popup = $('appearancePopup');
   /** @type {() => void} */ let openPopup = () => {};
   /** @type {(restoreFocus?: boolean) => void} */ let closePopup = () => {};
-  if (gearBtn && popup) {
+  if (gearBtns.length && popup) {
+    /** @type {HTMLElement|undefined} */ let lastTrigger = gearBtns[0];
     openPopup = () => {
       popup.style.display = '';
       popup.removeAttribute('aria-hidden');
-      gearBtn.setAttribute('aria-expanded', 'true');
+      gearBtns.forEach((btn) => btn.setAttribute('aria-expanded', 'true'));
       popup.offsetHeight;
       requestAnimationFrame(() => {
         popup.classList.add('open');
@@ -335,28 +349,35 @@ window.addEventListener('DOMContentLoaded', () => {
           if (firstControl && typeof firstControl.focus === 'function') firstControl.focus({ preventScroll: true });
         });
       });
-      gearBtn.classList.add('active');
+      gearBtns.forEach((btn) => btn.classList.add('active'));
     };
     closePopup = (restoreFocus = true) => {
-      if ((restoreFocus || popup.contains(document.activeElement)) && typeof gearBtn.focus === 'function') {
-        gearBtn.focus({ preventScroll: true });
+      if ((restoreFocus || popup.contains(document.activeElement)) && lastTrigger) {
+        lastTrigger.focus({ preventScroll: true });
       }
       popup.classList.remove('open');
       popup.style.display = 'none';
       popup.setAttribute('aria-hidden', 'true');
-      gearBtn.setAttribute('aria-expanded', 'false');
-      gearBtn.classList.remove('active');
+      gearBtns.forEach((btn) => {
+        btn.setAttribute('aria-expanded', 'false');
+        btn.classList.remove('active');
+      });
     };
     popup.style.display = 'none';
     popup.setAttribute('aria-hidden', 'true');
-    gearBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = popup.classList.contains('open');
-      if (isOpen) closePopup();
-      else openPopup();
+    gearBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = popup.classList.contains('open');
+        if (isOpen) closePopup();
+        else {
+          lastTrigger = btn;
+          openPopup();
+        }
+      });
     });
     document.addEventListener('click', (e) => {
-      if (popup.classList.contains('open') && !popup.contains(e.target) && e.target !== gearBtn) {
+      if (popup.classList.contains('open') && !popup.contains(e.target) && !gearBtns.some((btn) => btn === e.target)) {
         closePopup(false);
       }
     });

@@ -33,10 +33,30 @@ const CHIP_VISIBLE_MS = 4000;
 let suppressed = false; // batch restores must not spam a chip per write
 let hideTimer = 0;
 let undoCmd = null;
+/** Endpoint -> pending writes that must not confirm (app-driven, not user edits). */
+const quietWrites = new Map();
 
 /** @param {boolean} on — while true, noteSettingWrite is a no-op. */
 export function setWriteConfirmSuppressed(on) {
   suppressed = !!on;
+}
+
+/**
+ * Silences the confirmation chip for the next successful write to one
+ * endpoint. Auto-live starts/stops the diagnostic stream on section changes;
+ * that is app housekeeping, not a user edit, so it must not raise a toast
+ * (or an Undo that would silently kill the stream). Targeted rather than the
+ * global batch suppression so a user write in flight is never swallowed.
+ * @param {string} endpoint two-letter endpoint code
+ */
+export function suppressNextWriteConfirm(endpoint) {
+  quietWrites.set(endpoint, (quietWrites.get(endpoint) ?? 0) + 1);
+}
+
+/** Drops a pending quiet marker after the app-driven write failed (no ack
+ *  will ever arrive to consume it). */
+export function clearWriteConfirmSuppression(endpoint) {
+  quietWrites.delete(endpoint);
 }
 
 // ---- The endpoint table: what to confirm, where the old value lives -------
@@ -98,6 +118,12 @@ export function captureWriteConfirm(endpoint, cmd) {
   if (suppressed) return null;
   const cfg = ENDPOINTS[endpoint];
   if (!cfg || !cmd.endsWith(',1')) return null;
+  const quiet = quietWrites.get(endpoint) ?? 0;
+  if (quiet > 0) {
+    if (quiet === 1) quietWrites.delete(endpoint);
+    else quietWrites.set(endpoint, quiet - 1);
+    return null;
+  }
   let oldDisplay = null;
   let oldWire = null;
   if (cfg.kind === 'int' || cfg.kind === 'hpa' || cfg.kind === 'float') {

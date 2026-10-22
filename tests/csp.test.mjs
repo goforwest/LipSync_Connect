@@ -64,3 +64,21 @@ test('the meta-tag CSP omits frame-ancestors (ignored in meta) while headers kee
   assert.match(serverCsp, /frame-ancestors 'none'/);
   assert.equal(/frame-ancestors/.test(htmlCsp), false);
 });
+
+function extractImgSrc(csp) {
+  const m = csp.match(/img-src ([^;]+)/);
+  return m ? m[1].trim() : null;
+}
+
+test('img-src allows self plus data: (the CSS chevrons/arrows are data: masks)', () => {
+  const { vercelCsp, htmlCsp, serverCsp } = readCspDefinitions();
+  const imgSrcs = [vercelCsp, htmlCsp, serverCsp].map(extractImgSrc);
+  assert.ok(imgSrcs.every(Boolean), 'every CSP definition must include img-src');
+  assert.deepEqual(imgSrcs[0], imgSrcs[1]);
+  assert.deepEqual(imgSrcs[1], imgSrcs[2]);
+  const sources = imgSrcs[0].split(/\s+/);
+  assert.ok(sources.includes("'self'"));
+  // Disclosure chevrons, task arrows, external-link glyphs and the toast badge
+  // are data: URL masks/backgrounds. Omitting data: silently erases them.
+  assert.ok(sources.includes('data:'));
+});
