@@ -109,9 +109,37 @@ export function updateConnectionGating() {
 
 import { syncModeBtn, updateBtStatus } from '../services/mode-switch.js';
 
+// connect() disables the Connect button the instant it is pressed (the OS
+// port picker and the settings load span that state), so a focused press
+// drops to <body> long before setConnectedUI could hand focus anywhere.
+// Record the focused press here; setConnectedUI resolves it in whichever
+// direction the attempt ends: success focuses the now-relevant Disconnect,
+// a cancelled attempt returns focus to the re-enabled Connect.
+let connectPressedFocused = false;
+export function noteConnectPressed() {
+  connectPressedFocused = document.activeElement === $('btnConnect');
+}
+
 export function setConnectedUI(connected) {
-  $('btnConnect').disabled = connected;
-  $('btnDisconnect').disabled = !connected;
+  const connectBtn = $('btnConnect');
+  const disconnectBtn = $('btnDisconnect');
+  // A focused button that just turned disabled drops focus to <body> — the
+  // keyboard/AT user who pressed Connect (or Disconnect) is stranded with
+  // nothing focused. Capture the holder first, flip the disabled states,
+  // then hand focus to the sibling that just became the relevant action
+  // (focusing a still-disabled button is a no-op, so enable first).
+  const active = /** @type {HTMLElement|null} */ (document.activeElement ?? null);
+  connectBtn.disabled = connected;
+  disconnectBtn.disabled = !connected;
+  if (connected) {
+    if ((connectPressedFocused || active === connectBtn) && typeof disconnectBtn?.focus === 'function') {
+      disconnectBtn.focus();
+    }
+    connectPressedFocused = false;
+  } else if (connectPressedFocused || active === disconnectBtn) {
+    if (typeof connectBtn?.focus === 'function') connectBtn.focus();
+    connectPressedFocused = false;
+  }
   setCmdButtons(connected);
   // Don't claim "Connected" until the initial settings load actually finishes —
   // a disconnect or command timeout mid-load would otherwise leave the header

@@ -15,6 +15,7 @@ import { announceStatus } from '../ui/a11y.js';
 import { resetSelfTestLock } from '../services/selftest.js';
 import {
   setConnectedUI,
+  noteConnectPressed,
   hideConnectionBanner,
   showConnectionError,
   showGuide,
@@ -71,6 +72,10 @@ export async function connect() {
   // (a stalled open's late release, a cancelled wizard touch): late
   // teardowns check this generation and must never close what we claim.
   portGeneration.current++;
+  // Before the disable lands: if the user activated Connect from the
+  // keyboard, setConnectedUI must be able to hand focus off when the attempt
+  // settles (Disconnect on success, back to Connect on cancel).
+  noteConnectPressed();
   $('btnConnect').disabled = true;
   // Loading state spans the OS port picker and the settings load — the
   // spinner keeps the button from looking dead-while-busy; finally clears it.

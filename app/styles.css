@@ -1207,6 +1207,10 @@ summary {
   height: auto;
   aspect-ratio: 1 / 1;
 }
+/* Touch: the tall-target rules whose base definitions sit EARLIER in this
+   file (they win the cascade). Class-scoped controls, the gear, the toast,
+   and the card-close need to live past their base rules — those overrides
+   are consolidated in the pointer:coarse block at the END of the file. */
 @media (pointer: coarse) {
   button,
   input[type='number'],
@@ -1214,41 +1218,11 @@ summary {
   select {
     min-height: 52px;
   }
-  .card-close {
-    min-width: 48px;
-    min-height: 48px;
-  }
   /* Taller tap target only — display:inline-block here used to strip the
      disclosure marker (::marker needs list display), leaving touch users
      with no expand/collapse arrow on the help topics. */
   summary {
     padding: 12px 0;
-  }
-  #notification {
-    /* Above the 64px gear (bottom 20px + 16px gap) — at the very bottom the
-       round button overlapped and blocked the toast's close button. */
-    bottom: 100px;
-    right: 16px;
-    left: 16px;
-    max-width: none;
-  }
-  .floating-gear {
-    width: 64px;
-    height: 64px;
-    bottom: 20px;
-    right: 20px;
-  }
-  .floating-gear svg {
-    width: 30px;
-    height: 30px;
-  }
-  .appearance-popup {
-    bottom: calc((64px + 20px + 12px) / var(--ui-scale, 1));
-    right: calc(20px / var(--ui-scale, 1));
-  }
-  .appearance-popup::after,
-  .appearance-popup::before {
-    right: calc(20px / var(--ui-scale, 1));
   }
 }
 @media (max-width: 700px) {
@@ -1603,7 +1577,11 @@ button.ready-chip:hover {
   position: fixed;
   bottom: 24px;
   left: 16px;
-  z-index: 150;
+  /* Above the toast (200): on phones both anchor to the same bottom strip,
+     and the toast's higher stacking used to cover the Undo button for its
+     whole 4 s life. The chip is the shorter-lived, more urgent element —
+     it rides on top and auto-hides after 4 s, handing the spot back. */
+  z-index: 240;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2396,10 +2374,10 @@ html.dark-mode .guide-card {
     overscroll-behavior-x: contain;
   }
   .circle-trigger {
-    width: 66px;
-    height: 66px;
-    min-height: 66px;
-    min-width: 66px;
+    width: 70px;
+    height: 70px;
+    min-height: 70px;
+    min-width: 70px;
     border-radius: 14px;
     flex: 0 0 auto;
     scroll-snap-align: start;
@@ -2407,8 +2385,10 @@ html.dark-mode .guide-card {
   .circle-trigger .circle-icon {
     font-size: 1.6rem;
   }
+  /* 0.7rem keeps every real label ("Restrictions") inside the 70px tile —
+     0.67rem was 10.7px, under every other floor in the app. */
   .circle-trigger .circle-label {
-    font-size: 0.67rem;
+    font-size: 0.7rem;
   }
 }
 
@@ -2629,6 +2609,11 @@ html.dark-mode .floating-gear {
   cursor: pointer;
   min-height: 36px;
   flex: none;
+}
+/* Same hover affordance as the text fields: the edge darkens so the swatch
+   reads as interactive before the first click. */
+.pc-row input[type='color']:hover:not(:disabled) {
+  border-color: var(--muted);
 }
 .pc-row input[type='color']::-webkit-color-swatch-wrapper {
   padding: 1px;
@@ -2868,8 +2853,19 @@ html.dark-mode .appearance-popup {
   .health-cell,
   .selftest-panel,
   .diag-group,
-  #fwWizard {
+  #fwWizard,
+  .task-btn,
+  .profile-row,
+  .wizard-panel {
     border-width: 2px;
+  }
+  /* Edge-carrying controls without a border property: thicken their inset
+     shadow edge the same 1px→2px step, so the touch affordance stays visible. */
+  .switch-tab {
+    box-shadow: inset 0 0 0 2.5px var(--border);
+  }
+  .health-history-clear {
+    box-shadow: inset 0 0 0 2.5px var(--border);
   }
   :where(button, select, input, summary, a):focus-visible {
     outline-width: 4px;
@@ -2919,5 +2915,73 @@ html.dark-mode .appearance-popup {
   a[target='_blank']::after,
   #notification::before {
     forced-color-adjust: none;
+  }
+}
+
+/* ---- Touch refinements (consolidated) ----
+   This block lives at the END of the stylesheet on purpose. The earlier
+   @media (pointer: coarse) block sits before most component definitions,
+   and same-specificity base rules later in the file silently overrode it —
+   the 64px gear, the 48px card-close, and the toast's mobile geometry were
+   all being beaten back to their base values without anyone noticing.
+   Every rule here is either a revival of those intended touch sizes or a
+   new 44px floor for class-scoped controls whose explicit min-heights
+   outrank the plain element rule in the earlier block. */
+@media (pointer: coarse) {
+  /* The floating gear grows for thumbs (the original intent, dead until
+     now). bottom/right stay with the base geometry — only the size was
+     the touch fix. */
+  .floating-gear {
+    width: 64px;
+    height: 64px;
+  }
+  .floating-gear svg {
+    width: 30px;
+    height: 30px;
+  }
+  .card-close {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  /* Full-width mobile toast, on the same anchor the write-confirm chip
+     uses; the chip's higher z-index keeps its Undo clickable whenever
+     both are up. */
+  #notification {
+    bottom: 100px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+  }
+  #notification .notif-close {
+    width: 44px;
+    height: 44px;
+  }
+  /* Class-scoped controls carry explicit min-heights that outrank the
+     element rule in the earlier block — the switch tabs, quick-save chips,
+     segmented text-size buttons, banner/guide buttons, and the Undo pill
+     measured 32–40px on touch. Raise each to the 44px floor. */
+  .switch-tab,
+  .scale-btn,
+  .profile-chip,
+  .ready-chip,
+  .health-history-clear,
+  .write-confirm-undo,
+  .popup-reset,
+  .conn-banner button,
+  .guide-card button {
+    min-height: 44px;
+  }
+  /* The dark-mode switch shares the appearance sheet with the scale
+     buttons — keep it on the same 44px floor and recenter its knob. */
+  .toggle {
+    height: 44px;
+    min-height: 44px;
+  }
+  .toggle::after {
+    top: 10px;
+  }
+  .pc-row input[type='color'] {
+    width: 44px;
+    height: 44px;
   }
 }
