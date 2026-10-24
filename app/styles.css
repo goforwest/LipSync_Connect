@@ -343,6 +343,11 @@ main {
   gap: 0;
   scroll-margin-top: 88px;
 }
+@media (min-width: 700px) {
+  main {
+    padding-bottom: 80px;
+  }
+}
 .row {
   display: flex;
   align-items: center;
@@ -895,20 +900,22 @@ footer p {
   /* Threshold and hold-timing steppers: the two coarse and two fine buttons
      wrapped so + and +1 fell to a second line (and the unit chip was left
      orphaned at 320px). Trim them to the 44px touch floor, tighten the gap,
-     and drop the duplicated unit chip — the label already says hPa/ms. */
+     and drop the duplicated unit chip — the label already says hPa/ms. The
+     readout is trimmed too, so the whole row fits one line even at 150%
+     body zoom (effective width 169 CSS px on a 390px phone). */
   .row:has(> button[data-step]:nth-of-type(3)) {
-    gap: 6px;
+    gap: 4px;
   }
   .row:has(> button[data-step]:nth-of-type(3)) > button[data-step] {
     flex: 0 0 auto;
     min-width: 44px;
     min-height: 44px;
-    padding: 8px 6px;
+    padding: 8px 4px;
     font-size: 0.85rem;
   }
   .row:has(> button[data-step]:nth-of-type(3)) > .value {
-    min-width: 64px;
-    padding: 8px 6px;
+    min-width: 56px;
+    padding: 6px 4px;
   }
   .row:has(> button[data-step]:nth-of-type(3)) > .hint.row-hint[aria-hidden='true'] {
     display: none;
@@ -2375,11 +2382,14 @@ html.dark-mode .guide-card {
     padding: 12px 10px 8px;
     justify-content: flex-start;
     /* One swipeable row instead of 2–3 wrapped rows. At 150% text size the
-       wrapped nav alone took most of a phone screen; the partly-visible tile
-       at the right edge is the cue that more sections are a swipe away. */
+     wrapped nav alone took most of a phone screen; the partly-visible tile
+     at the right edge is the cue that more sections are a swipe away. */
     flex-wrap: nowrap;
     scroll-snap-type: x proximity;
     overscroll-behavior-x: contain;
+    /* A soft fade on the right edge cues more off-screen sections. */
+    mask-image: linear-gradient(to right, var(--panel) calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--panel) calc(100% - 28px), transparent);
   }
   .circle-trigger {
     width: 70px;
