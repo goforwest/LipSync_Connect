@@ -123,6 +123,22 @@ export function noteConnectPressed() {
 export function setConnectedUI(connected) {
   const connectBtn = $('btnConnect');
   const disconnectBtn = $('btnDisconnect');
+  const isMobile = window.matchMedia('(max-width: 700px)').matches;
+  // Connected: Connect is no longer the active action — hide it on phones
+  // where it duplicated Disconnect in the header row. On phones, Disconnect
+  // becomes the primary action.
+  connectBtn.disabled = connected;
+  disconnectBtn.disabled = !connected;
+  if (isMobile) {
+    if (connected) {
+      connectBtn.classList.add('secondary');
+      disconnectBtn.classList.remove('secondary');
+    } else {
+      connectBtn.classList.remove('secondary');
+      disconnectBtn.classList.add('secondary');
+    }
+    connectBtn.hidden = connected;
+  }
   // A focused button that just turned disabled drops focus to <body> — the
   // keyboard/AT user who pressed Connect (or Disconnect) is stranded with
   // nothing focused. Capture the holder first, flip the disabled states,

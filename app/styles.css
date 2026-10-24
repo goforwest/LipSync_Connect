@@ -915,6 +915,14 @@ footer p {
   }
 }
 
+/* Hide the redundant value badge on rows whose select carries a feature
+   flag (operating mode, sound, light, diagnostic) — the select already
+   shows the current choice. An ERR badge survives so a failed load is
+   still legible. */
+.row:has(> select) > .value:not(.err) {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
