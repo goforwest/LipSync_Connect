@@ -119,13 +119,33 @@ export async function runDiagnostics() {
   // still records whatever was collected before the throw.
   let lastRunMetrics = null;
   try {
+    // One BH,0:0 snapshot for the whole run (firmware 4.3.0+): the pressure
+    // and joystick steps read its per-device detection fields because the
+    // value checks alone cannot tell a missing sensor from a resting one —
+    // JV answers hold-last zeros forever on a never-detected joystick, and
+    // a healthy CENTERED magnet also reads near zero, so "six finite
+    // numbers" is not a presence test (bench 2026-10-28: an unseated-cable
+    // boot showed "Joystick response ✓" with the sensor unplugged). The
+    // bus step below reads the same response, so every step speaks about
+    // the same telemetry snapshot.
+    let bh = null; // [recoveries, busHealthy, display, pressure, joystick, ageSec]
+    if (firmwareAtLeast(BUS_HEALTH_MIN_FIRMWARE)) {
+      const bus = await sendCommand('BH,0:0');
+      bh = validFiniteList(bus.value, 6) ? (bus.value || '').split(',').map(Number) : null;
+    }
     setHealthStep('hcPressure', 'running', 'Checking pressure sensors…');
     setHealthStatus('Checking pressure sensors…');
     const pressure = await sendCommand('PV,0:0');
     const pv = (pressure.value || '').split(',').map(Number);
-    if (pv.length < 3 || pv.some((v) => !Number.isFinite(v)) || (pv[0] === 0 && pv[1] === 0)) {
+    if (bh && !bh[3]) {
+      findings.push('The pressure sensors were not detected — check the interface cable connection.');
+      setHealthStep('hcPressure', 'err');
+    } else if (pv.length < 3 || pv.some((v) => !Number.isFinite(v)) || (pv[0] === 0 && pv[1] === 0)) {
       findings.push('Pressure sensors returned invalid or zero readings.');
       setHealthStep('hcPressure', 'err');
+    } else if (bh && bh[3] === 2) {
+      findings.push('The pressure sensors are answering poorly; sip/puff is paused while they recover.');
+      setHealthStep('hcPressure', 'warn');
     } else if (pv[0] < 300 || pv[0] > 1200 || pv[1] < 300 || pv[1] > 1200) {
       findings.push('Pressure readings are outside the expected atmospheric range.');
       setHealthStep('hcPressure', 'warn');
@@ -134,12 +154,20 @@ export async function runDiagnostics() {
     }
     setHealthStep('hcJoystick', 'running', 'Testing joystick response…');
     setHealthStatus('Pressure sensors checked. Testing joystick response…');
-    const joystick = await sendCommand('JV,0:0');
-    if (!validFiniteList(joystick.value, 6)) {
-      findings.push('Joystick returned incomplete readings.');
+    if (bh && !bh[4]) {
+      findings.push('The joystick sensor was not detected — check the interface cable connection.');
       setHealthStep('hcJoystick', 'err');
     } else {
-      setHealthStep('hcJoystick', 'ok');
+      const joystick = await sendCommand('JV,0:0');
+      if (!validFiniteList(joystick.value, 6)) {
+        findings.push('Joystick returned incomplete readings.');
+        setHealthStep('hcJoystick', 'err');
+      } else if (bh && bh[4] === 2) {
+        findings.push('The joystick poll backed off because the shared I2C bus is slow.');
+        setHealthStep('hcJoystick', 'warn');
+      } else {
+        setHealthStep('hcJoystick', 'ok');
+      }
     }
     setHealthStep('hcNeutral', 'running', 'Verifying neutral position…');
     setHealthStatus('Joystick response verified. Verifying neutral position…');
@@ -173,15 +201,17 @@ export async function runDiagnostics() {
     } else {
       setHealthStep('hcBus', 'running', 'Checking the I2C bus…');
       setHealthStatus('Stored calibration validated. Checking the I2C bus…');
-      const bus = await sendCommand('BH,0:0');
-      const bh = (bus.value || '').split(',').map(Number);
-      // The bus telemetry completes the run's metrics (recovery count).
-      if (validFiniteList(bus.value, 6)) lastRunMetrics.busRecoveries = bh[0];
-      if (!validFiniteList(bus.value, 6)) {
+      // Reuses the snapshot taken before the pressure step: the bus step
+      // reports the bus-level facts (recoveries, held, display) — the
+      // pressure/joystick detection and degraded verdicts are owned by
+      // their own steps above, so each fact appears exactly once.
+      if (!bh) {
         findings.push('The I2C bus health reading was incomplete.');
         setHealthStep('hcBus', 'err');
       } else {
-        const [recoveries, busHealthy, display, pressure, joystick, ageSec] = bh;
+        const [recoveries, busHealthy, display, , , ageSec] = bh;
+        // The bus telemetry completes the run's metrics (recovery count).
+        lastRunMetrics.busRecoveries = bh[0];
         const busFindings = [];
         if (recoveries > 0)
           busFindings.push(
@@ -191,10 +221,6 @@ export async function runDiagnostics() {
         if (!busHealthy) busFindings.push('the bus is being held right now');
         if (display === 2) busFindings.push('the display stopped answering and is being re-probed');
         else if (!display) busFindings.push('the display was not detected');
-        if (pressure === 2) busFindings.push('the pressure sensors were marked unhealthy (sip/puff paused)');
-        else if (!pressure) busFindings.push('the pressure sensors were not detected');
-        if (joystick === 2) busFindings.push('the joystick poll backed off because the bus is slow');
-        else if (!joystick) busFindings.push('the joystick sensor was not detected');
         if (busFindings.length) {
           findings.push('I2C bus: ' + busFindings.join('; ') + '.');
           setHealthStep('hcBus', 'warn');

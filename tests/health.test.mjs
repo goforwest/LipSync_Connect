@@ -94,3 +94,46 @@ test('older firmware reports the bus step as unavailable instead of failing', as
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
+
+test('undetected sensors fail their own steps (the 2026-10-28 unseated-cable case)', async () => {
+  doc.getElementById('version').textContent = '4.3.0';
+  // The bench case exactly: cable unseated — BH reports both sensors absent
+  // while PV and JV answer hold-last zeros. JV zeros are indistinguishable
+  // from a healthy centered magnet, so only the BH detection fields can fail
+  // the joystick step (before this fix it showed "Joystick response ✓").
+  launch({
+    'PV,0': '0.00,0.00,0.00',
+    'JV,0': '0.00,0.00,0.00,0.00,0.00,0.00',
+    'BH,0': '0,1,1,0,0,-1',
+  });
+  await runDiagnostics();
+  await sleep(30);
+  assert.equal(doc.getElementById('hcPressure').getAttribute('data-state'), 'err');
+  assert.equal(doc.getElementById('hcJoystick').getAttribute('data-state'), 'err');
+  // The bus itself is healthy (display answering, zero recoveries) — the
+  // sensors being absent is not a bus fault, so the bus step passes.
+  assert.equal(doc.getElementById('hcBus').getAttribute('data-state'), 'ok');
+  assert.equal(doc.getElementById('healthSummary').textContent, 'Needs attention');
+  const details = doc.getElementById('healthDetails').textContent;
+  assert.match(details, /pressure sensors were not detected/);
+  assert.match(details, /joystick sensor was not detected/);
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
+test('detected-but-degraded sensors warn in their own steps', async () => {
+  doc.getElementById('version').textContent = '4.3.0';
+  // Sensors present at boot, degraded later: BH marks both gated/backed-off
+  // (2) while PV still answers plausible hold-last values — the value checks
+  // alone would pass both; the detection fields turn them into warnings.
+  launch({ 'BH,0': '0,1,1,2,2,-1' });
+  await runDiagnostics();
+  await sleep(30);
+  assert.equal(doc.getElementById('hcPressure').getAttribute('data-state'), 'warn');
+  assert.equal(doc.getElementById('hcJoystick').getAttribute('data-state'), 'warn');
+  const details = doc.getElementById('healthDetails').textContent;
+  assert.match(details, /sip\/puff is paused while they recover/);
+  assert.match(details, /poll backed off because the shared I2C bus is slow/);
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
