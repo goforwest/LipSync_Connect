@@ -1,7 +1,7 @@
 // One canonical renderer per device endpoint. Both the initial load and any
 // MANUAL/live push route through ENDPOINT_RENDERERS, so a change lands
 // everywhere instead of drifting across two paths.
-import { MODELS, FEEDBACK_MODES, DEBUG_MODES } from '../config/constants.js';
+import { MODELS, FEEDBACK_MODES, DEBUG_MODES, INPUT_STATE_LIGHT_MIN_FIRMWARE } from '../config/constants.js';
 import { registerEndpointRenderer } from '../services/registry.js';
 import { applyRestrictionValue, applyTimingWindowValue } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
@@ -11,7 +11,7 @@ import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
 import { plotRing, plotNeutral } from '../plotting/plot.js';
 import { modeState } from '../state/modes.js';
 import { updateModeDisplay, updateBtName, applyModelFeatures } from '../services/mode-switch.js';
-import { noteDeviceVersion } from './commands.js';
+import { noteDeviceVersion, deviceFirmwareAtLeast } from './commands.js';
 
 export const ENDPOINT_RENDERERS = {
   MN: (v) => {
@@ -24,6 +24,17 @@ export const ENDPOINT_RENDERERS = {
     // answers newline-terminated messages instantly, older firmware rejects
     // the trailing newline — so the flag flips only once VN has landed.
     noteDeviceVersion(v);
+    // LM=3 was added with the 4.4.0 feedback tier. The bench downgrade log
+    // showed the app still offering it on 4.1.0, producing a predictable
+    // FAIL,3. Hide/disable only that newer option; LM=0..2 remain available.
+    const lightSelect = $('lightMode');
+    const stateOption = Array.from(lightSelect?.options ?? []).find((option) => option.value === '3');
+    if (stateOption) {
+      const supported = deviceFirmwareAtLeast(...INPUT_STATE_LIGHT_MIN_FIRMWARE);
+      stateOption.disabled = !supported;
+      stateOption.hidden = !supported;
+      if (!supported && lightSelect.value === '3') lightSelect.value = '2';
+    }
   },
   ID: (v) => {
     setValue('deviceId', v);

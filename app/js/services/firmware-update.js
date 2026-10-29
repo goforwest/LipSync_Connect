@@ -37,6 +37,8 @@ import {
   FEEDBACK_MODES,
   OP_MODES,
   COM_MODES,
+  MODE_PRESETS,
+  MODE_PRESET_MIN_FIRMWARE,
   CMD_MODE_TIMEOUT,
   CMD_RESET_TIMEOUT,
   FIRMWARE_RELEASE_API,
@@ -679,7 +681,11 @@ export async function restoreSettingsSnapshot(snapshot) {
     for (const ep of order) {
       const raw = snapshot?.[ep];
       if (raw === undefined || raw === null || raw === '') continue;
-      const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(raw) : String(raw);
+      // A snapshot captured on 4.4.0+ may carry LM=3. Firmware 4.1 accepts
+      // only 0..2; preserve the nearest old-firmware behavior instead of
+      // sending a command guaranteed to fail during a downgrade restore.
+      const normalizedRaw = ep === 'LM' && String(raw) === '3' && !deviceFirmwareAtLeast(4, 4, 0) ? '2' : raw;
+      const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(normalizedRaw) : String(normalizedRaw);
       try {
         await sendCommand(`${ep},1:${value}`);
         consecutive = 0;
@@ -2383,9 +2389,25 @@ async function finishPendingUpdate(pending) {
   let modeRestoreError = '';
   if (modeChanged) {
     try {
-      if (wantedOm && wantedOm !== currentOm) await sendCommand('OM,1:' + wantedOm, CMD_MODE_TIMEOUT);
-      if (wantedCm && wantedCm !== currentCm) await sendCommand('CM,1:' + wantedCm, CMD_MODE_TIMEOUT);
-      await sendCommand('SR,1:1', CMD_RESET_TIMEOUT);
+      const wantedPreset = Object.values(MODE_PRESETS).find(
+        (preset) => preset.om === wantedOm && preset.cm === wantedCm,
+      );
+      if (wantedPreset && deviceFirmwareAtLeast(...MODE_PRESET_MIN_FIRMWARE)) {
+        // 4.6.4+ stores OM+CM atomically and performs its own single reset.
+        // Sending either legacy setter first can reboot before the other half
+        // arrives (the exact Gamepad -> Bluetooth failure found on hardware).
+        await sendCommand('MP,1:' + wantedPreset.preset, CMD_MODE_TIMEOUT);
+      } else {
+        // V4.1-compatible fallback. Gamepad cannot coexist with Bluetooth, so
+        // move CM to USB before asking for Gamepad; all other targets apply OM
+        // first. Older firmware needs the explicit final reset.
+        const commands = [];
+        if (wantedOm && wantedOm !== currentOm) commands.push('OM,1:' + wantedOm);
+        if (wantedCm && wantedCm !== currentCm) commands.push('CM,1:' + wantedCm);
+        if (wantedOm === '2') commands.reverse();
+        for (const command of commands) await sendCommand(command, CMD_MODE_TIMEOUT);
+        await sendCommand('SR,1:1', CMD_RESET_TIMEOUT);
+      }
       log('Operating mode restored — the device reboots to apply it. Reconnect once more.', 'log-info');
       // Keep the wizard (and its snapshot for the backup button) across the
       // mode-apply reboot; the next device load closes it.

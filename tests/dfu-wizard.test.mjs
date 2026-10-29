@@ -138,6 +138,7 @@ const app = await import('../app/js/main.js');
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { testHooks } = await import('./harness/test-hooks.mjs');
 const fw = await import('../app/js/services/firmware-update.js');
+const { resetWireNewlineFraming } = await import('../app/js/serial/commands.js');
 // The production post-close settle (2 s) exists for real macOS wedged opens;
 // the scenarios here don't need it — shrink it so the suite stays fast. The
 // settle itself is pinned by a dedicated test below.
@@ -2439,6 +2440,64 @@ test('wizard: a changed operating mode gets restored with one extra reboot', asy
   );
   await app.disconnect({ quiet: true });
   testHooks.detach();
+});
+
+async function exerciseAtomicUpdateModeRestore({ snapshot, current, expectedPreset }) {
+  sessionStoreSet('lipsync-fw-pending', null);
+  fw.writePending({ target: '4.6.4', installed: true, snapshot });
+
+  const sent = [];
+  const writer = {
+    write(bytes) {
+      const command = Buffer.from(bytes).toString('utf8').trim();
+      sent.push(command);
+      if (command === 'SETTINGS') {
+        setTimeout(() => app.handleLine('SUCCESS,0:SETTINGS'), 2);
+      } else if (command.startsWith('MP,1:')) {
+        setTimeout(() => app.handleLine(`SUCCESS,0:${command}`), 2);
+      }
+    },
+  };
+  testHooks.attach({ simulated: true, async close() {} }, writer);
+  setLoadedValues({ version: '4.6.4', opmode: current.om, commode: current.cm });
+  // The real settings loader routes VN through this same handler; that is
+  // what arms newline framing and the 4.6.4 MP capability gate.
+  app.handleLine('SUCCESS,0:VN,0:4.6.4');
+
+  await fw.afterDeviceLoad();
+  await sleep(80);
+
+  assert.deepEqual(sent, ['SETTINGS', `MP,1:${expectedPreset}`]);
+  assert.equal(fw.readPending(), null, 'the completed restore clears its pending marker');
+  assert.match(byId('fwWizardStep').textContent, /Click Connect one more time/);
+
+  // Simulate the post-mode-reset reconnect so the helper leaves no live
+  // mode-restored wizard state behind for the next scenario.
+  setLoadedValues({
+    version: '4.6.4',
+    opmode: snapshot.OM === '2' ? 'Gamepad' : 'Mouse',
+    commode: snapshot.CM === '2' ? 'Bluetooth' : 'USB',
+  });
+  app.handleLine('SUCCESS,0:VN,0:4.6.4');
+  await fw.afterDeviceLoad();
+  testHooks.detach();
+  resetWireNewlineFraming();
+}
+
+test('update restore: 4.6.4 restores a Gamepad snapshot with one atomic MP preset', async () => {
+  await exerciseAtomicUpdateModeRestore({
+    snapshot: { OM: '2', CM: '1' },
+    current: { om: 'Mouse', cm: 'USB' },
+    expectedPreset: '3',
+  });
+});
+
+test('update restore: 4.6.4 restores Bluetooth from Gamepad with one atomic MP preset', async () => {
+  await exerciseAtomicUpdateModeRestore({
+    snapshot: { OM: '1', CM: '2' },
+    current: { om: 'Gamepad', cm: 'USB' },
+    expectedPreset: '2',
+  });
 });
 
 // ---- Hardening: cancel at the port picker leaves the device in update mode --

@@ -6,6 +6,7 @@
 // Usage: node dev/firmware/protocol-cross-check.mjs
 // Env:   FIRMWARE_REPO (default ~/LipSync) — the lipsync checkout to check
 //        against. Exits non-zero on any mismatch.
+/* global process */
 //
 // What it verifies (each check prints PASS/FAIL lines and counts):
 //   1. Every (endpoint, code) pair the app can put on the wire exists in the
@@ -95,7 +96,9 @@ for (const f of ['LSAPI.ino', 'LipSync_Firmware.ino']) {
   for (const m of src.matchAll(/getSwitchAction\(\s*(?:true|false),\s*(?:true|false),\s*"([A-Z]{2})"\)/g))
     readKeys.add(m[1]);
   // readPoint-style keys built dynamically (CA1..CA4)
-  for (const m of src.matchAll(/"CA"\s*\+\s*String\(/g)) readKeys.add('CA1', 'CA2', 'CA3', 'CA4');
+  if (/"CA"\s*\+\s*String\(/.test(src)) {
+    for (const key of ['CA1', 'CA2', 'CA3', 'CA4']) readKeys.add(key);
+  }
 }
 if (defaults) {
   const missing = [...readKeys].filter((k) => !(k in defaults));
@@ -105,9 +108,15 @@ if (defaults) {
 
 // ---- 4. Every command the app sends exists on the firmware ----------------
 console.log('\n[4] app -> firmware command pairs');
-const { RESTRICTION_SETTINGS, WINDOW_SETTINGS, STEP_TARGETS, SWITCH_SETTINGS, SWITCH_ACTION_OPTIONS } = await import(
-  path.join(APP, 'app/js/config/constants.js')
-);
+const {
+  RESTRICTION_SETTINGS,
+  WINDOW_SETTINGS,
+  STEP_TARGETS,
+  SWITCH_SETTINGS,
+  SWITCH_ACTION_OPTIONS,
+  MODE_PRESETS,
+  MODE_PRESET_MIN_FIRMWARE,
+} = await import(path.join(APP, 'app/js/config/constants.js'));
 const appSources = [
   'app/js/main.js',
   'app/js/services/settings-service.js',
@@ -249,6 +258,43 @@ if (appAllowed.length !== fwAllowedSorted.length || appAllowed.some((v, i) => v 
   ok(`switch remap allowlist agrees (${appAllowed.length} actions)`);
 }
 
+// Atomic mode presets (4.6.4+): endpoint existence alone is insufficient. A
+// code drift here would acknowledge successfully while selecting the wrong
+// transport/HID pair, so pin all three app values to the firmware constants.
+const fwModePresets = {
+  mouse: {
+    om: define('CONF_OPERATING_MODE_MOUSE'),
+    cm: define('CONF_COM_MODE_USB'),
+    preset: define('CONF_MODE_PRESET_MOUSE_USB'),
+  },
+  'mouse-bt': {
+    om: define('CONF_OPERATING_MODE_MOUSE'),
+    cm: define('CONF_COM_MODE_BLE'),
+    preset: define('CONF_MODE_PRESET_MOUSE_BLE'),
+  },
+  gamepad: {
+    om: define('CONF_OPERATING_MODE_GAMEPAD'),
+    cm: define('CONF_COM_MODE_USB'),
+    preset: define('CONF_MODE_PRESET_GAMEPAD_USB'),
+  },
+};
+let modePresetMismatch = false;
+for (const [key, fwPreset] of Object.entries(fwModePresets)) {
+  const appPreset = MODE_PRESETS[key];
+  if (!appPreset || ['om', 'cm', 'preset'].some((field) => String(fwPreset[field]) !== appPreset[field])) {
+    fail(`mode preset ${key} differs: app ${JSON.stringify(appPreset)} != firmware ${JSON.stringify(fwPreset)}`);
+    modePresetMismatch = true;
+  }
+}
+if (Object.keys(MODE_PRESETS).length !== Object.keys(fwModePresets).length) {
+  fail(
+    `app exposes ${Object.keys(MODE_PRESETS).length} mode presets; firmware defines ${Object.keys(fwModePresets).length}`,
+  );
+  modePresetMismatch = true;
+}
+if (!modePresetMismatch)
+  ok(`atomic mode preset codes and OM/CM pairs agree (${Object.keys(fwModePresets).length} presets)`);
+
 // ---- 6. Version gates vs the paired firmware ------------------------------
 console.log('\n[6] app version gates vs firmware version');
 const fwVersion = [
@@ -275,6 +321,15 @@ else ok(`firmware ${fwVersion.join('.')} satisfies the ${RESTRICTIONS_MIN_FIRMWA
       `firmware ${fwVersion.join('.')} is OLDER than the app's ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate — the app would hide its own features`,
     );
   else ok(`firmware ${fwVersion.join('.')} satisfies the ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate`);
+}
+{
+  const [mMaj, mMin, mRev] = MODE_PRESET_MIN_FIRMWARE;
+  const mpOk = fMaj > mMaj || (fMaj === mMaj && (fMin > mMin || (fMin === mMin && fRev >= mRev)));
+  if (!mpOk)
+    fail(
+      `firmware ${fwVersion.join('.')} is OLDER than the app's ${MODE_PRESET_MIN_FIRMWARE.join('.')} atomic-mode gate`,
+    );
+  else ok(`firmware ${fwVersion.join('.')} satisfies the ${MODE_PRESET_MIN_FIRMWARE.join('.')} atomic-mode gate`);
 }
 const healthSrc = read('app/js/services/health.js');
 const bhGate = healthSrc.match(/BUS_HEALTH_MIN_FIRMWARE\s*=\s*\[(\d+),\s*(\d+),\s*(\d+)\]/);

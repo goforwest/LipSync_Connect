@@ -218,6 +218,7 @@ test('ECHO_WRITE_ENDPOINTS covers exactly the firmware write endpoints', () => {
     'IZ',
     'LL',
     'LM',
+    'MP',
     'OM',
     'OZ',
     'PT',

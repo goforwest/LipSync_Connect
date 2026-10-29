@@ -107,3 +107,36 @@ test('service worker serves every reachable module offline', async () => {
   assert.ok(appBooted, 'app boots offline (unsupported banner stays hidden when modules load)');
   await browser.close();
 });
+
+test('local firmware override removes stale app workers and caches', async () => {
+  const { chromium } = await import(playwrightIdx);
+  const browser = await chromium.launch({ headless: true, executablePath: chrome });
+  const context = await browser.newContext({
+    bypassCSP: false,
+    serviceWorkers: 'allow',
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(ORIGIN + '/', { waitUntil: 'networkidle' });
+    await page.evaluate(() => localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const deadline = Date.now() + 10000;
+    let state = null;
+    while (Date.now() < deadline) {
+      try {
+        state = await page.evaluate(async () => ({
+          registrations: (await navigator.serviceWorker.getRegistrations()).length,
+          lipSyncCaches: (await caches.keys()).filter((key) => key.startsWith('lipsync-connect-')),
+        }));
+        if (state.registrations === 0 && state.lipSyncCaches.length === 0) break;
+      } catch {
+        // The intentional one-time reload can replace the execution context
+        // while this poll is in flight; retry against the new page.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.deepEqual(state, { registrations: 0, lipSyncCaches: [] });
+  } finally {
+    await browser.close();
+  }
+});

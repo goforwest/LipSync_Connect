@@ -1,4 +1,6 @@
-const CACHE = 'lipsync-connect-v40';
+// v41 hard-invalidates the pre-MP cache. The 4.6.4 hardware round proved a
+// stale v40 worker could pair new firmware with the old OM/CM mode flow.
+const CACHE = 'lipsync-connect-v41';
 const ASSETS = [
   './',
   './index.html',

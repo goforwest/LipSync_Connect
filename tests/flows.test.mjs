@@ -48,6 +48,7 @@ for (let i = 1; i <= 6; i++) {
 }
 
 const app = await import('../app/js/main.js');
+const { noteDeviceVersion } = await import('../app/js/serial/commands.js');
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
@@ -88,6 +89,7 @@ async function clickAndDrain(id, { confirm = false, settleMs = 80 } = {}) {
 }
 
 beforeEach(() => {
+  noteDeviceVersion('4.1.0'); // Legacy ordered OM/CM/SR is the default test contract
   // Every test starts from the same UI baseline (disconnected, mouse preset).
   const sel = doc.getElementById('operatingMode');
   sel.value = 'mouse';
@@ -130,6 +132,22 @@ test('mode switch: already-in-mode is a no-op with a hint', async () => {
   assert.match(doc.getElementById('modeGuardHint').textContent, /already in .* mode/);
 });
 
+test('mode switch: 4.6.4 atomically moves Gamepad to Bluetooth in one MP command', async () => {
+  noteDeviceVersion('4.6.4');
+  app.handleLine('SUCCESS,0:OM,0:2');
+  app.handleLine('SUCCESS,0:CM,0:1');
+  const { sent, detach } = launch((text) =>
+    text.trim() === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [{ delay: 5, line: 'SUCCESS,0:MP,1:2' }],
+  );
+  app.setConnectedUI(true);
+  const sel = doc.getElementById('operatingMode');
+  sel.value = 'mouse-bt';
+  sel.dispatch('change');
+  await clickAndDrain('btnSetOperatingMode', { confirm: true });
+  detach();
+  assert.deepEqual(sent, ['SETTINGS\n', 'MP,1:2\n']);
+});
+
 // ---- Bluetooth switch --------------------
 
 test('bluetooth switch sends CM,1:2 then SR when OM is already mouse', async () => {
@@ -153,6 +171,19 @@ test('bluetooth switch is a no-op when already in BT mode', async () => {
   await clickAndDrain('btnSwitchBt');
   detach();
   assert.deepEqual(sent, []);
+});
+
+test('Bluetooth shortcut uses atomic MP on 4.6.4 when starting in Gamepad', async () => {
+  noteDeviceVersion('4.6.4');
+  app.handleLine('SUCCESS,0:OM,0:2');
+  app.handleLine('SUCCESS,0:CM,0:1');
+  const { sent, detach } = launch((text) =>
+    text.trim() === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [{ delay: 5, line: 'SUCCESS,0:MP,1:2' }],
+  );
+  app.setConnectedUI(true);
+  await clickAndDrain('btnSwitchBt', { confirm: true });
+  detach();
+  assert.deepEqual(sent, ['SETTINGS\n', 'MP,1:2\n']);
 });
 
 // ---- Soft / factory reset --------------------

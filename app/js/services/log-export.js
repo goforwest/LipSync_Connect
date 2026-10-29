@@ -3,7 +3,7 @@
 // can't disclose the user's device identity — both in its raw form and in the
 // derived BLE name "LS_<id>" that the Bluetooth flow logs verbatim. Checked
 // against the live UI value each export.
-import { SHARE_TEXT_LIMIT, MAIL_BODY_LIMIT } from '../config/constants.js';
+import { SHARE_TEXT_LIMIT, MAIL_BODY_LIMIT, APP_BUILD_ID } from '../config/constants.js';
 import { getLogHistory, log } from './log.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -54,6 +54,7 @@ export function buildLogFile() {
   // ISO timestamps make entries sortable.
   const header = [
     'LipSync Connect log',
+    'App build: ' + APP_BUILD_ID,
     'Session exported: ' + new Date().toISOString(),
     'Entries: ' + logHistory.length,
     'Device identifiers: redacted',

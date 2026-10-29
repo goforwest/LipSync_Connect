@@ -65,6 +65,20 @@ test('input-state light mode (roadmap item 16, upstream #43) surfaces consistent
   );
 });
 
+test('plain firmware witnesses are diagnostics, not undecodable corruption', () => {
+  for (const line of [
+    'HB: ms=5000 mode=3 safe=1',
+    'ERROR: Pressure sensors not responding',
+    'WARNING: SAFE MODE ENABLED - Hardware',
+    'BOOT: 4.6.2 rst=0x4',
+    'FAULT pc=1234 lr=5678 cfsr=0',
+    'SDFAULT id=1001 pc=1234 info=1 line=42',
+  ]) {
+    assert.equal(app.isDeviceDiagnosticLine(line), true, line);
+  }
+  assert.equal(app.isDeviceDiagnosticLine('garbled bytes'), false);
+});
+
 // ---- parseResponse ----
 test('parseResponse accepts SETTINGS handshake (regression !7)', () => {
   const p = app.parseResponse('SUCCESS,0:SETTINGS');

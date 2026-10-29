@@ -1,8 +1,8 @@
 // Operating/communication mode state and the OM/CM preset display logic that
 // keeps the header, the preset <select>, the apply button, and the Bluetooth
-// card in sync. The actual mode-switch flows (send OM/CM/SR sequences + the
-// restart-and-disconnect dance) are wired in app.js.
-import { MODE_PRESETS, OP_MODES, COM_MODES, MODEL_FEATURES } from '../config/constants.js';
+// card in sync. The actual mode-switch flows (atomic MP on 4.6.4+, legacy
+// OM/CM/SR below it, plus the restart-and-disconnect dance) are wired here.
+import { MODE_PRESETS, OP_MODES, COM_MODES, MODEL_FEATURES, MODE_PRESET_MIN_FIRMWARE } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
 import { serialSession } from '../serial/session.js';
@@ -40,7 +40,10 @@ export function updateBtName() {
 }
 export function updateBtStatus() {
   const bt = modeState.currentComMode === '2';
-  setValue('btStatus', bt ? 'Bluetooth mode — advertising' : 'USB mode');
+  // CM=2 proves the selected transport, not the live radio state. Advertising
+  // may have failed or stopped because a bonded host already connected, so do
+  // not claim "advertising" without a firmware runtime-status endpoint.
+  setValue('btStatus', bt ? 'Bluetooth mode selected' : 'USB mode');
   const btn = $('btnSwitchBt');
   if (btn) btn.disabled = bt || !serialSession.port;
 }
@@ -65,16 +68,16 @@ export function applyModelFeatures(model) {
 //    OM→2 (Gamepad), because firmware rejects OM→Gamepad while CM is still
 //    BLE (LSAPI.ino:524). (The modes are mutually exclusive in both
 //    directions — see also LSAPI.ino:1630.)
-//  * The device does NOT auto-reboot on OM change: an explicit SR,1:1
-//    follows; if the future firmware restores auto-reset, drop the SR to
-//    avoid a double-reset.
+// Firmware 4.5.8+ reset on each OM/CM change, so a two-value transition can
+// reboot after the first half. Firmware 4.6.4 adds MP,1:n: one atomic pair,
+// one ack, one reset. Older firmware keeps the legacy ordered OM/CM/SR flow.
 //  * After restart, the port is closed and the user reconnects.
 import { CMD_MODE_TIMEOUT, CMD_RESET_TIMEOUT } from '../config/constants.js';
 import { showConfirm } from '../ui/formatting.js';
 import { showNotification } from '../ui/notification.js';
 
 import { log } from './log.js';
-import { sendCommand } from '../serial/commands.js';
+import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 
 export function bindModeSwitch(guard, disconnect, setCmdButtons) {
   $('btnSetOperatingMode').addEventListener(
@@ -99,17 +102,23 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
         setCmdButtons(false);
         let stored = false;
         try {
-          const commands = [];
-          if (modeState.currentOpMode !== target.om) commands.push('OM,1:' + target.om);
-          if (modeState.currentComMode !== target.cm) commands.push('CM,1:' + target.cm);
-          if (target.om === '2') commands.reverse();
-          for (const cmd of commands) await sendCommand(cmd, CMD_MODE_TIMEOUT, 10000);
-          stored = true;
-          log(`Operating mode saved as ${target.label}; restarting the LipSync…`, 'log-info');
-          try {
-            await sendCommand('SR,1:1', CMD_RESET_TIMEOUT, 20000);
-          } catch {
-            log('Restart command did not confirm (device may already be starting).', 'log-info');
+          if (deviceFirmwareAtLeast(...MODE_PRESET_MIN_FIRMWARE)) {
+            await sendCommand('MP,1:' + target.preset, CMD_MODE_TIMEOUT, 10000);
+            stored = true;
+            log(`Mode preset saved as ${target.label}; the LipSync is restarting…`, 'log-info');
+          } else {
+            const commands = [];
+            if (modeState.currentOpMode !== target.om) commands.push('OM,1:' + target.om);
+            if (modeState.currentComMode !== target.cm) commands.push('CM,1:' + target.cm);
+            if (target.om === '2') commands.reverse();
+            for (const cmd of commands) await sendCommand(cmd, CMD_MODE_TIMEOUT, 10000);
+            stored = true;
+            log(`Operating mode saved as ${target.label}; restarting the LipSync…`, 'log-info');
+            try {
+              await sendCommand('SR,1:1', CMD_RESET_TIMEOUT, 20000);
+            } catch {
+              log('Restart command did not confirm (device may already be starting).', 'log-info');
+            }
           }
           if (serialSession.port) await disconnect();
           log('Mode change complete. Reconnect once the LipSync has restarted.', 'log-info');
@@ -158,17 +167,22 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
         setCmdButtons(false);
         let stored = false;
         try {
-          if (modeState.currentOpMode !== '1') {
-            await sendCommand('OM,1:1', CMD_MODE_TIMEOUT, 10000);
+          if (deviceFirmwareAtLeast(...MODE_PRESET_MIN_FIRMWARE)) {
+            await sendCommand('MP,1:2', CMD_MODE_TIMEOUT, 10000);
+            stored = true;
+          } else {
+            if (modeState.currentOpMode !== '1') {
+              await sendCommand('OM,1:1', CMD_MODE_TIMEOUT, 10000);
+            }
+            await sendCommand('CM,1:2', CMD_MODE_TIMEOUT, 10000);
+            stored = true;
+            try {
+              await sendCommand('SR,1:1', CMD_RESET_TIMEOUT, 20000);
+            } catch {
+              log('Restart command did not confirm (device may already be restarting).', 'log-info');
+            }
           }
-          await sendCommand('CM,1:2', CMD_MODE_TIMEOUT, 10000);
-          stored = true;
           log('Bluetooth mode saved; restarting the LipSync…', 'log-info');
-          try {
-            await sendCommand('SR,1:1', CMD_RESET_TIMEOUT, 20000);
-          } catch {
-            log('Restart command did not confirm (device may already be restarting).', 'log-info');
-          }
           if (serialSession.port) await disconnect();
           log(
             'Bluetooth mode change complete. On your computer, open Bluetooth settings and pair with “' +

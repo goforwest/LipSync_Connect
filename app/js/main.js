@@ -8,6 +8,9 @@ import {
   RESTRICTION_SETTINGS,
   WINDOW_SETTINGS,
   SWITCH_SETTINGS,
+  INPUT_STATE_LIGHT_MIN_FIRMWARE,
+  FIRMWARE_MANIFEST_URL_OVERRIDE_KEY,
+  APP_BUILD_ID,
 } from './config/constants.js';
 import { debounce, fmtApiFloat, fmtHpa } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
@@ -15,7 +18,7 @@ import { log } from './services/log.js';
 import { announceStatus } from './ui/a11y.js';
 import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.js';
 import { serialApi } from './serial/transport.js';
-import { sendCommand } from './serial/commands.js';
+import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
 
 import { gaugeDelta, recalcGaugeRange, gaugeMarks, resetPracticePeaks, suggestThresholds } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
@@ -535,13 +538,63 @@ window.addEventListener('DOMContentLoaded', () => {
   const canRegisterServiceWorker =
     'serviceWorker' in navigator && window.isSecureContext && ['http:', 'https:'].includes(window.location.protocol);
   if (canRegisterServiceWorker) {
-    navigator.serviceWorker.register('./service-worker.js').catch((err) => {
-      console.error('Service worker registration failed:', err);
-      log('Service worker registration failed: ' + err.message, 'log-err');
-      // Offline caching is an enhancement, not a requirement — say so rather
-      // than leaving the user to discover it the next time they are offline.
-      showNotification('Offline support could not start — the app still works while online.', true);
-    });
+    let localFirmwareOverride = false;
+    try {
+      localFirmwareOverride = !!localStorage.getItem(FIRMWARE_MANIFEST_URL_OVERRIDE_KEY);
+    } catch {}
+    if (localFirmwareOverride) {
+      // A local firmware build and stale app JavaScript are a dangerous mix:
+      // the 4.6.4 bench flashed the new MP-capable firmware while cache v40
+      // still served the old OM/CM mode-switch flow. Developer overrides now
+      // opt out of offline caching and clear LipSync's old caches so a reload
+      // always tests the files currently on disk.
+      const wasControlled = !!navigator.serviceWorker.controller;
+      const localWorkerResetKey = 'lipsync-local-worker-reset';
+      void Promise.all([
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister()))),
+        globalThis.caches
+          ? globalThis.caches
+              .keys()
+              .then((keys) =>
+                Promise.all(
+                  keys.filter((key) => key.startsWith('lipsync-connect-')).map((key) => globalThis.caches.delete(key)),
+                ),
+              )
+          : Promise.resolve(),
+      ])
+        .then(() => {
+          // The worker that served this navigation can finish background
+          // stale-while-revalidate writes after cache deletion and recreate
+          // v40/v41. Navigate once after unregistering; that next page is no
+          // longer controlled and performs the deletion a final time.
+          if (wasControlled) {
+            let alreadyReloaded = false;
+            try {
+              alreadyReloaded = sessionStorage.getItem(localWorkerResetKey) === APP_BUILD_ID;
+              if (!alreadyReloaded) sessionStorage.setItem(localWorkerResetKey, APP_BUILD_ID);
+            } catch {}
+            if (!alreadyReloaded) {
+              window.location.reload();
+              return;
+            }
+          } else {
+            try {
+              sessionStorage.removeItem(localWorkerResetKey);
+            } catch {}
+          }
+        })
+        .catch((err) => console.error('Could not clear the local development cache:', err));
+    } else {
+      navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+        console.error('Service worker registration failed:', err);
+        log('Service worker registration failed: ' + err.message, 'log-err');
+        // Offline caching is an enhancement, not a requirement — say so rather
+        // than leaving the user to discover it the next time they are offline.
+        showNotification('Offline support could not start — the app still works while online.', true);
+      });
+    }
   }
 
   // --- Unsupported browser guard (only skips serial-dependent wiring) ---
@@ -790,6 +843,9 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnSetLight').addEventListener(
       'click',
       guard(async () => {
+        if ($('lightMode').value === '3' && !deviceFirmwareAtLeast(...INPUT_STATE_LIGHT_MIN_FIRMWARE)) {
+          throw new Error(`Input-state light feedback needs firmware ${INPUT_STATE_LIGHT_MIN_FIRMWARE.join('.')}+.`);
+        }
         await setSimpleSetting('LM', $('lightMode').value, 'lightModeVal', FEEDBACK_MODES);
       }),
     );
@@ -933,7 +989,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // Attach/detach for simulated hardware is the named seam in
 // serial/session.js (injectSerialPort/detachSerialPort); the test-only lock
 // queries live in services/selftest.js. There is no app-wide test backdoor.
-export { parseResponse } from './serial/protocol.js';
+export { parseResponse, isDeviceDiagnosticLine } from './serial/protocol.js';
 export { sendCommand, waitLine } from './serial/commands.js';
 export { renderSafeFormatting } from './ui/formatting.js';
 export { handleLine } from './serial/device.js';

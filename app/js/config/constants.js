@@ -3,6 +3,10 @@
 // here so every consumer shares exactly one definition.
 
 export const BAUD = 115200;
+// Included in exported support logs so cached/stale clients are immediately
+// distinguishable from the source being tested. Bump for behavior-affecting
+// app releases alongside the service-worker cache generation.
+export const APP_BUILD_ID = '2026-10-29.atomic-modes.1';
 
 // ---- Visualization ----
 export const PLOT_BASE_EXTENT = 13;
@@ -96,6 +100,8 @@ export const VALUE_LABELS = {
 // the pending action. Sound feedback has no tier 3 — the label applies to
 // the light mode only when read back.
 export const FEEDBACK_MODES = { 0: 'Off', 1: 'Basic', 2: 'All', 3: 'Input state' };
+/** @type {[number, number, number]} */
+export const INPUT_STATE_LIGHT_MIN_FIRMWARE = [4, 4, 0];
 export const DEBUG_MODES = {
   0: 'Off',
   1: 'Joystick',
@@ -120,10 +126,12 @@ export const LIVE_READ_BUTTONS = { btnLiveJoy: 'btnReadJoy', btnLivePressure: 'b
 
 // ---- Operating mode presets ----
 export const MODE_PRESETS = {
-  mouse: { om: '1', cm: '1', label: 'Mouse' },
-  'mouse-bt': { om: '1', cm: '2', label: 'Mouse (Bluetooth)' },
-  gamepad: { om: '2', cm: '1', label: 'Gamepad' },
+  mouse: { om: '1', cm: '1', preset: '1', label: 'Mouse' },
+  'mouse-bt': { om: '1', cm: '2', preset: '2', label: 'Mouse (Bluetooth)' },
+  gamepad: { om: '2', cm: '1', preset: '3', label: 'Gamepad' },
 };
+/** @type {[number, number, number]} */
+export const MODE_PRESET_MIN_FIRMWARE = [4, 6, 4];
 
 export const OP_MODES = { 0: 'None', 1: 'Mouse', 2: 'Gamepad', 3: 'Safe' };
 export const COM_MODES = { 0: 'None', 1: 'USB', 2: 'Bluetooth' };

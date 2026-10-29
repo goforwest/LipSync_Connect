@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
-import { redactLogIdentifiers } from '../app/js/services/log-export.js';
+import { buildLogFile, redactLogIdentifiers } from '../app/js/services/log-export.js';
+import { APP_BUILD_ID } from '../app/js/config/constants.js';
 
 const { document: doc } = installGatingDom();
 const deviceIdEl = doc.getElementById('deviceId');
@@ -13,6 +14,11 @@ const deviceIdEl = doc.getElementById('deviceId');
 function setLiveId(value) {
   deviceIdEl.textContent = value;
 }
+
+test('exported support logs identify the running app build', () => {
+  const { text } = buildLogFile();
+  assert.match(text, new RegExp(`^LipSync Connect log\\nApp build: ${APP_BUILD_ID.replaceAll('.', '\\.')}`, 'm'));
+});
 
 test('redacts the raw device id in ID response lines', () => {
   setLiveId('a1b2c3d4');

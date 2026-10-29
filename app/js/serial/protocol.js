@@ -7,6 +7,13 @@ export function parseResponse(line) {
   return { type: m[1], ok: m[1] !== 'FAIL', num: parseInt(m[2], 10), cmd: m[3], value: m[4] ?? null };
 }
 
+// Plain-text firmware diagnostics are intentional out-of-band witnesses, not
+// serial corruption. They stay visible as received log lines but must not feed
+// the noisy "undecodable / possible corruption" counter.
+export function isDeviceDiagnosticLine(line) {
+  return /^(?:HB:|BOOT:|ERROR:|WARNING:|FAULT\b|SDFAULT\b|USB-EVT:|USB\s)/.test(line);
+}
+
 // Write endpoints whose SUCCESS ack echoes the written value verbatim —
 // the SET of each of these is value-checked against its echo (a firmware
 // that accepted-but-canonicalized would fail the command). Endpoints whose
@@ -25,6 +32,7 @@ export const ECHO_WRITE_ENDPOINTS = new Set([
   'DM',
   'OM',
   'CM',
+  'MP',
   // External switch actions (4.5.0+): the SET ack echoes the packed value
   // exactly as sent (0 on reset).
   'SA',

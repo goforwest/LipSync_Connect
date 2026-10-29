@@ -1,7 +1,7 @@
 // Incoming-line handling: applies parsed device responses to the UI, serves
 // pending command waiters, routes self-test narration, and forwards anything
 // unparseable to the corrupt-drop logger.
-import { parseResponse } from './protocol.js';
+import { parseResponse, isDeviceDiagnosticLine } from './protocol.js';
 import { serialBus } from './session.js';
 import { log, noisyLineLog, unrecognizedResponseLog } from '../services/log.js';
 import {
@@ -57,6 +57,7 @@ export function applyDeviceResponse(line) {
     },
     OM: () => ENDPOINT_RENDERERS.OM(r.value),
     CM: () => ENDPOINT_RENDERERS.CM(r.value),
+    MP: () => {}, // Atomic mode-preset ack; the device resets immediately after it lands
     // Input restrictions (4.4.0+): the load reads and any MANUAL push from
     // the Hub menu both land here, keeping the checkboxes in sync.
     SD: () => ENDPOINT_RENDERERS.SD(r.value),
@@ -203,5 +204,5 @@ export function handleLine(line) {
   }
   // Out-of-band text that arrives outside a self-test (or that looks like a
   // response but doesn't parse) is actual corruption/desync and must be logged.
-  if (!parseResponse(line)) noisyLineLog(line);
+  if (!parseResponse(line) && !isDeviceDiagnosticLine(line)) noisyLineLog(line);
 }
