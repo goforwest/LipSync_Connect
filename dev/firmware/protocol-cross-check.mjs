@@ -20,6 +20,8 @@
 //   5. The firmware's compiled version is at least every version gate the
 //      app uses (a gate must never reference a version newer than what the
 //      paired firmware is).
+//   6. The local firmware builder uses the same pinned CLI/core/external
+//      libraries as release CI and isolates them from global user libraries.
 import { readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -48,6 +50,7 @@ if (!existsSync(SKETCH)) {
 
 const read = (p) => readFileSync(path.join(APP, p), 'utf8');
 const readFw = (p) => readFileSync(path.join(SKETCH, p), 'utf8');
+const readFirmwareRepo = (p) => readFileSync(path.join(FW, p), 'utf8');
 
 // ---- 1. Firmware dispatch table -------------------------------------------
 console.log('\n[1] firmware dispatch table');
@@ -366,6 +369,35 @@ if (badLen.length) {
 // writable (this exact line is why 10-char lines exist).
 if (!legalLengths.has('WM,1:10000'.length)) fail('WM,1:10000 (the max window) is not a legal command line');
 else ok('WM,1:10000 (the max timing window) is a legal command line');
+
+// ---- 8. Local builder dependency isolation vs release CI ------------------
+console.log('\n[8] local firmware builder matches release dependencies');
+const localBuildScript = read('dev/firmware/build-firmware.sh');
+const releaseWorkflow = readFirmwareRepo('.github/workflows/build_firmware.yml');
+const extractLibraryPins = (source) =>
+  [...source.matchAll(/"([^"\n]+@\d+\.\d+\.\d+)"/g)].map((match) => match[1]).sort();
+const localLibraryPins = extractLibraryPins(localBuildScript);
+const releaseLibraryPins = extractLibraryPins(releaseWorkflow);
+if (JSON.stringify(localLibraryPins) !== JSON.stringify(releaseLibraryPins)) {
+  fail(`local library pins [${localLibraryPins.join(', ')}] != release CI [${releaseLibraryPins.join(', ')}]`);
+} else {
+  ok(`local builder and release CI share all ${localLibraryPins.length} external-library pins`);
+}
+const localCli = localBuildScript.match(/ARDUINO_CLI_VERSION=\$\{ARDUINO_CLI_VERSION:-([^}]+)\}/)?.[1];
+const releaseCli = releaseWorkflow.match(/version:\s*'([^']+)'/)?.[1];
+if (localCli !== releaseCli) fail(`local arduino-cli ${localCli} != release CI ${releaseCli}`);
+else ok(`arduino-cli ${localCli} agrees`);
+const localCore = localBuildScript.match(/SEEED_CORE_VERSION=\$\{SEEED_CORE_VERSION:-([^}]+)\}/)?.[1];
+const releaseCore = releaseWorkflow.match(/core install Seeeduino:nrf52@([\d.]+)/)?.[1];
+if (localCore !== releaseCore) fail(`local Seeed core ${localCore} != release CI ${releaseCore}`);
+else ok(`Seeeduino:nrf52@${localCore} agrees`);
+if (!localBuildScript.includes('export ARDUINO_DIRECTORIES_USER="$isolated_user_dir"')) {
+  fail('local builder does not isolate Arduino user libraries');
+} else if (!localBuildScript.includes('expected Seeed core TinyUSB 1.7.0')) {
+  fail('local builder does not verify the release-canonical TinyUSB version');
+} else {
+  ok('local builder isolates user libraries and verifies core TinyUSB 1.7.0 provenance');
+}
 
 console.log(`\n${problems.length ? problems.length + ' PROBLEM(S)' : 'ALL CHECKS PASS'}`);
 process.exit(problems.length ? 1 : 0);
