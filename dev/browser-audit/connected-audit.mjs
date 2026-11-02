@@ -1274,7 +1274,20 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // version when the bootloader activates. Exercises the whole journey: check →
     // backup → confirm → UM restart → bootloader port pick → real DFU wire
     // exchange → STOP/activate → reconnect → verify + settings restore.
-    const localManifest = await (await fetch(origin + '/firmware-manifest.json')).json();
+    // The artifacts are a local build product (gitignored), so CI has none and
+    // the dev server answers 404 with a plain-text hint. Skip the wizard there
+    // instead of failing the whole audit; build them to exercise this phase.
+    const manifestRes = await fetch(origin + '/firmware-manifest.json');
+    if (!manifestRes.ok) {
+      note(
+        'fw-wizard-local-build',
+        true,
+        `skipped — /firmware-manifest.json returned ${manifestRes.status}; run dev/firmware/build-firmware.sh`,
+      );
+      await ctx.close();
+      return findings;
+    }
+    const localManifest = await manifestRes.json();
     const targetVersion = localManifest.firmwareVersion;
     await page.evaluate((version) => {
       localStorage.removeItem('lipsync-fw-check'); // the offline check from phase 1/2 is cached

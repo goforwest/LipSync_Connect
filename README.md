@@ -87,9 +87,10 @@ app/                      served application (front end)
   service-worker.js       offline precache
 dev/                      dev server, lint/type/format configs, test runner entry
   browser-audit/          real-browser audits against a browser-side firmware fake:
-                          3 phases, 115 checks — connected-state flows, viewport
-                          matrix, first-run wizard (run.mjs, connected-audit.mjs,
-                          fake-firmware.mjs — extend by adding checks/notes there)
+                          3 phases — connected-state flows, viewport matrix, first-run
+                          wizard (run.mjs, connected-audit.mjs, fake-firmware.mjs — extend
+                          by adding checks/notes there). The firmware-wizard phase uses
+                          dev/firmware/dist and is skipped when that local build is absent.
   firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
 tests/                    unit + integration tests (node) and firmware simulators
   harness/                DOM stubs, firmware + bootloader simulators, ESM load-order helpers
