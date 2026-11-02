@@ -251,7 +251,7 @@ export async function runDiagnostics() {
         }, 450);
       }, 2500);
     }
-    // While the Diagnostics card is open, #healthDetails is already a polite
+    // While the Health card is open, #healthDetails is already a polite
     // live region carrying the same news — announcing here too would read the
     // outcome twice. The srStatus route stays for the closed-card case.
     if (getOpenSection() !== 'sec-diagnostics')

@@ -100,6 +100,18 @@ test('parseResponse parses MANUAL device notifications', () => {
   assert.ok(p && p.type === 'MANUAL' && p.ok === true && p.cmd === 'SS,1' && p.value === '6');
 });
 
+test('physical input action witnesses parse and produce a readable support-log entry', async () => {
+  const { getLogHistory } = await import('../app/js/services/log.js');
+  const start = getLogHistory().length;
+  const line = 'MANUAL,0:IA,0:0,2,1,50';
+  const parsed = app.parseResponse(line);
+  assert.ok(parsed && parsed.type === 'MANUAL' && parsed.cmd === 'IA,0' && parsed.value === '0,2,1,50');
+  app.handleLine(line);
+  const added = getLogHistory().slice(start).join('\n');
+  assert.match(added, /Physical input action: Puff → Left click \(50 ms\)\./);
+  assert.doesNotMatch(added, /Unrecognized device response/);
+});
+
 test('parseResponse keeps multi-point calibration payloads intact', () => {
   const p = app.parseResponse('SUCCESS,0:CA,0:0.69|1.14,-13.00|13.00,13.00|13.00,13.00|-13.00,-13.00|-13.00');
   assert.ok(p && p.cmd === 'CA,0' && p.value.split(',').length === 5);

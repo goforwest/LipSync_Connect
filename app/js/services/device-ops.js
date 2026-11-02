@@ -3,6 +3,7 @@
 import { CMD_RESET_TIMEOUT, CMD_TEST_TIMEOUT, VALUE_IDS, DEBUG_MODES } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { showConfirm } from '../ui/formatting.js';
+import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
 import { sendCommand } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
@@ -10,6 +11,44 @@ import { disconnect } from '../serial/connection.js';
 import { lockSelfTestButtons, unlockSelfTestButtons, openSelfTestPanel, closeSelfTestPanel } from './selftest.js';
 import { resetPlotState } from '../plotting/plot.js';
 import { modeState } from '../state/modes.js';
+
+function clearDeviceReadouts() {
+  VALUE_IDS.forEach((id) => {
+    const el = $(id);
+    if (el) {
+      el.textContent = '—';
+      el.classList.remove('loading', 'err');
+    }
+  });
+  [
+    'pvMouth',
+    'pvAmbient',
+    'pvDiff',
+    'joyRaw',
+    'joyOut',
+    'neutralVal',
+    'corner1',
+    'corner2',
+    'corner3',
+    'corner4',
+    'btName',
+    'btStatus',
+    'healthSummary',
+    'healthDetails',
+    'calStatus',
+  ].forEach((id) => {
+    const el = $(id);
+    if (el) el.textContent = '—';
+  });
+  $('healthSummary')?.removeAttribute('data-state');
+  resetPlotState();
+  const dmSelect = $('debugMode');
+  if (dmSelect) dmSelect.value = '0';
+  const dmVal = $('debugModeVal');
+  if (dmVal) dmVal.textContent = DEBUG_MODES[0];
+  modeState.currentOpMode = null;
+  modeState.currentComMode = null;
+}
 
 export function bindDeviceOps(guard) {
   $('btnTestLeds').addEventListener(
@@ -42,6 +81,23 @@ export function bindDeviceOps(guard) {
       }
     }),
   );
+  $('btnTestWatchdog').addEventListener(
+    'click',
+    guard(async () => {
+      if (
+        !(await showConfirm(
+          'Test watchdog recovery',
+          '<strong>This deliberately makes the LipSync stop responding until its watchdog restarts it.</strong> The device will disconnect. Wait about 30 seconds, then reconnect and confirm it starts normally.',
+          { danger: true },
+        ))
+      )
+        return;
+      await sendCommand('RT,1:3', CMD_TEST_TIMEOUT);
+      log('Watchdog recovery test started. Reconnect after the device restarts.', 'log-info');
+      showNotification('Watchdog test started. Wait about 30 seconds, then reconnect.');
+      if (serialSession.port) await disconnect();
+    }),
+  );
   $('btnSoftReset').addEventListener(
     'click',
     guard(async () => {
@@ -71,46 +127,33 @@ export function bindDeviceOps(guard) {
         return;
       await sendCommand('FR,1:1', CMD_RESET_TIMEOUT);
       log('Factory reset sent. The device restarts with default settings; reconnect afterwards.', 'log-info');
-      VALUE_IDS.forEach((id) => {
-        const el = $(id);
-        if (el) {
-          el.textContent = '—';
-          el.classList.remove('loading', 'err');
-        }
-      });
-      [
-        'pvMouth',
-        'pvAmbient',
-        'pvDiff',
-        'joyRaw',
-        'joyOut',
-        'neutralVal',
-        'corner1',
-        'corner2',
-        'corner3',
-        'corner4',
-        'btName',
-        'btStatus',
-        'healthSummary',
-        'healthDetails',
-        'calStatus',
-      ].forEach((id) => {
-        const el = $(id);
-        if (el) el.textContent = '—';
-      });
-      // The '—' placeholder must not keep a colored Passed/Error frame.
-      $('healthSummary')?.removeAttribute('data-state');
-      resetPlotState();
-      // The device is about to reboot with defaults, so the live-diagnostic
-      // selection and the OM/CM mode state must not keep showing pre-reset
-      // values until the next successful load overwrites them.
-      const dmSelect = $('debugMode');
-      if (dmSelect) dmSelect.value = '0';
-      const dmVal = $('debugModeVal');
-      if (dmVal) dmVal.textContent = DEBUG_MODES[0];
-      modeState.currentOpMode = null;
-      modeState.currentComMode = null;
+      clearDeviceReadouts();
       if (serialSession.port) await disconnect();
+    }),
+  );
+  $('btnResetSettings').addEventListener(
+    'click',
+    guard(async () => {
+      if (
+        !(await showConfirm(
+          'Restore default settings',
+          '<strong>This replaces the saved setup, calibration, restrictions, and switch mappings with defaults.</strong> The LipSync will restart; reconnect and recalibrate afterwards.',
+          { danger: true },
+        ))
+      )
+        return;
+      await sendCommand('RS,1:1', CMD_RESET_TIMEOUT);
+      log('Default settings restored. The device is restarting; reconnect and recalibrate afterwards.', 'log-info');
+      clearDeviceReadouts();
+      if (serialSession.port) await disconnect();
+    }),
+  );
+  $('btnCaptureSettingsDump').addEventListener(
+    'click',
+    guard(async () => {
+      await sendCommand('EX,0:0');
+      log('Raw device settings dump captured in the session log.', 'log-info');
+      showNotification('Device settings dump captured in the log.');
     }),
   );
 
@@ -139,7 +182,7 @@ export function bindDeviceOps(guard) {
       // anything longer is truncated/rejected on the wire and only produces a
       // confusing FAIL. The input's maxlength helps, but paste can bypass it.
       if (cmd.length > 11) throw new Error('Device commands are at most 11 characters long.');
-      if (/^(FR|SR|UM),1/.test(cmd)) {
+      if (/^(FR|RS|SR|UM),1/.test(cmd) || cmd === 'RT,1:3') {
         const confirmed = await showConfirm(
           'Raw command',
           `Send ${cmd}? It restarts the device or changes its state (the dedicated buttons do this with the same confirm).`,

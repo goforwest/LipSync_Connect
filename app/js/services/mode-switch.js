@@ -2,7 +2,14 @@
 // keeps the header, the preset <select>, the apply button, and the Bluetooth
 // card in sync. The actual mode-switch flows (atomic MP on 4.6.4+, legacy
 // OM/CM/SR below it, plus the restart-and-disconnect dance) are wired here.
-import { MODE_PRESETS, OP_MODES, COM_MODES, MODEL_FEATURES, MODE_PRESET_MIN_FIRMWARE } from '../config/constants.js';
+import {
+  MODE_PRESETS,
+  OP_MODES,
+  COM_MODES,
+  MODEL_FEATURES,
+  MODE_PRESET_MIN_FIRMWARE,
+  MODE_RESET_PER_SETTING_MIN_FIRMWARE,
+} from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
 import { serialSession } from '../serial/session.js';
@@ -24,8 +31,12 @@ export function syncModeBtn() {
 }
 export function updateModeDisplay() {
   const key = presetKey(modeState.currentOpMode, modeState.currentComMode);
-  if (modeState.currentOpMode != null)
-    setValue('opmode', key ? MODE_PRESETS[key].label : (OP_MODES[modeState.currentOpMode] ?? modeState.currentOpMode));
+  if (modeState.currentOpMode != null) {
+    const label = key ? MODE_PRESETS[key].label : (OP_MODES[modeState.currentOpMode] ?? modeState.currentOpMode);
+    setValue('opmode', label);
+    const homeMode = $('homeMode');
+    if (homeMode) homeMode.textContent = label;
+  }
   if (modeState.currentComMode != null)
     setValue('commode', COM_MODES[modeState.currentComMode] ?? modeState.currentComMode);
   if (key) $('operatingMode').value = key;
@@ -79,6 +90,24 @@ import { showNotification } from '../ui/notification.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 
+function transitionNeedsUnavailableAtomicPair(target) {
+  const changesBoth = modeState.currentOpMode !== target.om && modeState.currentComMode !== target.cm;
+  return (
+    changesBoth &&
+    deviceFirmwareAtLeast(...MODE_RESET_PER_SETTING_MIN_FIRMWARE) &&
+    !deviceFirmwareAtLeast(...MODE_PRESET_MIN_FIRMWARE)
+  );
+}
+
+function explainAtomicPairRequirement() {
+  const message =
+    'A direct Gamepad ↔ Bluetooth change needs firmware 4.6.4 or newer. Update the firmware first, or switch to Mouse, reconnect, then choose the final mode.';
+  const hint = $('modeGuardHint');
+  if (hint) hint.textContent = message;
+  log(message, 'log-info');
+  showNotification(message, true);
+}
+
 export function bindModeSwitch(guard, disconnect, setCmdButtons) {
   $('btnSetOperatingMode').addEventListener(
     'click',
@@ -90,6 +119,15 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
         if (!target) return;
         if (target.om === modeState.currentOpMode && target.cm === modeState.currentComMode) {
           $('modeGuardHint').textContent = 'The device is already in ' + target.label + ' mode.';
+          return;
+        }
+        // Firmware 4.5.8–4.6.3 resets after each individual OM/CM write but
+        // predates MP's atomic pair. Sending the legacy two-command sequence
+        // therefore applies only its first half before the port disappears.
+        // Refuse the known-broken direct transition instead of claiming an
+        // error after leaving the device in Mouse USB halfway through.
+        if (transitionNeedsUnavailableAtomicPair(target)) {
+          explainAtomicPairRequirement();
           return;
         }
         if (
@@ -140,7 +178,11 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
       }
     }),
   );
-  $('operatingMode').addEventListener('change', syncModeBtn);
+  $('operatingMode').addEventListener('change', () => {
+    const hint = $('modeGuardHint');
+    if (hint) hint.textContent = '';
+    syncModeBtn();
+  });
 
   $('btnSwitchBt').addEventListener(
     'click',
@@ -155,6 +197,11 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
               '”.',
             'log-info',
           );
+          return;
+        }
+        const bluetoothTarget = MODE_PRESETS['mouse-bt'];
+        if (transitionNeedsUnavailableAtomicPair(bluetoothTarget)) {
+          explainAtomicPairRequirement();
           return;
         }
         if (

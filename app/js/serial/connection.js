@@ -32,6 +32,7 @@ let services = {
   loadDeviceInfo: async () => {},
   clearHealthResults: () => {},
 };
+let connectInProgress = false;
 export function configureConnection(svc) {
   services = { ...services, ...svc };
 }
@@ -67,7 +68,12 @@ async function openSerialPortWithRecovery() {
 }
 
 export async function connect() {
-  if (serialSession.port) return;
+  // Both the header and Home expose the same connection action. Button state
+  // is not a sufficient lock (a programmatic retry or a second surface can
+  // enter before the first OS picker resolves), so serialize the lifecycle at
+  // its actual boundary.
+  if (serialSession.port || connectInProgress) return;
+  connectInProgress = true;
   // A fresh connect attempt supersedes every in-flight port continuation
   // (a stalled open's late release, a cancelled wizard touch): late
   // teardowns check this generation and must never close what we claim.
@@ -77,9 +83,12 @@ export async function connect() {
   // settles (Disconnect on success, back to Connect on cancel).
   noteConnectPressed();
   $('btnConnect').disabled = true;
+  const homeConnect = $('btnHomeConnect');
+  if (homeConnect) homeConnect.disabled = true;
   // Loading state spans the OS port picker and the settings load — the
   // spinner keeps the button from looking dead-while-busy; finally clears it.
   $('btnConnect').classList.add('btn--loading');
+  homeConnect?.classList.add('btn--loading');
   showGuide();
   setConnectStage('requesting');
   try {
@@ -142,7 +151,9 @@ export async function connect() {
     await new Promise((r) => setTimeout(r, 50));
     setConnectStage('loading');
     await services.loadDeviceInfo();
-    setConnectStageAutoHide('ready', 1200);
+    // The persistent status pill now says Connected; a second transient
+    // "Connected" badge repeated the state and crowded the mobile header.
+    setConnectStage(null);
   } catch (e) {
     hideGuide();
     setConnectStageAutoHide('failed', 3000);
@@ -175,7 +186,9 @@ export async function connect() {
     showConnectionError('Connection failed: ' + e.message + '. Check cable and try again.', connect);
     await disconnect({ preserveBanner: true });
   } finally {
+    connectInProgress = false;
     $('btnConnect').classList.remove('btn--loading');
+    homeConnect?.classList.remove('btn--loading');
   }
 }
 

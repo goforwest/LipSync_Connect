@@ -35,7 +35,7 @@ function createStorage() {
 // Real CSS defaults are silent for the contrast guard (5.89:1 on white), so
 // pre-existing tests don't start logging contrast warnings; theme tests
 // override entries per case.
-const CONTRAST_DEFAULTS = { '--accent': '#BE2A32', '--btn-text': '#ffffff' };
+const CONTRAST_DEFAULTS = { '--accent': '#0072CE', '--btn-text': '#ffffff' };
 
 // ---- Protocol-test stub: forgiving elements, no listener wiring ----
 function stubElement() {
@@ -283,9 +283,12 @@ export function makeEl(tag) {
   return el;
 }
 
-// Section ids mirror index.html nav order.
+// Section ids mirror index.html card order. The large navigation now groups
+// these cards; multi-page groups expose compact .section-tab buttons.
 const SECTION_IDS = [
+  'sec-home',
   'sec-device',
+  'sec-profiles',
   'sec-cursor',
   'sec-sip',
   'sec-restrictions',
@@ -294,11 +297,22 @@ const SECTION_IDS = [
   'sec-feedback',
   'sec-bluetooth',
   'sec-diagnostics',
+  'sec-tools',
   'sec-maintenance',
   'sec-firmware',
   'sec-help',
   'sec-log',
 ];
+
+const NAV_GROUPS = {
+  home: ['sec-home'],
+  movement: ['sec-cursor', 'sec-joystick'],
+  inputs: ['sec-sip', 'sec-switches', 'sec-restrictions'],
+  device: ['sec-device', 'sec-feedback', 'sec-bluetooth', 'sec-profiles'],
+  care: ['sec-diagnostics', 'sec-firmware', 'sec-maintenance'],
+  advanced: ['sec-tools', 'sec-log'],
+  help: ['sec-help'],
+};
 
 /**
  * Installs the gating-test DOM and returns handles the tests drive:
@@ -325,12 +339,24 @@ export function installGatingDom(existingEls = null) {
     els.set(id, s);
     return s;
   });
-  const navs = SECTION_IDS.map((id) => {
+  const navs = Object.entries(NAV_GROUPS).map(([group, ids]) => {
     const b = makeEl('button');
     b.classList.add('circle-trigger');
-    b.dataset.section = id;
+    b.dataset.group = group;
+    b.dataset.defaultSection = ids[0];
     return b;
   });
+  const sectionTabs = Object.entries(NAV_GROUPS).flatMap(([group, ids]) =>
+    ids.length > 1
+      ? ids.map((id) => {
+          const b = makeEl('button');
+          b.classList.add('section-tab');
+          b.dataset.group = group;
+          b.dataset.section = id;
+          return b;
+        })
+      : [],
+  );
   // Switch-mode tabs (index.html's sec-switches): three jacks × two modes.
   // The tab wiring in main.js drives these through querySelectorAll, so the
   // selector surface must exist for the toggle behavior to be testable.
@@ -365,9 +391,9 @@ export function installGatingDom(existingEls = null) {
     li.dataset.step = step;
     return li;
   });
-  // Task buttons (index.html's Help-card Common tasks): main.js binds them
+  // Task buttons (Home's collapsed More tasks list): main.js binds them
   // through querySelectorAll('.task-btn') and drives section jumps.
-  const taskButtons = ['setup', 'cursor', 'clicks', 'accidents', 'health', 'update', 'switches'].map((task) => {
+  const taskButtons = ['clicks', 'accidents', 'switches', 'profile', 'update'].map((task) => {
     const b = makeEl('button');
     b.classList.add('task-btn');
     b.dataset.task = task;
@@ -381,17 +407,42 @@ export function installGatingDom(existingEls = null) {
     return b;
   });
   const stepButtons = [
-    ['speed', '-1'], ['speed', '1'],
-    ['scroll', '-1'], ['scroll', '1'],
-    ['accel', '-1'], ['accel', '1'],
-    ['brightness', '-1'], ['brightness', '1'],
-    ['st', '-4'], ['st', '-1'], ['st', '1'], ['st', '4'],
-    ['pt', '-4'], ['pt', '-1'], ['pt', '1'], ['pt', '4'],
-    ['iz', '-5'], ['iz', '-1'], ['iz', '1'], ['iz', '5'],
-    ['oz', '-5'], ['oz', '-1'], ['oz', '1'], ['oz', '5'],
-    ['ws', '-5'], ['ws', '-1'], ['ws', '1'], ['ws', '5'],
-    ['wl', '-5'], ['wl', '-1'], ['wl', '1'], ['wl', '5'],
-    ['wm', '-5'], ['wm', '-1'], ['wm', '1'], ['wm', '5'],
+    ['speed', '-1'],
+    ['speed', '1'],
+    ['scroll', '-1'],
+    ['scroll', '1'],
+    ['accel', '-1'],
+    ['accel', '1'],
+    ['brightness', '-1'],
+    ['brightness', '1'],
+    ['st', '-4'],
+    ['st', '-1'],
+    ['st', '1'],
+    ['st', '4'],
+    ['pt', '-4'],
+    ['pt', '-1'],
+    ['pt', '1'],
+    ['pt', '4'],
+    ['iz', '-5'],
+    ['iz', '-1'],
+    ['iz', '1'],
+    ['iz', '5'],
+    ['oz', '-5'],
+    ['oz', '-1'],
+    ['oz', '1'],
+    ['oz', '5'],
+    ['ws', '-5'],
+    ['ws', '-1'],
+    ['ws', '1'],
+    ['ws', '5'],
+    ['wl', '-5'],
+    ['wl', '-1'],
+    ['wl', '1'],
+    ['wl', '5'],
+    ['wm', '-5'],
+    ['wm', '-1'],
+    ['wm', '1'],
+    ['wm', '5'],
   ].map(([target, delta]) => {
     const b = makeEl('button');
     b.classList.add('cmd');
@@ -431,7 +482,8 @@ export function installGatingDom(existingEls = null) {
     querySelectorAll(sel) {
       if (sel === '.section-card') return sections;
       if (sel === '.section-card.needs-conn') return sections.filter((s) => s.classList.contains('needs-conn'));
-      if (sel === '.circle-trigger' || sel === '.circle-trigger[data-section]') return navs;
+      if (sel === '.circle-trigger' || sel === '.circle-trigger[data-group]') return navs;
+      if (sel === '.section-tab' || sel === '.section-tab[data-section]') return sectionTabs;
       if (sel === '.switch-tab') return switchTabs;
       const tabJack = sel.match(/^\.switch-tab\[data-jack="(.+)"\]$/);
       if (tabJack) return switchTabs.filter((t) => t.dataset.jack === tabJack[1]);
@@ -444,16 +496,14 @@ export function installGatingDom(existingEls = null) {
       if (sel === '.wiz-steps li') return wizStepLis;
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
-        return (
-          stepButtons.find(
-            (b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2],
-          ) ?? null
-        );
+        return stepButtons.find((b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2]) ?? null;
       return [];
     },
     querySelector(sel) {
-      const m = sel.match(/^\.circle-trigger\[data-section="(.+)"\]$/);
-      if (m) return navs.find((b) => b.dataset.section === m[1]) || null;
+      const groupSel = sel.match(/^\.circle-trigger\[data-group="(.+)"\]$/);
+      if (groupSel) return navs.find((b) => b.dataset.group === groupSel[1]) || null;
+      const sectionSel = sel.match(/^\.section-tab\[data-section="(.+)"\]$/);
+      if (sectionSel) return sectionTabs.find((b) => b.dataset.section === sectionSel[1]) || null;
       const stepSel = sel.match(/^button\[data-target="(.+)"\]\[data-step="(.+)"\]$/);
       if (stepSel)
         return stepButtons.find((b) => b.dataset.target === stepSel[1] && b.dataset.step === stepSel[2]) ?? null;

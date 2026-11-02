@@ -6,11 +6,37 @@ import { serialApi } from '../serial/transport.js';
 import { serialSession } from '../serial/session.js';
 import { $ } from './dom.js';
 import { isSelfTestLocked } from '../services/selftest.js';
+import { SECTION_GROUPS } from './sections.js';
 
 export function setStatus(text, connected) {
   const s = $('status');
   s.textContent = text;
+  s.title = String(text);
   s.classList.toggle('connected', !!connected);
+  const hero = $('homeHero');
+  const home = $('sec-home');
+  const title = $('homeStatusTitle');
+  const detail = $('homeStatusText');
+  const connection = $('homeConnection');
+  const loading = !!connected && /loading|opening|choose/i.test(String(text));
+  const homeState = connected ? (loading ? 'loading' : 'connected') : 'disconnected';
+  if (hero) hero.dataset.state = homeState;
+  if (home) home.dataset.state = homeState;
+  if (title)
+    title.textContent = connected
+      ? loading
+        ? 'Getting your LipSync ready…'
+        : 'Your LipSync is connected'
+      : 'Connect your LipSync';
+  if (detail)
+    detail.textContent = connected
+      ? loading
+        ? 'Loading the device settings. The controls will become available when this finishes.'
+        : String(text).includes('failed') || String(text).includes('incomplete')
+          ? 'Connected, but some settings need attention. Refresh the settings or check the log for details.'
+          : 'Settings are synced. Changes made in the app are saved directly to the device.'
+      : 'Connect the device by USB to load its settings, check its health, and make adjustments.';
+  if (connection) connection.textContent = connected ? (loading ? 'Connecting…' : 'USB connected') : 'Not connected';
 }
 
 let connRetryHandler = null;
@@ -67,17 +93,18 @@ export function setCmdButtons(enabled) {
   // that lockout here let a second RT command land mid-narration.
   const selfTestLocked = isSelfTestLocked();
   document.querySelectorAll('button.cmd').forEach((/** @type {any} */ b) => {
-    const lockThis = selfTestLocked && (b.id === 'btnTestLeds' || b.id === 'btnTestBuzzer');
+    const lockThis =
+      selfTestLocked && (b.id === 'btnTestLeds' || b.id === 'btnTestBuzzer' || b.id === 'btnTestWatchdog');
     b.disabled = !enabled || lockThis;
   });
 }
 
-// Serial-dependent cards (everything except Help and Log) are visually dimmed
+// Serial-dependent cards (everything except Home, Help, and Log) are visually dimmed
 // until a device connects, but deliberately NOT made inert: an open card's
 // status text (loading progress, current values) must remain readable by screen
 // readers, and every interactive control inside is already disabled while
-// disconnected. Help and Log stay fully interactive — a first-time user lands
-// on Help and can read it and watch the log before ever connecting.
+// disconnected. Home, Help, and Log stay fully interactive — a first-time
+// user can begin guided setup and inspect help/logs before connecting.
 // The Firmware card is additionally exempt while a wizard run is active
 // (marked with data-wizard on the section): the update deliberately
 // disconnects the device, and the wizard must stay visible, bright, and
@@ -91,9 +118,10 @@ export function updateConnectionGating() {
   document.querySelectorAll('.section-card.needs-conn').forEach((el) => {
     el.classList.toggle('card-off', gated && !(el.id === 'sec-firmware' && firmwareActive()));
   });
-  document.querySelectorAll('.circle-trigger[data-section]').forEach((/** @type {any} */ b) => {
-    const keepsAccess =
-      ['sec-help', 'sec-log'].includes(b.dataset.section) || (b.dataset.section === 'sec-firmware' && firmwareActive());
+  const sectionKeepsAccess = (id) =>
+    ['sec-home', 'sec-help', 'sec-log'].includes(id) || (id === 'sec-firmware' && firmwareActive());
+  document.querySelectorAll('.section-tab[data-section]').forEach((/** @type {any} */ b) => {
+    const keepsAccess = sectionKeepsAccess(b.dataset.section);
     if (!keepsAccess) {
       b.classList.toggle('dimmed', gated);
       b.setAttribute('aria-disabled', String(gated));
@@ -105,6 +133,19 @@ export function updateConnectionGating() {
       b.removeAttribute('title');
     }
   });
+  document.querySelectorAll('.circle-trigger[data-group]').forEach((/** @type {any} */ b) => {
+    const sections = SECTION_GROUPS[b.dataset.group]?.sections ?? [];
+    const hasReachableSection = sections.some((id) => sectionKeepsAccess(id));
+    const dimmed = gated && !hasReachableSection;
+    b.classList.toggle('dimmed', dimmed);
+    if (dimmed) {
+      b.setAttribute('aria-disabled', 'true');
+      b.title = 'Connect a LipSync device first';
+    } else {
+      b.removeAttribute('aria-disabled');
+      b.removeAttribute('title');
+    }
+  });
 }
 
 import { syncModeBtn, updateBtStatus } from '../services/mode-switch.js';
@@ -112,32 +153,35 @@ import { syncModeBtn, updateBtStatus } from '../services/mode-switch.js';
 // connect() disables the Connect button the instant it is pressed (the OS
 // port picker and the settings load span that state), so a focused press
 // drops to <body> long before setConnectedUI could hand focus anywhere.
-// Record the focused press here; setConnectedUI resolves it in whichever
-// direction the attempt ends: success focuses the now-relevant Disconnect,
-// a cancelled attempt returns focus to the re-enabled Connect.
-let connectPressedFocused = false;
+// Record which of the two connection surfaces held focus. setConnectedUI
+// resolves it in whichever direction the attempt ends: success focuses the
+// now-relevant Disconnect, while a cancelled picker returns focus to the
+// exact Connect button the keyboard user activated.
+let connectPressedFrom = null;
 export function noteConnectPressed() {
-  connectPressedFocused = document.activeElement === $('btnConnect');
+  const active = document.activeElement;
+  const headerConnect = $('btnConnect');
+  const homeConnect = $('btnHomeConnect');
+  connectPressedFrom = active === headerConnect || active === homeConnect ? active : null;
 }
 
 export function setConnectedUI(connected) {
   const connectBtn = $('btnConnect');
   const disconnectBtn = $('btnDisconnect');
-  const isMobile = window.matchMedia('(max-width: 700px)').matches;
-  // Connected: Connect is no longer the active action — hide it on phones
-  // where it duplicated Disconnect in the header row. On phones, Disconnect
-  // becomes the primary action.
-  connectBtn.disabled = connected;
-  disconnectBtn.disabled = !connected;
-  if (isMobile) {
-    if (connected) {
-      connectBtn.classList.add('secondary');
-      disconnectBtn.classList.remove('secondary');
-    } else {
-      connectBtn.classList.remove('secondary');
-      disconnectBtn.classList.add('secondary');
-    }
-    connectBtn.hidden = connected;
+  const homeConnectBtn = $('btnHomeConnect');
+  // Home owns the prominent connection action. Header Connect and Disconnect
+  // are both quiet session controls, so neither competes with the page's next
+  // step or resembles a destructive action.
+  connectBtn.classList.add('secondary');
+  disconnectBtn.classList.add('secondary');
+  // The status pill already communicates the state. Once connected, keeping a
+  // disabled Connect button beside Disconnect repeats the same information and
+  // costs precious header space, especially at larger text sizes.
+  connectBtn.hidden = connected;
+  disconnectBtn.hidden = !connected;
+  if (homeConnectBtn) {
+    homeConnectBtn.hidden = connected;
+    homeConnectBtn.disabled = connected;
   }
   // A focused button that just turned disabled drops focus to <body> — the
   // keyboard/AT user who pressed Connect (or Disconnect) is stranded with
@@ -148,13 +192,17 @@ export function setConnectedUI(connected) {
   connectBtn.disabled = connected;
   disconnectBtn.disabled = !connected;
   if (connected) {
-    if ((connectPressedFocused || active === connectBtn) && typeof disconnectBtn?.focus === 'function') {
+    if (
+      (connectPressedFrom || active === connectBtn || active === homeConnectBtn) &&
+      typeof disconnectBtn?.focus === 'function'
+    ) {
       disconnectBtn.focus();
     }
-    connectPressedFocused = false;
-  } else if (connectPressedFocused || active === disconnectBtn) {
-    if (typeof connectBtn?.focus === 'function') connectBtn.focus();
-    connectPressedFocused = false;
+    connectPressedFrom = null;
+  } else if (connectPressedFrom || active === disconnectBtn) {
+    const returnTarget = connectPressedFrom === homeConnectBtn ? homeConnectBtn : connectBtn;
+    if (typeof returnTarget?.focus === 'function') returnTarget.focus();
+    connectPressedFrom = null;
   }
   setCmdButtons(connected);
   // Don't claim "Connected" until the initial settings load actually finishes —
@@ -165,6 +213,10 @@ export function setConnectedUI(connected) {
   document.title = connected ? 'LipSync Connect — Connected' : 'LipSync Connect';
   updateConnectionGating();
   if (!connected) {
+    ['homeModel', 'homeVersion', 'homeMode'].forEach((id) => {
+      const el = $(id);
+      if (el) el.textContent = '—';
+    });
     syncModeBtn();
     updateBtStatus();
   }

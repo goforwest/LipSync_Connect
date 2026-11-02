@@ -4,6 +4,9 @@
   "type": "module",
   "version": "1.0.0",
   "description": "Web-based configuration tool for the LipSync assistive device",
+  "engines": {
+    "node": "^22.22.0 || >=24.8.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev:local": "node server.js --local",
@@ -26,5 +29,8 @@
     "prettier": "^3.9.6",
     "stylelint": "^17.14.1",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   }
 }

@@ -13,13 +13,21 @@ import { modeState } from '../state/modes.js';
 import { updateModeDisplay, updateBtName, applyModelFeatures } from '../services/mode-switch.js';
 import { noteDeviceVersion, deviceFirmwareAtLeast } from './commands.js';
 
+const setHomeValue = (id, value) => {
+  const el = $(id);
+  if (el) el.textContent = value;
+};
+
 export const ENDPOINT_RENDERERS = {
   MN: (v) => {
-    setValue('model', MODELS[v] ?? v);
+    const model = MODELS[v] ?? v;
+    setValue('model', model);
+    setHomeValue('homeModel', model);
     applyModelFeatures(v);
   },
   VN: (v) => {
     setValue('version', v);
+    setHomeValue('homeVersion', v);
     // The version decides the wire-protocol generation (commands.js): 4.2.0+
     // answers newline-terminated messages instantly, older firmware rejects
     // the trailing newline — so the flag flips only once VN has landed.

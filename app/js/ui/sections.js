@@ -1,5 +1,7 @@
-// Circle-nav section cards: open/close with reduced-motion-aware height
-// animation, dimmed/aria-disabled gating, and which card is currently open.
+// Grouped navigation + section cards: seven primary areas name user-facing
+// work areas, while compact secondary buttons open the existing feature cards.
+// Cards retain their old ids so device services, deep links, and support links
+// keep one stable target as the information architecture evolves.
 // updateConnectionGating (in connection-ui.js) reads the open card via
 // getOpenSection() but never mutates which card is open — that is this
 // module's single source of truth.
@@ -9,10 +11,67 @@ import { announceStatus } from './a11y.js';
 
 let openSection = null; // id of the currently-open section card (null when none)
 
+export const SECTION_GROUPS = Object.freeze({
+  home: { label: 'Home', defaultSection: 'sec-home', sections: ['sec-home'] },
+  movement: { label: 'Movement', defaultSection: 'sec-cursor', sections: ['sec-cursor', 'sec-joystick'] },
+  inputs: {
+    label: 'Inputs',
+    defaultSection: 'sec-sip',
+    sections: ['sec-sip', 'sec-switches', 'sec-restrictions'],
+  },
+  device: {
+    label: 'Device',
+    defaultSection: 'sec-device',
+    sections: ['sec-device', 'sec-feedback', 'sec-bluetooth', 'sec-profiles'],
+  },
+  care: {
+    label: 'Health & updates',
+    defaultSection: 'sec-diagnostics',
+    sections: ['sec-diagnostics', 'sec-firmware', 'sec-maintenance'],
+  },
+  advanced: {
+    label: 'Tools',
+    defaultSection: 'sec-tools',
+    sections: ['sec-tools', 'sec-log'],
+  },
+  help: { label: 'Help', defaultSection: 'sec-help', sections: ['sec-help'] },
+});
+
+const SECTION_TO_GROUP = Object.freeze(
+  Object.fromEntries(
+    Object.entries(SECTION_GROUPS).flatMap(([group, definition]) =>
+      definition.sections.map((section) => [section, group]),
+    ),
+  ),
+);
+const lastSectionByGroup = {};
+
+export function getGroupForSection(id) {
+  return SECTION_TO_GROUP[id] ?? null;
+}
+
+export function getSectionsForGroup(group) {
+  return SECTION_GROUPS[group]?.sections ?? [];
+}
+
+export function getSectionTrigger(id) {
+  return /** @type {HTMLElement|null} */ (document.querySelector(`.section-tab[data-section="${id}"]`));
+}
+
+export function getGroupTrigger(group) {
+  return /** @type {HTMLElement|null} */ (document.querySelector(`.circle-trigger[data-group="${group}"]`));
+}
+
+export function getNavigationTarget(id) {
+  const tab = getSectionTrigger(id);
+  if (tab && !tab.classList.contains('group-hidden') && !tab.hidden) return tab;
+  return getGroupTrigger(getGroupForSection(id));
+}
+
 // Section-change subscription: main.js registers the auto-live hook here so
 // this module never needs serial imports (the dependency graph stays
 // acyclic). Called with the open section id after every transition (null on
-// close), including the open-then-close toggle path.
+// close). Primary navigation keeps one page open at all times.
 let changeHandler = null;
 export function onSectionChange(fn) {
   changeHandler = fn;
@@ -89,40 +148,103 @@ export function getOpenSection() {
   return openSection;
 }
 
+function showConnectFirstNotice(id) {
+  showNotification(
+    id === 'sec-device'
+      ? 'Connect to a LipSync first to load device settings.'
+      : 'Connect to a LipSync first to use this section.',
+    true,
+  );
+}
+
+function sectionIsDimmed(id) {
+  const tab = getSectionTrigger(id);
+  if (tab) return tab.classList.contains('dimmed');
+  const group = getGroupForSection(id);
+  return !!getGroupTrigger(group)?.classList.contains('dimmed');
+}
+
+function syncActiveNavigation(id) {
+  const activeGroup = id ? getGroupForSection(id) : null;
+  /** @type {HTMLElement|null} */ let activeTrigger = null;
+  document.querySelectorAll('.circle-trigger[data-group]').forEach((/** @type {any} */ button) => {
+    const active = !!activeGroup && button.dataset.group === activeGroup;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-expanded', String(active));
+    if (active) activeTrigger = button;
+  });
+
+  const visibleTabs = [];
+  document.querySelectorAll('.section-tab[data-section]').forEach((/** @type {any} */ tab) => {
+    const inGroup = !!activeGroup && tab.dataset.group === activeGroup;
+    tab.classList.toggle('group-hidden', !inGroup);
+    const active = inGroup && tab.dataset.section === id;
+    tab.classList.toggle('active', active);
+    if (active) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+    if (inGroup && !tab.hidden) visibleTabs.push(tab);
+  });
+
+  const subnav = document.getElementById('sectionSubnav');
+  const label = document.getElementById('sectionSubnavLabel');
+  const mobileLabel = document.getElementById('mobileSectionLabel');
+  if (label) label.textContent = activeGroup ? (SECTION_GROUPS[activeGroup]?.label ?? '') : '';
+  if (mobileLabel) mobileLabel.textContent = activeGroup ? (SECTION_GROUPS[activeGroup]?.label ?? '') : 'Sections';
+  if (subnav) subnav.hidden = visibleTabs.length === 0;
+
+  // A task jump can open Health/Advanced while its tile is off-screen in the
+  // phone rail. Bring the selected destination into view so navigation state
+  // never changes invisibly; desktop keeps its stable centered row.
+  if (
+    activeTrigger &&
+    window.matchMedia?.('(max-width: 700px)').matches &&
+    typeof activeTrigger.scrollIntoView === 'function'
+  ) {
+    const trigger = activeTrigger;
+    const reveal = () => trigger.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+    else reveal();
+  }
+}
+
+export function openGroupById(group) {
+  const definition = SECTION_GROUPS[group];
+  if (!definition) return;
+  const groupButton = getGroupTrigger(group);
+  if (groupButton?.classList.contains('dimmed')) {
+    showConnectFirstNotice(definition.defaultSection);
+    return;
+  }
+  if (openSection && getGroupForSection(openSection) === group) {
+    return;
+  }
+  let target = lastSectionByGroup[group] ?? definition.defaultSection;
+  if (sectionIsDimmed(target)) {
+    target = definition.sections.find((id) => !sectionIsDimmed(id)) ?? target;
+  }
+  openSectionById(target);
+}
+
 export function openSectionById(id) {
-  const btn = document.querySelector(`.circle-trigger[data-section="${id}"]`);
-  if (btn && btn.classList.contains('dimmed')) {
+  if (!getGroupForSection(id)) return;
+  if (sectionIsDimmed(id)) {
     // The title tooltip only exists for pointer-hover; a tap on a touch
     // device would otherwise look like a dead control. The polite toast
     // covers both audiences — no separate srStatus write, or screen readers
     // would hear the same sentence twice.
-    showNotification(
-      id === 'sec-device'
-        ? 'Connect to a LipSync first to load device settings.'
-        : 'Connect to a LipSync first to use this section.',
-      true,
-    );
+    showConnectFirstNotice(id);
     return;
   }
   if (openSection === id) {
-    closeCurrentSection();
     return;
   }
   if (!closeCurrentSection()) return;
   openSection = id;
   const next = document.getElementById(id);
   if (next) animateSectionOpen(next);
-  const nextBtn = document.querySelector(`.circle-trigger[data-section="${id}"]`);
-  if (nextBtn) {
-    nextBtn.classList.add('active');
-    // aria-current describes the user's location in a set of navigation
-    // links; these are disclosure buttons for cards on the same page, so the
-    // expanded state is the whole story.
-    nextBtn.setAttribute('aria-expanded', 'true');
-  }
-  document.querySelectorAll('.circle-trigger').forEach((/** @type {any} */ b) => {
-    if (b.dataset.section !== id) b.setAttribute('aria-expanded', 'false');
-  });
+  const group = getGroupForSection(id);
+  lastSectionByGroup[group] = id;
+  syncActiveNavigation(id);
   syncSectionHash(id);
   notifySectionChange();
 }
@@ -141,13 +263,9 @@ export function closeCurrentSection() {
     announceStatus('The firmware update is still in progress — the Firmware section stays open.');
     return false;
   }
-  const prevBtn = document.querySelector(`.circle-trigger[data-section="${openSection}"]`);
-  if (prevBtn) {
-    prevBtn.classList.remove('active');
-    prevBtn.setAttribute('aria-expanded', 'false');
-  }
   if (prev) animateSectionClose(prev);
   openSection = null;
+  syncActiveNavigation(null);
   syncSectionHash(null);
   notifySectionChange();
   return true;

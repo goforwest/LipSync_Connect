@@ -5,8 +5,8 @@
 // existing machinery instead of reimplementing it: each step's action opens
 // the section that owns the task and focuses its primary control; completion
 // is detected from the same UI state the audit pins (connected readouts,
-// calibration status, health summary). The panel lives in the Help card —
-// where every first session starts.
+// calibration status, health summary). The panel lives on Home, beside the
+// first-session tasks it guides.
 import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { connect } from '../serial/connection.js';
@@ -50,7 +50,7 @@ const STEPS = [
     // device — "turn on Live view" would read as an instruction to press the
     // button, which toggles that auto-started stream OFF. Say what to check,
     // not what to press.
-    text: 'In the Sip & Puff card: with the live pressure view running (it starts on its own; the Live view button turns it on if it is not), have the user sip and puff firmly a few times, then press Suggest thresholds and Apply both. Use the steppers to fine-tune, then come back to this panel in Help and press Next.',
+    text: 'In the Sip & Puff card: with the live pressure view running (it starts on its own; the Live view button turns it on if it is not), have the user sip and puff firmly a few times, then press Suggest thresholds and Apply both. Use the steppers to fine-tune, then come back to this panel on Home and press Next.',
     actionLabel: 'Open the Sip & Puff card',
     action: () => {
       openSectionById('sec-sip');
@@ -62,8 +62,8 @@ const STEPS = [
   {
     id: 'verify',
     title: 'Verify',
-    text: 'Run the health check in the Diagnostics card. A green summary means the device is ready to hand over.',
-    actionLabel: 'Open the Diagnostics card',
+    text: 'Run Health check under Health & updates. A green summary means the device is ready to hand over.',
+    actionLabel: 'Open the health check',
     action: () => {
       openSectionById('sec-diagnostics');
       const btn = $('btnRunDiagnostics');
@@ -92,7 +92,7 @@ function renderStep() {
   const text = $('wizStepText');
   if (text)
     text.textContent = done
-      ? 'Guided setup complete \u2014 the device is calibrated, configured, and verified. Save this setup as a profile so the next person (or the next session) starts from here; profiles live in the Device card.'
+      ? 'Guided setup complete \u2014 the device is calibrated, configured, and verified. Save this setup as a profile so the next person (or the next session) starts from here; profiles live under Device.'
       : `Step ${stepIndex + 1} of ${STEPS.length} \u2014 ${STEPS[stepIndex].title}: ${STEPS[stepIndex].text}`;
   const actionBtn = $('wizAction');
   if (actionBtn) {
@@ -128,16 +128,19 @@ function poll() {
     renderStep();
     // The completed step's card took the user elsewhere — its own action
     // opened it, and the accordion keeps one card open, which collapsed the
-    // Help card this panel lives in. Bring the wizard back with the next
+    // Home card this panel lives in. Bring the wizard back with the next
     // instruction + action on screen the moment the step completes (only
-    // when Help is not already the open card — openSectionById toggles).
-    if (getOpenSection() !== 'sec-help') openSectionById('sec-help');
+    // when Home is not already the open page).
+    if (getOpenSection() !== 'sec-home') openSectionById('sec-home');
     if (stepIndex >= STEPS.length) finish();
     // renderStep hid the completed step's action; without moving focus the
     // keyboard user is left on a control that no longer exists.
     focusWizardControl();
   }
-  pollTimer = setTimeout(poll, POLL_MS);
+  // Completion keeps the panel active for the profile handoff, but it must
+  // not leave a 500 ms polling loop running forever behind that static done
+  // state. Exit/restart can still reuse the panel normally.
+  pollTimer = stepIndex < STEPS.length ? setTimeout(poll, POLL_MS) : 0;
 }
 
 function finish() {
@@ -161,7 +164,8 @@ export function startWizard() {
   renderStep();
   focusWizardControl();
   clearTimeout(pollTimer);
-  pollTimer = setTimeout(poll, POLL_MS);
+  if (stepIndex < STEPS.length) pollTimer = setTimeout(poll, POLL_MS);
+  else finish();
 }
 
 /** Exits the wizard; the device keeps everything already done. */

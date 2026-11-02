@@ -6,7 +6,7 @@ export const BAUD = 115200;
 // Included in exported support logs so cached/stale clients are immediately
 // distinguishable from the source being tested. Bump for behavior-affecting
 // app releases alongside the service-worker cache generation.
-export const APP_BUILD_ID = '2026-10-29.atomic-modes.1';
+export const APP_BUILD_ID = '2026-11-01.design-system.1';
 
 // ---- Visualization ----
 export const PLOT_BASE_EXTENT = 13;
@@ -42,12 +42,12 @@ export const SELF_TEST_COMPLETE_DWELL_MS = 800;
 // same window — unlocking earlier let a click land while the previous run's
 // panel-close timer was still pending, killing the new run's narration.
 export const SELF_TEST_PANEL_LINGER_MS = 2500;
-// Serial-dependent cards (everything except Help and Log) are visually dimmed
+// Serial-dependent cards (everything except Home, Help, and Log) are visually dimmed
 // until a device connects, but deliberately NOT made inert: an open card's
 // status text (loading progress, current values) must remain readable by screen
 // readers, and every interactive control inside is already disabled while
-// disconnected. Help and Log stay fully interactive — a first-time user lands
-// on Help and can read it and watch the log before ever connecting.
+// disconnected. Home, Help, and Log stay fully interactive — a first-time user
+// lands on Home and can start guided setup before ever connecting.
 export const CORNER_SIGNS = { 1: [-1, 1], 2: [1, 1], 3: [1, -1], 4: [-1, -1] };
 
 // pvMouth/pvAmbient/pvDiff intentionally omitted — pressure values are live sensor reads, not stored settings.
@@ -132,6 +132,8 @@ export const MODE_PRESETS = {
 };
 /** @type {[number, number, number]} */
 export const MODE_PRESET_MIN_FIRMWARE = [4, 6, 4];
+/** @type {[number, number, number]} */
+export const MODE_RESET_PER_SETTING_MIN_FIRMWARE = [4, 5, 8];
 
 export const OP_MODES = { 0: 'None', 1: 'Mouse', 2: 'Gamepad', 3: 'Safe' };
 export const COM_MODES = { 0: 'None', 1: 'USB', 2: 'Bluetooth' };
@@ -418,8 +420,8 @@ export const COLOR_VARS = {
   colorInfo: '--info',
 };
 export const COLOR_DEFAULTS = {
-  colorAccent: '#BE2A32', // WCAG AA: 5.89:1 on white (--btn-text)
-  colorAccent2: '#BE2A32',
+  colorAccent: '#0072CE', // MMC blue; WCAG AA: 4.89:1 on white (--btn-text)
+  colorAccent2: '#005EA8',
   colorBg: '#f5f7f8',
   colorPanel: '#ffffff',
   colorText: '#3a3f42',

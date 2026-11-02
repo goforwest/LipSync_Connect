@@ -19,7 +19,46 @@ const practicePeaks = { sip: 0, puff: 0 };
 // above resting noise that breathing never triggers.
 export const SUGGEST_FRACTION = 0.65;
 
+export function updateCursorResponse(value) {
+  const preview = $('cursorResponsePreview');
+  const curve = $('cursorResponseCurve');
+  const dot = $('cursorResponseDot');
+  const text = $('cursorResponseText');
+  const v = Number(value);
+  if (!preview || !curve || !dot || !Number.isFinite(v)) {
+    if (preview) preview.setAttribute('aria-label', 'Cursor response preview, waiting for acceleration setting');
+    if (text) text.textContent = 'Load the device to preview its acceleration curve.';
+    if (dot?.style) dot.style.opacity = '0';
+    return;
+  }
+
+  // Positive acceleration lifts the curve above linear at gentle deflection;
+  // negative acceleration bows it below linear for more fine control. Both
+  // still meet at full output, matching the firmware's behavior.
+  const clamped = Math.max(-10, Math.min(10, v));
+  const exponent = Math.pow(2, -clamped / 10);
+  const point = (t) => ({ x: 12 + t * 96, y: 88 - Math.pow(t, exponent) * 76 });
+  const points = Array.from({ length: 17 }, (_, i) => point(i / 16));
+  curve.setAttribute('d', points.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '));
+  const marker = point(0.55);
+  dot.setAttribute('cx', marker.x.toFixed(1));
+  dot.setAttribute('cy', marker.y.toFixed(1));
+  if (dot.style) dot.style.opacity = '1';
+
+  const tone = clamped > 0 ? 'responsive' : clamped < 0 ? 'precision' : 'linear';
+  const description =
+    tone === 'responsive'
+      ? 'Faster response from gentle joystick movement.'
+      : tone === 'precision'
+        ? 'More control at gentle joystick movement.'
+        : 'Even, linear response across the joystick range.';
+  if (preview.dataset && typeof preview.dataset === 'object') preview.dataset.response = tone;
+  preview.setAttribute('aria-label', `Cursor response preview: acceleration ${clamped}; ${description}`);
+  if (text) text.textContent = description;
+}
+
 export function updateMeter(id, value) {
+  if (id === 'accelMeter') updateCursorResponse(value);
   const el = $(id);
   if (!el || !el.querySelectorAll) return;
   // The bipolar variant (cursor acceleration, -10..10) renders 20 segments

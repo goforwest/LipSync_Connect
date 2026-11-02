@@ -328,7 +328,7 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   // check refreshes them.
   assert.equal(byId('fwCurrentVersion').textContent, '4.1.0', 'the installed row survives the mid-wizard disconnect');
   assert.notEqual(byId('fwUpdateStatus').textContent, '', 'the check pill survives the mid-wizard disconnect');
-  const fwNav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  const fwNav = document.querySelector('.section-tab[data-section="sec-firmware"]');
   assert.equal(fwNav.getAttribute('aria-disabled'), null, 'the firmware nav trigger stays open');
   assert.equal(document.getElementById('status').textContent, 'Firmware update — choose the update port');
 
@@ -3367,7 +3367,7 @@ test('completion: a local-file downgrade re-flags the newer release automaticall
   assert.equal(byId('fwLatestVersion').textContent, '4.2.0');
   assert.match(byId('fwUpdateStatus').textContent, /Update available: 4\.2\.0 \(installed: 4\.1\.0\)/);
   assert.equal(byId('fwUpdateStatus').getAttribute('data-state'), 'available');
-  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  const nav = document.querySelector('.section-tab[data-section="sec-firmware"]');
   assert.equal(nav.getAttribute('data-notify'), 'firmware-update', 'the nav badge re-appears');
   await app.disconnect({ quiet: true });
   testHooks.detach();
@@ -4954,6 +4954,10 @@ test('stranded marker: the sessionStorage mirror survives a reload and restores 
   assert.equal(sessionStorage.getItem('lipsync-fw-stranded'), '1', 'the marker is mirrored to sessionStorage');
   byId('btnRecoverDevice').hidden = true;
   byId('sec-firmware').removeAttribute('data-recover');
+  const firmwareTab = doc.querySelector('.section-tab[data-section="sec-firmware"]');
+  const careGroup = doc.querySelector('.circle-trigger[data-group="care"]');
+  firmwareTab.classList.add('dimmed');
+  careGroup.classList.add('dimmed');
 
   // The "reload": restoreBootloaderStrandedFromStorage is what
   // bindFirmwareUpdate runs at startup — Recover must come back without a
@@ -4961,6 +4965,10 @@ test('stranded marker: the sessionStorage mirror survives a reload and restores 
   fw.restoreBootloaderStrandedFromStorage();
   assert.equal(byId('btnRecoverDevice').hidden, false, 'Recover is reachable immediately after the reload');
   assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
+  assert.equal(firmwareTab.classList.contains('dimmed'), false, 'the Firmware page is openable after marker restore');
+  assert.equal(careGroup.classList.contains('dimmed'), false, 'Health & updates exposes the reachable Firmware page');
+  assert.equal(byId('sec-firmware').classList.contains('card-off'), false, 'the recovery surface is not visually gated');
+  assert.equal(byId('sec-firmware').classList.contains('open'), true, 'reload lands directly on the only recovery path');
 
   // A successful settings load is the marker's honest end of life.
   const writer = {

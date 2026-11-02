@@ -20,6 +20,52 @@ import { noteExternalSettingsChange, applyHubMenuPush } from '../services/hub-re
 import { captureWriteConfirm } from '../services/confirm.js';
 import { $ } from '../ui/dom.js';
 
+const INPUT_ACTION_NAMES = {
+  1: 'Left click',
+  2: 'Right click',
+  3: 'Middle click',
+  4: 'Drag',
+  5: 'Scroll',
+  6: 'Gamepad B1',
+  7: 'Gamepad B2',
+  8: 'Gamepad B3',
+  9: 'Gamepad B4',
+  10: 'Gamepad B5',
+  11: 'Gamepad B6',
+  12: 'Gamepad B7',
+  13: 'Gamepad B8',
+  14: 'Center cursor',
+  15: 'Calibrate',
+  16: 'Speed down',
+  17: 'Speed up',
+  18: 'Change mode',
+  19: 'Open menu',
+  20: 'Close menu',
+  21: 'Next menu item',
+  22: 'Select menu item',
+  23: 'Restart',
+  24: 'Factory reset',
+};
+
+function describeInputSource(inputClass, state) {
+  if (inputClass === 0) return state === 1 ? 'Sip' : state === 2 ? 'Puff' : `Sip/puff state ${state}`;
+  if (inputClass === 1)
+    return { 1: 'Hub Next', 2: 'Hub Select', 3: 'Both Hub buttons' }[state] ?? `Hub buttons ${state}`;
+  if (inputClass === 2) {
+    const active = [1, 2, 3].filter((jack) => state & (1 << (jack - 1))).map((jack) => `Switch ${jack}`);
+    return active.length ? active.join(' + ') : `External switches ${state}`;
+  }
+  return `Input class ${inputClass}, state ${state}`;
+}
+
+function logInputAction(value) {
+  const [inputClass, state, action, holdMs] = String(value).split(',').map(Number);
+  if (![inputClass, state, action, holdMs].every(Number.isFinite)) return;
+  const source = describeInputSource(inputClass, state);
+  const actionName = INPUT_ACTION_NAMES[action] ?? `Action ${action}`;
+  log(`Physical input action: ${source} → ${actionName} (${holdMs} ms).`, 'log-info');
+}
+
 export function applyDeviceResponse(line) {
   const r = parseResponse(line);
   if (!r || !r.ok || r.value == null) return;
@@ -58,6 +104,7 @@ export function applyDeviceResponse(line) {
     OM: () => ENDPOINT_RENDERERS.OM(r.value),
     CM: () => ENDPOINT_RENDERERS.CM(r.value),
     MP: () => {}, // Atomic mode-preset ack; the device resets immediately after it lands
+    IA: () => logInputAction(r.value), // Physical input action witness (firmware 4.6.5+)
     // Input restrictions (4.4.0+): the load reads and any MANUAL push from
     // the Hub menu both land here, keeping the checkboxes in sync.
     SD: () => ENDPOINT_RENDERERS.SD(r.value),
@@ -174,7 +221,7 @@ export function applyDeviceResponse(line) {
   // hub-remote mirror's value screens hold local ESTIMATES of these very
   // settings, and device truth just replaced them — refresh a visible value
   // page so the mirror shows what the Hub actually changed.
-  if (r.type === 'MANUAL') noteExternalSettingsChange(endpoint);
+  if (r.type === 'MANUAL' && endpoint !== 'IA') noteExternalSettingsChange(endpoint);
   if (pendingConfirm) pendingConfirm.commit(r.value);
   if (!r.cmd.startsWith('DEBUG,')) updateStepButtons();
 }

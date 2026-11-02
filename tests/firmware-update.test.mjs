@@ -74,7 +74,7 @@ test('compareVersions orders versions and rejects garbage', () => {
 test('an available update badges the Firmware nav trigger, up-to-date clears it', async () => {
   storage.clear();
   const navBadge = () =>
-    document.querySelector('.circle-trigger[data-section="sec-firmware"]')?.getAttribute('data-notify') ?? null;
+    document.querySelector('.section-tab[data-section="sec-firmware"]')?.getAttribute('data-notify') ?? null;
   fetchImpl = async (url) =>
     url.includes('/contents/firmware-manifest.json')
       ? contentsPayload(MANIFEST('4.2.0'))
@@ -244,7 +244,7 @@ test('a newer version with NO install path is an honest dead end, not a silent b
   assert.match(status(), /no downloadable package/);
   assert.match(status(), /Flash local file/);
   // The nav badge must not advertise a dead end either.
-  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
+  const nav = document.querySelector('.section-tab[data-section="sec-firmware"]');
   assert.equal(nav?.getAttribute('data-notify'), null, 'no badge without an installable path');
 });
 

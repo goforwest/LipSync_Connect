@@ -18,6 +18,7 @@ test('local firmware build uses an isolated Arduino sketchbook and proves TinyUS
   assert.match(script, /libraries\.cache/);
   assert.match(script, /expected Seeed core TinyUSB 1\.7\.0/);
   assert.match(script, /libraries outside the core\/vendored\/isolated roots leaked into the build/);
+  assert.match(script, /--warnings all/, 'local release-candidate builds must enforce the firmware warning gate');
 });
 
 test('local firmware build pins the complete release external-library set', () => {

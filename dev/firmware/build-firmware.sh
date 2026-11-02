@@ -120,6 +120,7 @@ build_dir=$(mktemp -d)
 trap 'rm -rf "$build_dir"' EXIT
 arduino-cli compile \
   --fqbn "$FQBN" \
+  --warnings all \
   --build-path "$build_dir" \
   --libraries "$FIRMWARE_REPO/Build_Files/Firmware_Files/Libraries" \
   "$SKETCH_DIR"

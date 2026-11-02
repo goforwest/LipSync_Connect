@@ -151,7 +151,7 @@ function profileMismatch() {
   if (!best) return null;
   return {
     text: `Device differs from “${best.name}” in ${best.mismatches} setting${best.mismatches === 1 ? '' : 's'}`,
-    section: 'sec-device',
+    section: 'sec-profiles',
     tone: 'info',
   };
 }

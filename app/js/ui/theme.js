@@ -84,9 +84,9 @@ function applyTheme(theme) {
 }
 
 // ---- A-2 contrast guard ----
-// Users can set an arbitrary accent color, but all action text sits on top of
-// it. If the combination falls below WCAG AA (4.5:1), flag it so the user
-// knows readability/accessibility took a hit — don't silently serve it.
+// Users can customize every core surface, not only the action color. Check
+// the principal text/surface pairs so a white-on-white body or low-contrast
+// link theme receives the same warning as an unreadable button.
 function hexToRgb(hex) {
   const m = String(hex).replace('#', '');
   if (m.length !== 6) return null;
@@ -115,15 +115,38 @@ let contrastWarned = false;
 function warnLowContrastTheme() {
   try {
     const styles = getComputedStyle(document.documentElement);
-    const accent = styles.getPropertyValue('--accent') || '#ee343f';
-    const text = styles.getPropertyValue('--btn-text') || '#ffffff';
-    const ratio = contrastRatio(accent.trim(), text.trim());
-    if (ratio !== null && ratio < 4.5 && !contrastWarned) {
+    const defaults = {
+      '--accent': COLOR_DEFAULTS.colorAccent,
+      '--accent2': COLOR_DEFAULTS.colorAccent2,
+      '--bg': COLOR_DEFAULTS.colorBg,
+      '--panel': COLOR_DEFAULTS.colorPanel,
+      '--text': COLOR_DEFAULTS.colorText,
+      '--muted': COLOR_DEFAULTS.colorMuted,
+      '--btn-text': COLOR_DEFAULTS.colorBtnText,
+      '--info': COLOR_DEFAULTS.colorInfo,
+    };
+    const color = (name) => (styles.getPropertyValue(name) || defaults[name]).trim();
+    const checks = [
+      ['button text', '--accent', '--btn-text'],
+      ['button hover text', '--accent2', '--btn-text'],
+      ['body text', '--panel', '--text'],
+      ['page text', '--bg', '--text'],
+      ['secondary text', '--panel', '--muted'],
+      ['links and information', '--panel', '--info'],
+    ];
+    const failures = checks
+      .map(([label, background, foreground]) => ({
+        label,
+        ratio: contrastRatio(color(background), color(foreground)),
+      }))
+      .filter(({ ratio }) => ratio !== null && ratio < 4.5);
+    if (failures.length && !contrastWarned) {
       contrastWarned = true;
-      const msg = `Low contrast (${ratio.toFixed(2)}:1) between your accent and button text colors — this may be hard to read. Consider Reset to defaults.`;
+      const worst = failures.sort((a, b) => a.ratio - b.ratio)[0];
+      const msg = `Low contrast (${worst.ratio.toFixed(2)}:1) for ${worst.label} — this may be hard to read. Consider Reset to defaults.`;
       showNotification(msg, true);
       log('Appearance contrast below WCAG AA (4.5:1): ' + msg, 'log-err');
-    } else if (ratio !== null && ratio >= 4.5) {
+    } else if (!failures.length) {
       contrastWarned = false;
     }
   } catch {}

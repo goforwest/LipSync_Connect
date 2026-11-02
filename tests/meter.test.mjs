@@ -49,3 +49,14 @@ test('bipolar meter lights nothing for 0 or an unloaded value', () => {
   assert.deepEqual(litIndexes('accelMeter', '\u2014'), []);
   assert.equal(document.getElementById('accelMeter').children.length, 20);
 });
+
+test('acceleration also updates the plain-language response preview', () => {
+  updateMeter('accelMeter', 4);
+  assert.equal(document.getElementById('cursorResponsePreview').dataset.response, 'responsive');
+  assert.match(document.getElementById('cursorResponseText').textContent, /Faster response/);
+  assert.match(document.getElementById('cursorResponseCurve').getAttribute('d'), /^M12\.0 88\.0 L/);
+
+  updateMeter('accelMeter', -4);
+  assert.equal(document.getElementById('cursorResponsePreview').dataset.response, 'precision');
+  assert.match(document.getElementById('cursorResponseText').textContent, /More control/);
+});

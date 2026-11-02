@@ -15,7 +15,6 @@ import {
 import { debounce, fmtApiFloat, fmtHpa } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
-import { announceStatus } from './ui/a11y.js';
 import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.js';
 import { serialApi } from './serial/transport.js';
 import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
@@ -34,7 +33,7 @@ import { readCalibration, setDeadzone, setSimpleSetting, requireNumber, step } f
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
 import { showNotification } from './ui/notification.js';
-import { openSectionById, closeCurrentSection, getOpenSection, onSectionChange } from './ui/sections.js';
+import { openSectionById, openGroupById, getOpenSection, getNavigationTarget, onSectionChange } from './ui/sections.js';
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
@@ -47,7 +46,7 @@ import {
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
 import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
-import { bindWizard, exitWizard, startWizard } from './services/wizard.js';
+import { bindWizard, exitWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
@@ -92,7 +91,7 @@ window.addEventListener('unhandledrejection', (e) => {
 // Web Serial / WebUSB-with-shim transport factory lives in serial/transport.js.
 // Log export/share lives in services/log-export.js (redaction, build, download, share).
 
-// announceStatus lives in ui/a11y.js (imported above).
+// announceStatus lives in ui/a11y.js (re-exported above).
 
 // Rate-limited logger for out-of-band serial data that *isn't* self-test
 // narration (reserved-mode text — LED/Buzzer/Watchdog narration is handled
@@ -280,41 +279,27 @@ window.addEventListener('DOMContentLoaded', () => {
   initSettings();
 
   // --- Always-run initialization (nav, popup, service worker) ---
-  // Circle navigation
+  // Group tiles + compact page navigation
   const circleTriggers = /** @type {NodeListOf<any>} */ (document.querySelectorAll('.circle-trigger'));
+  const sectionTabs = /** @type {NodeListOf<any>} */ (document.querySelectorAll('.section-tab[data-section]'));
   // openSection state is owned by ui/sections.js; nav Reads it via getOpenSection().
 
-  // --- Task-based entry (Help card's Common tasks) ---
+  // --- Task-based entry (Home's collapsed More tasks list) ---
   // Plain-language goals jump straight to the control that answers them —
   // the caregiver path for people who don't know the vocabulary. The
   // dimmed-guard case (not connected) already speaks via its own notice, so
   // the focus/pulse only run when the section actually opened.
   const TASK_TARGETS = {
-    // First: the natural entry for a shared device — the guided flow owns its
-    // own connect step, so it runs directly (no section navigation, no
-    // dimmed-guard dependency) and works while disconnected.
-    setup: {
-      run: () => {
-        startWizard();
-        const a = $('wizAction');
-        if (a && typeof a.focus === 'function') a.focus();
-      },
-    },
-    cursor: { section: 'sec-cursor', focus: 'button[data-target="speed"][data-step="1"]' },
     clicks: { section: 'sec-sip', focus: 'button[data-target="st"][data-step="1"]' },
     accidents: { section: 'sec-restrictions', focus: '#sapDisabled' },
-    health: { section: 'sec-diagnostics', focus: '#btnRunDiagnostics' },
     update: { section: 'sec-firmware', focus: '#btnCheckUpdate' },
     switches: { section: 'sec-switches', focus: '#swSA0' },
+    profile: { section: 'sec-profiles', focus: '#profileName' },
   };
   document.querySelectorAll('.task-btn').forEach((/** @type {any} */ btn) => {
     btn.addEventListener('click', () => {
       const t = TASK_TARGETS[btn.dataset.task];
       if (!t) return;
-      if (t.run) {
-        t.run();
-        return;
-      }
       openSectionById(t.section);
       if (getOpenSection() !== t.section) return; // the dimmed guard spoke
       const target = document.querySelector(t.focus);
@@ -326,11 +311,9 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // The appearance popup has two triggers: the desktop floating gear and the
-  // mobile header icon (the FAB covered the controls beneath it on phones).
-  const gearBtns = /** @type {HTMLElement[]} */ (
-    ['btnSettings', 'btnSettingsMobile'].map((id) => $(id)).filter(Boolean)
-  );
+  // Appearance lives in the header at every width. Keeping one trigger avoids
+  // the desktop FAB competing with page actions (and looking like support).
+  const gearBtns = /** @type {HTMLElement[]} */ ([$('btnSettings')].filter(Boolean));
   const popup = $('appearancePopup');
   /** @type {() => void} */ let openPopup = () => {};
   /** @type {(restoreFocus?: boolean) => void} */ let closePopup = () => {};
@@ -346,7 +329,7 @@ window.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => {
           const firstControl = /** @type {HTMLElement|null} */ (
             popup.querySelector(
-              'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]',
+              'button:not(:disabled), summary, input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]',
             )
           );
           if (firstControl && typeof firstControl.focus === 'function') firstControl.focus({ preventScroll: true });
@@ -390,7 +373,7 @@ window.addEventListener('DOMContentLoaded', () => {
     popup.addEventListener('keydown', (e) => {
       if (e.key !== 'Tab' || !popup.classList.contains('open')) return;
       const focusables = /** @type {HTMLElement[]} */ (
-        Array.from(popup.querySelectorAll('button, input, select, textarea, a[href]')).filter(
+        Array.from(popup.querySelectorAll('button, summary, input, select, textarea, a[href]')).filter(
           (el) => !el.disabled && el.getAttribute('aria-hidden') !== 'true',
         )
       );
@@ -411,23 +394,82 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   circleTriggers.forEach((btn) => {
+    btn.addEventListener('click', () => openGroupById(btn.dataset.group));
+  });
+  sectionTabs.forEach((btn) => {
     btn.addEventListener('click', () => openSectionById(btn.dataset.section));
   });
 
-  // In-card close buttons (one per section header): mirror the nav toggle,
-  // then hand focus back to the section's circle trigger — the card turns
-  // inert as it closes, and focus left inside it would fall back to <body>.
-  document.querySelectorAll('.card-close').forEach((/** @type {any} */ btn) => {
-    btn.addEventListener('click', () => {
-      const sectionId = btn.dataset.close;
-      if (getOpenSection() === sectionId && !closeCurrentSection()) return;
-      const trigger = /** @type {HTMLElement|null} */ (
-        document.querySelector(`.circle-trigger[data-section="${sectionId}"]`)
-      );
-      // No preventScroll here: the card the user was reading is gone, so
-      // scrolling back up with the trigger is the natural landing.
-      if (trigger && typeof trigger.focus === 'function') trigger.focus();
+  // Compact navigation: phones and narrow tablets get one stable Sections
+  // button instead of a partially hidden horizontal rail. The same grouped
+  // navigation opens as a large, scrollable panel; desktop keeps the sidebar.
+  const appSidebar = $('appSidebar');
+  const primaryNav = $('sectionNav');
+  const navMore = $('btnNavMore');
+  const navMoreLabel = $('navMoreLabel');
+  const compactNavQuery = window.matchMedia?.('(max-width: 900px)');
+  const compactNav = () => !!compactNavQuery?.matches;
+  const syncPrimaryNav = (open) => {
+    const expanded = compactNav() && !!open;
+    if (appSidebar) appSidebar.classList.toggle('nav-open', expanded);
+    if (navMore) {
+      navMore.setAttribute('aria-expanded', String(expanded));
+      navMore.setAttribute('aria-label', expanded ? 'Sections — close menu' : 'Sections — open menu');
+    }
+    if (navMoreLabel) navMoreLabel.textContent = 'Sections';
+    if (primaryNav) {
+      if (compactNav() && !expanded) {
+        primaryNav.setAttribute('aria-hidden', 'true');
+        primaryNav.setAttribute('inert', '');
+      } else {
+        primaryNav.removeAttribute('aria-hidden');
+        primaryNav.removeAttribute('inert');
+      }
+    }
+  };
+  const closePrimaryNav = (restoreFocus = false) => {
+    const wasOpen = !!appSidebar?.classList.contains('nav-open');
+    syncPrimaryNav(false);
+    if (wasOpen && restoreFocus && typeof navMore?.focus === 'function') navMore.focus({ preventScroll: true });
+  };
+  const openPrimaryNav = () => {
+    if (!compactNav()) return;
+    syncPrimaryNav(true);
+    const active = /** @type {HTMLElement|null} */ (document.querySelector('.circle-trigger.active'));
+    const target = active ?? circleTriggers[0];
+    if (target && typeof target.focus === 'function') {
+      const focusTarget = () => target.focus({ preventScroll: true });
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusTarget);
+      else focusTarget();
+    }
+  };
+  if (primaryNav && navMore && appSidebar) {
+    navMore.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (appSidebar.classList.contains('nav-open')) closePrimaryNav(true);
+      else openPrimaryNav();
     });
+    circleTriggers.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (compactNav()) closePrimaryNav(true);
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (
+        appSidebar.classList.contains('nav-open') &&
+        typeof appSidebar.contains === 'function' &&
+        !appSidebar.contains(e.target)
+      ) {
+        closePrimaryNav(false);
+      }
+    });
+    if (typeof compactNavQuery?.addEventListener === 'function') {
+      compactNavQuery.addEventListener('change', () => syncPrimaryNav(false));
+    }
+    syncPrimaryNav(false);
+  }
+  document.querySelectorAll('[data-open-section]').forEach((/** @type {any} */ btn) => {
+    btn.addEventListener('click', () => openSectionById(btn.dataset.openSection));
   });
 
   // Single Escape handler
@@ -441,39 +483,24 @@ window.addEventListener('DOMContentLoaded', () => {
       hideGuide();
       return;
     }
+    if (appSidebar?.classList.contains('nav-open')) {
+      e.preventDefault();
+      closePrimaryNav(true);
+      return;
+    }
     if (popup && popup.classList.contains('open')) {
       closePopup();
       return;
     }
-    if (getOpenSection()) {
+    const openId = getOpenSection();
+    if (openId && openId !== 'sec-home') {
       e.preventDefault();
-      // A section with an active firmware wizard stays open — closing it would
-      // hide the only surface showing update progress, and mid-update the
-      // card is exempt from gating so it could not be reopened. A finished
-      // panel may be dismissed.
-      const closingId = getOpenSection();
-      const openEl = document.getElementById(closingId);
-      const wizardState = openEl?.getAttribute('data-wizard');
-      // 'failed' panels stay dismissible: everything they say is already in
-      // the log, the panel is reopenable (the card is exempt from gating
-      // while data-wizard is set), and stranding a keyboard user on a dead
-      // panel is worse than letting them move on.
-      if (wizardState && wizardState !== 'done' && wizardState !== 'failed') {
-        announceStatus('The firmware update is still in progress — the Firmware section stays open.');
-        return;
-      }
-      if (!closeCurrentSection()) return;
-      // The card just went inert; focus left inside it falls back to <body>;
-      // the in-card × already hands off to the nav trigger — Escape must do
-      // the same or the keyboard/AT user is stranded with nothing focused.
-      if (
-        openEl?.contains?.(document.activeElement) ||
-        !document.activeElement ||
-        document.activeElement === document.body
-      ) {
-        const trigger = /** @type {HTMLElement|null} */ (
-          document.querySelector(`.circle-trigger[data-section="${closingId}"]`)
-        );
+      // Pages no longer behave like dismissible dialogs. Escape is a simple
+      // "back to Home" shortcut; the section controller's firmware guard still
+      // keeps an active update visible and announces why it cannot move.
+      openSectionById('sec-home');
+      if (getOpenSection() === 'sec-home') {
+        const trigger = /** @type {HTMLElement|null} */ (getNavigationTarget('sec-home'));
         if (trigger && typeof trigger.focus === 'function') trigger.focus();
       }
     }
@@ -486,6 +513,22 @@ window.addEventListener('DOMContentLoaded', () => {
   // Header scroll shadow
   const headerEl = $('appHeader');
   if (headerEl) {
+    const syncHeaderHeight = () => {
+      const measured =
+        (typeof headerEl.getBoundingClientRect === 'function' && headerEl.getBoundingClientRect().height) ||
+        Number(headerEl.offsetHeight) ||
+        0;
+      if (measured > 0 && document.documentElement?.style?.setProperty) {
+        // getBoundingClientRect includes body zoom, while sticky `top` is a CSS
+        // length that will be zoomed again. Store the unzoomed height so 150%
+        // UI scale does not turn a 60px header into a 135px sticky offset.
+        const scale = Number(document.body?.style?.zoom) || 1;
+        document.documentElement.style.setProperty('--app-header-height', `${Math.ceil(measured / scale)}px`);
+      }
+    };
+    syncHeaderHeight();
+    window.addEventListener('resize', syncHeaderHeight, { passive: true });
+    if (typeof ResizeObserver === 'function') new ResizeObserver(syncHeaderHeight).observe(headerEl);
     let scrollTicking = false;
     window.addEventListener(
       'scroll',
@@ -504,15 +547,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Initialize collapsed section cards as inert
   document.querySelectorAll('.section-card').forEach((el) => {
-    if (el.id !== 'sec-help') {
+    if (el.id !== 'sec-home') {
       el.setAttribute('inert', '');
       el.setAttribute('aria-hidden', 'true');
     }
-    if (!['sec-help', 'sec-log'].includes(el.id)) el.classList.add('needs-conn');
+    if (!['sec-home', 'sec-help', 'sec-log'].includes(el.id)) el.classList.add('needs-conn');
   });
   // --- Hash deep links (#sec-cursor, #sec-firmware, …) ---
   // A shared/bookmarked link opens the right card on load. The hash must be
-  // read BEFORE the default Help open — sections.js syncs the URL on every
+  // read BEFORE the default Home open — sections.js syncs the URL on every
   // open, so the default would overwrite the incoming link first. The dimmed
   // guard still applies, so a pre-connect link answers with its
   // connect-first notice instead of pretending.
@@ -524,8 +567,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return '';
     }
   };
-  openSectionById(sectionFromHash() || 'sec-help');
+  // Apply the disconnected gate BEFORE honoring a deep link. Otherwise a
+  // first navigation to #sec-firmware/#sec-device sees undimmed markup for
+  // one call and opens a serial-only page without a device. A blocked deep
+  // link lands on Home after the guard explains why.
   updateConnectionGating();
+  openSectionById(sectionFromHash() || 'sec-home');
+  if (!getOpenSection()) openSectionById('sec-home');
   initWindowLadders();
   // Manual hash edits and history navigation open their section too (the
   // skip link's #main-content is not a section and is ignored).
@@ -601,6 +649,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!serialApi) {
     $('unsupported').hidden = false;
     $('btnConnect').disabled = true;
+    $('btnHomeConnect').disabled = true;
   } else {
     if (!('serial' in navigator))
       log(
@@ -608,6 +657,10 @@ window.addEventListener('DOMContentLoaded', () => {
         'log-info',
       );
     $('btnConnect').addEventListener('click', connect);
+    $('btnHomeConnect').disabled = false;
+    $('btnHomeConnect').addEventListener('click', () => {
+      if (!$('btnConnect').disabled) void connect();
+    });
     $('btnGuideDismiss').addEventListener('click', hideGuide);
     $('btnDisconnect').addEventListener('click', disconnect);
     $('btnRefreshAll').addEventListener('click', guard(loadDeviceInfo));
@@ -616,7 +669,7 @@ window.addEventListener('DOMContentLoaded', () => {
     bindDeviceOps(guard);
     bindWriteConfirm(); // the inline write-confirm chip's Undo button
     bindProfiles(); // named per-user settings profiles (Device card)
-    bindWizard(); // the Help card's guided setup flow
+    bindWizard(); // Home's guided setup flow
     bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
     $('btnSetDebug').addEventListener(

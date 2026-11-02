@@ -1,7 +1,7 @@
 // Behavioral verification of connection-gating: drives the REAL app wiring
 // through a stateful DOM stub. Reduced-motion = true so animations apply instantly.
-// Connection-gating regression tests: verify Help is the default landing card,
-// serial cards dim (but stay readable) until connect, and lifecycle transitions.
+// Connection-gating regression tests: verify Home is the default landing card,
+// grouped serial pages dim (but stay readable) until connect, and lifecycle transitions.
 // Runs the real js/main.js as an ES module against a stateful DOM stub; no dependencies.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,16 +19,46 @@ const sec = (id) =>
       ariaHidden: el.getAttribute('aria-hidden') ?? null,
     }))
     .find((x) => x.id === id);
+const GROUP_BY_SECTION = {
+  'sec-home': 'home',
+  'sec-device': 'device',
+  'sec-profiles': 'device',
+  'sec-cursor': 'movement',
+  'sec-sip': 'inputs',
+  'sec-restrictions': 'inputs',
+  'sec-switches': 'inputs',
+  'sec-joystick': 'movement',
+  'sec-feedback': 'device',
+  'sec-bluetooth': 'device',
+  'sec-diagnostics': 'care',
+  'sec-tools': 'advanced',
+  'sec-maintenance': 'care',
+  'sec-firmware': 'care',
+  'sec-help': 'help',
+  'sec-log': 'advanced',
+};
+const navElements = () => [...doc.querySelectorAll('.circle-trigger'), ...doc.querySelectorAll('.section-tab')];
 const nav = (id) =>
-  Array.from(doc.querySelectorAll('.circle-trigger'))
+  navElements()
     .map((b) => ({
       section: b.dataset.section,
+      group: b.dataset.group,
       dimmed: b.classList.contains('dimmed'),
       active: b.classList.contains('active'),
       ariaDisabled: b.getAttribute('aria-disabled'),
       title: b.title || null,
     }))
-    .find((x) => x.section === id);
+    .find((x) => x.section === id) ??
+  navElements()
+    .map((b) => ({
+      section: b.dataset.section,
+      group: b.dataset.group,
+      dimmed: b.classList.contains('dimmed'),
+      active: b.classList.contains('active'),
+      ariaDisabled: b.getAttribute('aria-disabled'),
+      title: b.title || null,
+    }))
+    .find((x) => x.group === GROUP_BY_SECTION[id]);
 const sections = () =>
   Array.from(doc.querySelectorAll('.section-card')).map((el) => ({
     id: el.id,
@@ -38,22 +68,47 @@ const sections = () =>
     ariaHidden: el.getAttribute('aria-hidden') ?? null,
   }));
 const navs = () =>
-  Array.from(doc.querySelectorAll('.circle-trigger')).map((b) => ({
+  navElements().map((b) => ({
     section: b.dataset.section,
+    group: b.dataset.group,
     dimmed: b.classList.contains('dimmed'),
     active: b.classList.contains('active'),
     ariaDisabled: b.getAttribute('aria-disabled'),
     title: b.title || null,
   }));
-const open = (id) => doc.querySelector('.circle-trigger[data-section="' + id + '"]').dispatch('click');
+const open = (id) => {
+  const tab = doc.querySelector('.section-tab[data-section="' + id + '"]');
+  if (tab) tab.dispatch('click');
+  else doc.querySelector('.circle-trigger[data-group="' + GROUP_BY_SECTION[id] + '"]').dispatch('click');
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// 1. Initial state (init opened Help itself — no manual open needed)
-test('Help is the default-open section on first load', () => {
-  assert.equal(sec('sec-help').open, true);
+// 1. Initial state (init opened Home itself — no manual open needed)
+test('Home is the default-open section on first load', () => {
+  assert.equal(sec('sec-home').open, true);
 });
-test('Help is interactive on first load', () => {
-  assert.equal(sec('sec-help').inert, false);
+test('Home is interactive on first load', () => {
+  assert.equal(sec('sec-home').inert, false);
+});
+test('compact section menu opens, exposes navigation, and restores focus when a section is chosen', () => {
+  const sidebar = doc.getElementById('appSidebar');
+  const toggle = doc.getElementById('btnNavMore');
+  const sectionNav = doc.getElementById('sectionNav');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(sectionNav.hasAttribute('inert'), true);
+  toggle.dispatch('click');
+  assert.equal(sidebar.classList.contains('nav-open'), true);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(sectionNav.hasAttribute('inert'), false);
+  doc.querySelector('.circle-trigger[data-group="home"]').dispatch('click');
+  assert.equal(sidebar.classList.contains('nav-open'), false);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(sectionNav.hasAttribute('inert'), true);
+  assert.equal(doc.activeElement, toggle);
+});
+test('reselecting the current navigation area keeps its page open', () => {
+  doc.querySelector('.circle-trigger[data-group="home"]').dispatch('click');
+  assert.equal(sec('sec-home').open, true);
 });
 test('Device card collapses by default now', () => {
   assert.equal(sec('sec-device').open, false);
@@ -64,8 +119,8 @@ test('Device card dimmed (card-off) pre-connect', () => {
 test('Log not gated pre-connect', () => {
   assert.equal(sec('sec-log').cardOff, false);
 });
-test('exactly 11 serial cards gated', () => {
-  assert.equal(sections().filter((x) => x.cardOff).length, 11);
+test('exactly 13 serial cards gated', () => {
+  assert.equal(sections().filter((x) => x.cardOff).length, 13);
 });
 test('nav dimming correct pre-connect', () => {
   assert.equal(nav('sec-device').dimmed, true);
@@ -81,17 +136,25 @@ test('gated serial nav has explanatory tooltip', () => {
 test('non-gated nav has no aria-disabled', () => {
   assert.equal(nav('sec-help').ariaDisabled, null);
 });
+test('Tools stays reachable before connect and falls back to Log', () => {
+  doc.querySelector('.circle-trigger[data-group="advanced"]').dispatch('click');
+  assert.equal(sec('sec-log').open, true);
+  assert.equal(sec('sec-tools').open, false);
+  // Restore the default landing state for the blocked-navigation checks.
+  doc.querySelector('.circle-trigger[data-group="home"]').dispatch('click');
+  assert.equal(sec('sec-home').open, true);
+});
 
 // 2. Pre-connect: serial nav is hard-blocked. Clicking Device does NOT switch
-//    the section; Help stays open/active. (Card progress bar remains visible in
+//    the section; Home stays open/active. (Card progress bar remains visible in
 //    the markup but nav access waits for a device.)
 test('clicking gated serial nav does not open it pre-connect', () => {
   open('sec-device');
-  assert.equal(sec('sec-help').open, true);
+  assert.equal(sec('sec-home').open, true);
   assert.equal(sec('sec-device').open, false);
 });
-test('nav single-highlight stays on Help (device was blocked)', () => {
-  assert.equal(nav('sec-help').active, true);
+test('nav single-highlight stays on Home (device was blocked)', () => {
+  assert.equal(nav('sec-home').active, true);
   assert.equal(nav('sec-device').active, false);
 });
 
@@ -111,6 +174,10 @@ test('closed cards still inert after connect (collapse semantics preserved)', ()
 test('nav undimmed after connect', () => {
   assert.ok(navs().every((x) => !x.dimmed));
 });
+test('header connection controls remain secondary while Home owns the primary action', () => {
+  assert.equal(doc.getElementById('btnDisconnect').classList.contains('secondary'), true);
+  assert.equal(doc.getElementById('btnConnect').classList.contains('secondary'), true);
+});
 
 // 4. Normal open/close still toggles inert as before while connected
 test('inert still follows open/close when connected', () => {
@@ -119,7 +186,7 @@ test('inert still follows open/close when connected', () => {
   assert.equal(sec('sec-device').inert, true);
 });
 
-// 5. Disconnect with Sip&Puff open: re-gates, user keeps their place, Help unaffected
+// 5. Disconnect with Sip&Puff open: re-gates, user keeps their place, Home unaffected
 test('open serial card re-dimmed but readable on disconnect', () => {
   testHooks.detach();
   app.setConnectedUI(false);
@@ -133,8 +200,8 @@ test('nav position preserved and re-dimmed', () => {
   assert.equal(nav('sec-sip').active, true);
   assert.equal(nav('sec-sip').dimmed, true);
 });
-test('Help unaffected by disconnect', () => {
-  assert.equal(sec('sec-help').cardOff, false);
+test('Home unaffected by disconnect', () => {
+  assert.equal(sec('sec-home').cardOff, false);
 });
 
 // ---- Self-test button lockout (RT LED/buzzer) ----

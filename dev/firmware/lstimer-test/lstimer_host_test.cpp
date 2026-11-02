@@ -46,6 +46,11 @@ unsigned long millis() { return g_mockMillis; }
 // corrupted live serial responses mid-line during the LK remote walk).
 struct SerialShim {
   std::string out;
+  int availableForWrite() const { return 256; }
+  size_t write(const uint8_t* data, size_t len) {
+    out.append(reinterpret_cast<const char*>(data), len);
+    return len;
+  }
   SerialShim& print(const char* s) {
     out += s;
     return *this;

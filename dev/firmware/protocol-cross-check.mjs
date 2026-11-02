@@ -398,6 +398,11 @@ if (!localBuildScript.includes('export ARDUINO_DIRECTORIES_USER="$isolated_user_
 } else {
   ok('local builder isolates user libraries and verifies core TinyUSB 1.7.0 provenance');
 }
+if (!localBuildScript.includes('--warnings all') || !releaseWorkflow.includes('--warnings all')) {
+  fail('local and release firmware builds must both enforce --warnings all');
+} else {
+  ok('local and release builds share the all-warnings gate');
+}
 
 console.log(`\n${problems.length ? problems.length + ' PROBLEM(S)' : 'ALL CHECKS PASS'}`);
 process.exit(problems.length ? 1 : 0);

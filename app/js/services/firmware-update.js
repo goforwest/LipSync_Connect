@@ -12,8 +12,9 @@
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showConfirm } from '../ui/formatting.js';
-import { handleBeforeUnload, setStatus } from '../ui/connection-ui.js';
+import { handleBeforeUnload, setStatus, updateConnectionGating } from '../ui/connection-ui.js';
 import { showNotification } from '../ui/notification.js';
+import { openSectionById } from '../ui/sections.js';
 import { log } from './log.js';
 import { setWriteConfirmSuppressed } from './confirm.js';
 import { updateReadiness } from './readiness.js';
@@ -297,6 +298,10 @@ export function setBootloaderStranded() {
   try {
     sessionStorage.setItem(FIRMWARE_STRANDED_STORAGE_KEY, '1');
   } catch {}
+  // On reload, the disconnected gate was applied before this sessionStorage
+  // marker was restored. Recompute it now or Firmware remains dimmed and
+  // unreachable even though Recover is visible inside the inert card.
+  updateConnectionGating();
 }
 
 export function clearBootloaderStranded() {
@@ -307,6 +312,7 @@ export function clearBootloaderStranded() {
   try {
     sessionStorage.removeItem(FIRMWARE_STRANDED_STORAGE_KEY);
   } catch {}
+  updateConnectionGating();
 }
 
 /**
@@ -319,7 +325,14 @@ export function clearBootloaderStranded() {
  */
 export function restoreBootloaderStrandedFromStorage() {
   try {
-    if (sessionStorage.getItem(FIRMWARE_STRANDED_STORAGE_KEY)) setBootloaderStranded();
+    if (sessionStorage.getItem(FIRMWARE_STRANDED_STORAGE_KEY)) {
+      setBootloaderStranded();
+      // Recovery is the only useful destination for a device whose app image
+      // is incomplete. Do not make a reload land on Home and require the user
+      // to discover why Health & updates is the lone enabled hardware area.
+      openSectionById('sec-firmware');
+      announceStatus('Firmware recovery is ready. Pick Recover a device stuck in update mode.');
+    }
   } catch {}
 }
 
@@ -358,14 +371,17 @@ function setUpdateButton(entry, deviceVersion) {
       'warn',
     );
   }
-  // Badge the circle-nav trigger so an available update is discoverable
-  // without opening the Firmware card. Screen readers get the same news from
-  // the check status, so the dot itself is aria-silent.
-  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
-  if (nav) {
+  // Badge both the Health & updates work area and its Firmware page so the available
+  // update is discoverable at either navigation level. Screen readers get the
+  // same news from the check status, so the dots themselves are aria-silent.
+  [
+    document.querySelector('.circle-trigger[data-group="care"]'),
+    document.querySelector('.section-tab[data-section="sec-firmware"]'),
+  ].forEach((nav) => {
+    if (!nav) return;
     if (available) nav.setAttribute('data-notify', 'firmware-update');
     else nav.removeAttribute('data-notify');
-  }
+  });
   updateReadiness(); // the strip derives from this button's state
 }
 
@@ -816,6 +832,11 @@ function setWizardVisible(show, state = 'active') {
     if (show) section.setAttribute('data-wizard', state);
     else section.removeAttribute('data-wizard');
   }
+  // data-wizard is a disconnected-access exemption. Recompute both the page
+  // tab and its Health & updates parent whenever the exemption starts or ends;
+  // relying on a later connect/disconnect transition leaves cancel/failure
+  // paths with stale navigation state.
+  updateConnectionGating();
 }
 
 // [logical stage key, tracker element id] — the flow passes keys, the tracker
@@ -2467,8 +2488,10 @@ async function finishPendingUpdate(pending) {
 export function resetFirmwareUpdateUi() {
   const btn = $('btnStartUpdate');
   if (btn) btn.hidden = true;
-  const nav = document.querySelector('.circle-trigger[data-section="sec-firmware"]');
-  if (nav) nav.removeAttribute('data-notify');
+  [
+    document.querySelector('.circle-trigger[data-group="care"]'),
+    document.querySelector('.section-tab[data-section="sec-firmware"]'),
+  ].forEach((nav) => nav?.removeAttribute('data-notify'));
   // An active wizard owns its own disconnects (the touch, the mode reboot):
   // keep the (dimmed) check rows and pill so they do not flip to '—' mid-
   // update, and let the completion check refresh them. A wizard also keeps

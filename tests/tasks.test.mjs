@@ -1,4 +1,4 @@
-// Task-based entry (Help card's Common tasks): a plain-language goal opens
+// Task-based entry (Home's collapsed More tasks): a plain-language goal opens
 // the section that answers it and focuses the exact control — and the
 // dimmed-guard case (disconnected) opens nothing, leaving the guard's own
 // notice as the answer.
@@ -14,7 +14,7 @@ const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const taskBtn = (task) => doc.querySelectorAll('.task-btn').find((b) => b.dataset.task === task);
 const undim = () =>
-  doc.querySelectorAll('.circle-trigger').forEach((b) => {
+  [...doc.querySelectorAll('.circle-trigger'), ...doc.querySelectorAll('.section-tab')].forEach((b) => {
     b.classList.remove('dimmed');
     b.removeAttribute('aria-disabled');
     b.removeAttribute('title');
@@ -23,12 +23,12 @@ const undim = () =>
 test('a task opens its section and focuses the answering control', () => {
   testHooks.attach({ simulated: true }, { write() {} });
   undim();
-  taskBtn('cursor').dispatch('click');
-  assert.equal(getOpenSection(), 'sec-cursor');
-  // Focus landed on the speed + stepper (the stub records focus targets).
+  taskBtn('clicks').dispatch('click');
+  assert.equal(getOpenSection(), 'sec-sip');
+  // Focus landed on the fine sip-threshold + stepper.
   const active = doc.activeElement;
   assert.ok(active, 'focus moved');
-  assert.equal(active.dataset.target, 'speed');
+  assert.equal(active.dataset.target, 'st');
   assert.equal(active.dataset.step, '1');
   // The pulse class is on and clears itself.
   assert.ok(active.classList.contains('pulse-target'));
@@ -38,8 +38,8 @@ test('a task opens its section and focuses the answering control', () => {
 test('every task maps to a real section', () => {
   testHooks.attach({ simulated: true }, { write() {} });
   undim();
-  for (const task of ['cursor', 'clicks', 'accidents', 'health', 'update', 'switches']) {
-    closeCurrentSection(); // re-clicking the same section toggles it closed
+  for (const task of ['clicks', 'accidents', 'profile', 'update', 'switches']) {
+    closeCurrentSection(); // reset between independent task destinations
     taskBtn(task).dispatch('click');
     assert.ok(getOpenSection(), task + ' opened a section');
   }
@@ -51,18 +51,24 @@ test('disconnected, the task defers to the dimmed guard — nothing opens', () =
   // the shared stub navs) and confirm the guard swallows the task click.
   closeCurrentSection();
   doc.querySelectorAll('.circle-trigger').forEach((b) => {
-    if (b.dataset.section !== 'sec-help' && b.dataset.section !== 'sec-log') {
+    if (!['home', 'help', 'advanced'].includes(b.dataset.group)) {
       b.classList.add('dimmed');
       b.setAttribute('aria-disabled', 'true');
     }
   });
-  taskBtn('cursor').dispatch('click');
+  doc.querySelectorAll('.section-tab').forEach((b) => {
+    if (b.dataset.section !== 'sec-log') {
+      b.classList.add('dimmed');
+      b.setAttribute('aria-disabled', 'true');
+    }
+  });
+  taskBtn('clicks').dispatch('click');
   assert.equal(getOpenSection(), null); // nothing opened — the guard spoke
 });
 
-test('the setup task starts the wizard directly — no section navigation', async () => {
+test('the prominent guided-setup action starts the wizard directly', async () => {
   const { isWizardActive } = await import('../app/js/services/wizard.js');
-  taskBtn('setup').dispatch('click');
+  doc.getElementById('btnStartWizard').dispatch('click');
   assert.equal(isWizardActive(), true);
   assert.equal(doc.getElementById('wizardPanel').hidden, false);
   // The wizard's own Connect step is the flow's first screen — works while

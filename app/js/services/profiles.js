@@ -60,7 +60,7 @@ function sanitizeProfile(raw) {
 }
 
 /** The saved profiles, sanitized — exported for the readiness strip's
- *  mismatch check (the Device card's own group goes through the render). */
+ *  mismatch check (the Profiles page's own group goes through the render). */
 export function listProfiles() {
   return loadProfiles();
 }

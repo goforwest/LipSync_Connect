@@ -1,4 +1,4 @@
-// Device self-test (LED/buzzer) button lockout + live narration panel.
+// Device self-test button lockout + LED/buzzer live narration panel.
 // Firmware's RT,1:<tab> narrates every step to Serial and ~5–30 s of async
 // messages follow (LSTest.ino). While that narration is in flight the device
 // is effectively busy: concurrent web commands add to the chatter, arrive
@@ -22,8 +22,10 @@ let selfTestLock = 0; // timeout id, 0 = unlocked
 
 export function lockSelfTestButtons() {
   clearTimeout(selfTestLock);
-  $('btnTestLeds').disabled = true;
-  $('btnTestBuzzer').disabled = true;
+  ['btnTestLeds', 'btnTestBuzzer', 'btnTestWatchdog'].forEach((id) => {
+    const button = $(id);
+    if (button) button.disabled = true;
+  });
   // Hard fallback: never stay locked longer than the longest firmware test (~30 s)
   selfTestLock = setTimeout(unlockSelfTestButtons, 30000);
 }
@@ -31,8 +33,10 @@ export function unlockSelfTestButtons() {
   clearTimeout(selfTestLock);
   selfTestLock = 0;
   if (!serialSession.port) return; // disconnected — keep everything disabled until reconnect
-  $('btnTestLeds').disabled = false;
-  $('btnTestBuzzer').disabled = false;
+  ['btnTestLeds', 'btnTestBuzzer', 'btnTestWatchdog'].forEach((id) => {
+    const button = $(id);
+    if (button) button.disabled = false;
+  });
 }
 // Firmware emits its last narration line and the literal terminal line
 // "Test Complete" effectively back-to-back, so without a dwell the buttons

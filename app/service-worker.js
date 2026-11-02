@@ -1,6 +1,7 @@
-// v41 hard-invalidates the pre-MP cache. The 4.6.4 hardware round proved a
-// stale v40 worker could pair new firmware with the old OM/CM mode flow.
-const CACHE = 'lipsync-connect-v41';
+// v52 carries the compact section menu, Home action hierarchy, and shared
+// tuning-control system. Hard invalidate because the new markup, controller,
+// and responsive styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v52';
 const ASSETS = [
   './',
   './index.html',
@@ -66,8 +67,13 @@ const ASSETS = [
 
 async function cacheResponse(request, response) {
   if (!response || !response.ok) return response;
-  const cache = await caches.open(CACHE);
-  await cache.put(request, response.clone());
+  // Offline storage is an enhancement. Quota exhaustion, private-mode cache
+  // restrictions, or a transient Cache API failure must never turn a valid
+  // online response into a failed page/module request.
+  try {
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response.clone());
+  } catch {}
   return response;
 }
 
@@ -84,7 +90,11 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k.startsWith('lipsync-connect-') && k !== CACHE).map((k) => caches.delete(k)),
+        ),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -108,15 +118,13 @@ self.addEventListener('fetch', (e) => {
   // the app usable offline AND propagates deploys to returning users without
   // anyone having to remember to bump the CACHE constant for every change —
   // the constant is still a hard-invalidate lever for breaking changes.
-  e.respondWith(
-    caches.match(e.request).then(async (hit) => {
-      const refresh = fetch(e.request)
-        .then((response) => {
-          if (response && response.ok) cacheResponse(e.request, response);
-          return response;
-        })
-        .catch(() => null);
-      return hit || refresh.then((response) => response || Response.error());
-    }),
-  );
+  // Start one shared refresh while the fetch event is still dispatching and
+  // extend the worker lifetime until its cache write settles. Returning a
+  // cached hit without waitUntil() let the browser terminate the worker and
+  // abort the advertised background refresh, leaving repeat visitors stale.
+  const refresh = fetch(e.request)
+    .then((response) => (response && response.ok ? cacheResponse(e.request, response) : response))
+    .catch(() => null);
+  e.waitUntil(refresh.then(() => undefined));
+  e.respondWith(caches.match(e.request).then((hit) => hit || refresh.then((response) => response || Response.error())));
 });

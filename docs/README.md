@@ -8,7 +8,7 @@ updates rather than rewritten. Reading order:
 1. `STATUS.md` — where things stand right now (firmware line, human
    steps, open items and why).
 2. `roadmap.md` — the master ledger: every upstream issue → disposition
-   → numbered roadmap item → dated Done note; the full 4.2.0 → 4.5.x
+    → numbered roadmap item → dated Done note; the full 4.2.0 → 4.6.x
    improvement plan (originally `firmware-4.2.0-future-improvements.md`,
    renamed 2026-10-20 when it outgrew the name).
 3. `4.5.x-followups.md` — the five follow-ups from the 4.5.0 validation

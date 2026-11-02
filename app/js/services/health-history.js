@@ -1,6 +1,6 @@
 // Health-check history: every run's outcome (passed / attention / error)
 // plus its five step states persists as a bounded list in localStorage, and
-// the Diagnostics card shows the trend — a device that passed for weeks and
+// the Health page shows the trend — a device that passed for weeks and
 // started warning is a degrading unit; the trend makes that visible before
 // anyone feels it in the cursor. Per-run dots carry timestamps on hover.
 import { $ } from '../ui/dom.js';

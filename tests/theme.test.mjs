@@ -104,6 +104,18 @@ test('contrast guard warns below AA once and re-arms after a compliant value', (
   els.get('colorAccent').value = '#ee343f';
   els.get('colorAccent').dispatch('input');
   assert.equal(contrastWarnCount(), 2);
+
+  // Re-arm, then make ordinary body text disappear into its panel. The guard
+  // covers all customizable core surfaces, not only action buttons.
+  computedStyles['--accent'] = '#111111';
+  els.get('colorAccent').value = '#111111';
+  els.get('colorAccent').dispatch('input');
+  computedStyles['--text'] = '#ffffff';
+  computedStyles['--panel'] = '#ffffff';
+  els.get('colorText').value = '#ffffff';
+  els.get('colorText').dispatch('input');
+  assert.equal(contrastWarnCount(), 3);
+  assert.match(els.get('notification').querySelector('.notif-msg').textContent, /body text/);
 });
 
 test('Reset clears the stored theme and restores default input values', () => {

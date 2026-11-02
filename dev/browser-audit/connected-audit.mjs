@@ -24,6 +24,53 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
+const GROUP_BY_SECTION = {
+  'sec-home': 'home',
+  'sec-device': 'device',
+  'sec-profiles': 'device',
+  'sec-cursor': 'movement',
+  'sec-sip': 'inputs',
+  'sec-restrictions': 'inputs',
+  'sec-switches': 'inputs',
+  'sec-joystick': 'movement',
+  'sec-feedback': 'device',
+  'sec-bluetooth': 'device',
+  'sec-diagnostics': 'care',
+  'sec-tools': 'advanced',
+  'sec-maintenance': 'care',
+  'sec-firmware': 'care',
+  'sec-help': 'help',
+  'sec-log': 'advanced',
+};
+
+async function clickSection(page, section) {
+  const tab = `.section-tab[data-section="${section}"]`;
+  const group = `.circle-trigger[data-group="${GROUP_BY_SECTION[section]}"]`;
+  const openGroup = async () => {
+    if (!(await page.isVisible(group)) && (await page.isVisible('#btnNavMore'))) {
+      await page.click('#btnNavMore');
+      await page.waitForTimeout(80);
+    }
+    await page.click(group);
+  };
+  const isOpen = await page.evaluate((id) => document.getElementById(id)?.classList.contains('open'), section);
+  if (isOpen) {
+    if ((await page.$(tab)) && (await page.isVisible(tab))) await page.click(tab);
+    else await openGroup();
+    return;
+  }
+  if (!(await page.$(tab))) {
+    await openGroup();
+    return;
+  }
+  if (!(await page.isVisible(tab))) {
+    await openGroup();
+    await page.waitForTimeout(50);
+  }
+  const openedByGroup = await page.evaluate((id) => document.getElementById(id)?.classList.contains('open'), section);
+  if (!openedByGroup) await page.click(tab);
+}
+
 export async function runConnectedAudit({ origin, chromium, executablePath }) {
   const findings = [];
   const note = (area, ok, detail) => {
@@ -51,7 +98,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       await page.waitForTimeout(400);
     };
     const openCard = async (sec) => {
-      await page.click(`.circle-trigger[data-section="${sec}"]`);
+      await clickSection(page, sec);
       await page.waitForTimeout(800);
     };
     const evalCard = (fn, ...args) => page.evaluate(fn, ...args);
@@ -91,10 +138,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(dev),
     );
 
-    // Readiness strip: after the load + automatic update check, the strip
-    // shows the update chip (the fake offers 4.5.4 vs connected 4.5.2) and
-    // the not-run health chip — the two things worth looking at. Poll: the
-    // update check lands asynchronously.
+    // Readiness on Home: after the load + automatic update check, it shows
+    // only signals worth acting on. Poll because the check lands asynchronously.
     let strip1 = null;
     for (let i = 0; i < 20; i++) {
       await page.waitForTimeout(300);
@@ -113,9 +158,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(strip1),
     );
 
-    // Task-based entry: the Help card's plain-language task opens the right
+    // Task-based entry: Home's plain-language task opens the right
     // section and focuses the answering control.
-    await openCard('sec-help');
+    await openCard('sec-home');
+    await page.click('.home-more > summary');
     await page.click('.task-btn[data-task="clicks"]');
     await page.waitForTimeout(400);
     const taskJump = await evalCard(() => ({
@@ -128,7 +174,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('task-entry', taskJump.open && taskJump.focus === 'st' && taskJump.pulsed, JSON.stringify(taskJump));
 
     // User profiles: save the current settings under a name.
-    await openCard('sec-device');
+    await openCard('sec-profiles');
     await page.fill('#profileName', 'Audit profile');
     await page.click('#btnSaveProfile');
     await page.waitForTimeout(400);
@@ -142,7 +188,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     // Guided setup: starting on the already-connected device resumes past
     // the Connect step to Calibrate.
-    await openCard('sec-help');
+    await openCard('sec-home');
     await page.click('#btnStartWizard');
     await page.waitForTimeout(700);
     const wiz = await evalCard(() => ({
@@ -215,6 +261,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       sipInput: document.getElementById('sipInput').value,
       markLeft: document.getElementById('gaugeSipMark').style.left,
       scaleLabel: document.getElementById('gaugeSipLabel').textContent,
+      stepperGroups: document.querySelectorAll('#sec-sip .tuning-stepper').length,
+      statsHidden:
+        document.getElementById('practiceStatsRow').hidden &&
+        getComputedStyle(document.getElementById('practiceStatsRow')).display === 'none',
     }));
     await page.click('[data-target="st"][data-step="1"]');
     await page.waitForTimeout(500);
@@ -232,7 +282,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         sip.puffVal === '25.00' &&
         sip.sipInput === '12.50' &&
         sip.markLeft !== '' &&
-        sip.scaleLabel.includes('hPa'),
+        sip.scaleLabel.includes('hPa') &&
+        sip.stepperGroups === 5 &&
+        sip.statsHidden,
       JSON.stringify(sip),
     );
 
@@ -262,7 +314,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     // Profile apply writes the saved settings back — the profile was saved
     // at speed 7; the max push left it at 10.
-    await openCard('sec-device');
+    await openCard('sec-profiles');
     await page.click('.profile-apply');
     await page.waitForTimeout(1800);
     const profApplied = await evalCard(() => ({
@@ -377,10 +429,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify({ ...badImport, preInvalid }),
     );
 
-    // The setup task starts the guided flow in place — first Common task,
-    // works from any state.
-    await openCard('sec-help');
-    await page.click('.task-btn[data-task="setup"]');
+    // Home's prominent setup action starts the guided flow in place and works
+    // from any connection state.
+    await openCard('sec-home');
+    await page.click('#btnStartWizard');
     await page.waitForTimeout(500);
     const setupTask = await evalCard(() => ({
       panel: !document.getElementById('wizardPanel').hidden,
@@ -569,7 +621,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note('live-stop', live0.text === 'Live view' && live0.pressed === 'false' && !live0.panel, JSON.stringify(live0));
 
     // Hub remote: open, navigate, select Mode, close
-    await openCard('sec-diagnostics');
+    await openCard('sec-tools');
     await page.click('#btnHubOpen');
     await page.waitForTimeout(900);
     const hub1 = await evalCard(() => ({
@@ -797,7 +849,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // Diagnostics ladder sweep: the DEBUG,5 sip&puff state stream drives the
     // live hold fill (the fake cycles 2 s holds with 2 s gaps — poll until a
     // hold paints).
-    await openCard('sec-diagnostics');
+    await openCard('sec-tools');
     await page.selectOption('#debugMode', '5');
     await page.click('#btnSetDebug');
     let swept = false;
@@ -1066,7 +1118,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // Readiness profile mismatch (the shared-device signal): clean the
     // profile slate, save one at the current state, change two settings
     // past their tolerance, refresh — the borrowed-and-tweaked chip appears
-    // and jumps to the Device card.
+    // and jumps to the Profiles page.
+    await openCard('sec-profiles');
     await evalCard(() => localStorage.removeItem('lipsync-profiles'));
     await page.fill('#profileName', 'Mismatch test');
     await page.click('#btnSaveProfile');
@@ -1097,9 +1150,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify(mmState),
     );
     if (mmChip) {
-      // The Device card is open from the refresh; the accordion toggle would
-      // close it on this click. Close it first so the chip's open is honest.
-      await page.click('.circle-trigger[data-section="sec-device"]');
+      // Readiness now lives on Home. Return there, then use the mismatch chip
+      // to prove it opens Profiles rather than a hidden global strip.
+      await clickSection(page, 'sec-home');
       await page.waitForTimeout(400);
       const btns = await page.$$('.ready-chip');
       for (const b of btns) {
@@ -1111,9 +1164,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       }
       await page.waitForTimeout(400);
       const afterChip = await evalCard(() => ({
-        deviceOpen: document.getElementById('sec-device').classList.contains('open'),
+        profilesOpen: document.getElementById('sec-profiles').classList.contains('open'),
       }));
-      note('readiness-mismatch-opens-device', afterChip.deviceOpen, JSON.stringify(afterChip));
+      note('readiness-mismatch-opens-profiles', afterChip.profilesOpen, JSON.stringify(afterChip));
     }
 
     await openCard('sec-maintenance');
@@ -1210,23 +1263,25 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     // ---------------- Phase 3: the full firmware-update wizard ----------------
     // Uses the dev server's REAL local artifacts: /firmware-manifest.json +
-    // /firmware-files/LipSync_Firmware_4.5.4_dfu.zip from dev/firmware/dist
+    // its named DFU package from dev/firmware/dist
     // (the documented localStorage override), the browser-side bootloader
-    // model in the fake, and the fake's app firmware flipping to 4.5.4 when
-    // the bootloader activates. Exercises the whole journey: check →
+    // model in the fake, and the fake's app firmware flipping to the manifest
+    // version when the bootloader activates. Exercises the whole journey: check →
     // backup → confirm → UM restart → bootloader port pick → real DFU wire
     // exchange → STOP/activate → reconnect → verify + settings restore.
-    await page.evaluate(() => {
+    const localManifest = await (await fetch(origin + '/firmware-manifest.json')).json();
+    const targetVersion = localManifest.firmwareVersion;
+    await page.evaluate((version) => {
       localStorage.removeItem('lipsync-fw-check'); // the offline check from phase 1/2 is cached
       localStorage.setItem('lipsync-fw-manifest-url', '/firmware-manifest.json');
       window.__fakeFirmware.wantBootloader = false;
       window.__fakeFirmware.state.VN = '4.5.2';
-      window.__fakeFirmware.targetVersion = '4.5.4';
-    });
+      window.__fakeFirmware.targetVersion = version;
+    }, targetVersion);
 
     await connect();
     await openCard('sec-firmware');
-    // The auto-check (post-connect) read the local manifest: 4.5.4 > 4.5.2.
+    // The auto-check (post-connect) read the local manifest: target > 4.5.2.
     const updateBtn = await page.waitForSelector('#btnStartUpdate', { state: 'visible', timeout: 15000 });
     const fwAvail = await evalCard(() => ({
       latest: document.getElementById('fwLatestVersion').textContent,
@@ -1236,7 +1291,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'fw-update-available',
-      fwAvail.latest === '4.5.4' && fwAvail.installed === '4.5.2' && fwAvail.status === 'available',
+      fwAvail.latest === targetVersion && fwAvail.installed === '4.5.2' && fwAvail.status === 'available',
       JSON.stringify(fwAvail),
     );
 
@@ -1270,7 +1325,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnFwContinue'); // picker → the fake presents the bootloader
 
     // Flash: real DFU over the bootloader model — erase + ~600 data frames
-    // against the real 4.5.4 package. Poll the progress to 100%.
+    // against the real local package. Poll the progress to 100%.
     let flashSeen = null;
     let maxPct = 0;
     const flashDeadline = Date.now() + 120000;
@@ -1293,7 +1348,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       JSON.stringify({ ...flashSeen, maxPct }),
     );
 
-    // Reconnect: the fake re-presents the application, now on 4.5.4 — the
+    // Reconnect: the fake re-presents the application on the target version — the
     // pending-update finisher must verify the version and restore settings.
     await page.click('#btnConnect');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, {
@@ -1316,8 +1371,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       'fw-wizard-verify+restore',
       restore.done === 'done' &&
         restore.text.toLowerCase().includes('complete') &&
-        restore.version === '4.5.4' &&
-        restore.fwCurrent === '4.5.4' &&
+        restore.version === targetVersion &&
+        restore.fwCurrent === targetVersion &&
         restore.w1 === '600' && // the fake's post-flash factory default is 500 — only the restore brings 600 back
         restore.status === 'Connected',
       JSON.stringify(restore),
@@ -1350,7 +1405,7 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
     await page.goto(origin + '/', { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
 
-    // Start from the Help card — the default-open landing card on a first
+    // Start from Home — the default-open landing card on a first
     // run (clicking its trigger here would TOGGLE it closed).
     await page.waitForTimeout(300);
     await page.click('#btnStartWizard');
@@ -1452,9 +1507,9 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
       suggestVisible && applied.sip !== '12.50' && applied.sip !== '—',
       JSON.stringify(applied),
     );
-    // The step's copy says to come back to this panel in Help and press
+    // The step's copy says to come back to this panel on Home and press
     // Next — the return is part of the instructed flow.
-    await page.click('.circle-trigger[data-section="sec-help"]');
+    await clickSection(page, 'sec-home');
     await page.waitForTimeout(600);
     await page.click('#wizNext');
     await page.waitForTimeout(400);
@@ -1520,8 +1575,8 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
 }
 
 // ---------------- Viewport matrix: the layout guards ----------------
-// The connected UI must not horizontally scroll at any width (the round-8
-// grid fix). Runs the same fake at phone/narrow-desktop/landscape sizes and
+// The connected UI must not horizontally scroll at any width. Runs the same
+// fake at phone/narrow-desktop/landscape sizes and
 // opens the widest cards.
 export async function runViewportAudit({ origin, chromium, executablePath }) {
   const findings = [];
@@ -1541,12 +1596,94 @@ export async function runViewportAudit({ origin, chromium, executablePath }) {
       await page.addInitScript({ path: fakePath });
       await page.goto(origin + '/', { waitUntil: 'networkidle' });
       await page.waitForTimeout(700);
+      const navAudit = [];
+      for (const colorScheme of ['light', 'dark']) {
+        await page.emulateMedia({ colorScheme });
+        navAudit.push(
+          await page.evaluate(() => {
+            const channel = (v) => {
+              const n = v / 255;
+              return n <= 0.04045 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
+            };
+            // Computed color-mix() values may serialize as oklab() or
+            // color(srgb), not rgb(). Let the browser's canvas parser resolve
+            // every supported CSS color syntax to actual sRGB bytes.
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 1;
+            const context = canvas.getContext('2d');
+            const rgb = (value) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = value;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+            };
+            const contrast = (foreground, background) => {
+              const [fr, fg, fb] = rgb(foreground);
+              const [br, bg, bb] = rgb(background);
+              const lf = 0.2126 * channel(fr) + 0.7152 * channel(fg) + 0.0722 * channel(fb);
+              const lb = 0.2126 * channel(br) + 0.7152 * channel(bg) + 0.0722 * channel(bb);
+              return (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05);
+            };
+            const active = document.querySelector('.circle-trigger.active');
+            const label = active?.querySelector('.circle-label');
+            const more = document.getElementById('btnNavMore');
+            return {
+              moreName: more?.getAttribute('aria-label') || '',
+              contrast:
+                active && label ? contrast(getComputedStyle(label).color, getComputedStyle(active).backgroundColor) : 0,
+            };
+          }),
+        );
+      }
+      // 150% is the app's largest built-in UI scale. Fixed/sticky chrome must
+      // divide its viewport geometry by body zoom; otherwise the header and
+      // section panel overflow a phone and the measured header height gets
+      // zoomed a second time as the sidebar's sticky offset.
+      let scaleFit = null;
+      if (w === 390 && h === 844) {
+        await page.click('#btnSettings');
+        await page.click('.scale-btn[data-scale="1.5"]');
+        await page.click('#btnSettings');
+        await page.waitForTimeout(150);
+        await page.click('#btnNavMore');
+        await page.waitForTimeout(100);
+        scaleFit = await page.evaluate(() => {
+          const header = document.getElementById('appHeader').getBoundingClientRect();
+          const sidebar = document.getElementById('appSidebar').getBoundingClientRect();
+          const menu = document.getElementById('sectionNav').getBoundingClientRect();
+          return {
+            hScroll: document.documentElement.scrollWidth > innerWidth,
+            headerRight: Math.round(header.right),
+            stickyGap: Math.round(sidebar.top - header.bottom),
+            menuLeft: Math.round(menu.left),
+            menuRight: Math.round(menu.right),
+            expanded: document.getElementById('btnNavMore').getAttribute('aria-expanded'),
+          };
+        });
+        await page.click('#btnNavMore');
+        await page.click('#btnSettings');
+        await page.click('.scale-btn[data-scale="1"]');
+        await page.click('#btnSettings');
+        await page.waitForTimeout(100);
+      }
+      note(
+        `${w}x${h}-nav-a11y`,
+        navAudit.every((result) => result.moreName && result.contrast >= 4.5) &&
+          (!scaleFit ||
+            (!scaleFit.hScroll &&
+              scaleFit.headerRight <= w &&
+              Math.abs(scaleFit.stickyGap) <= 1 &&
+              scaleFit.menuLeft >= 0 &&
+              scaleFit.menuRight <= w &&
+              scaleFit.expanded === 'true')),
+        JSON.stringify({ navAudit, scaleFit }),
+      );
       await page.click('#btnConnect');
       await page.waitForFunction(() => document.getElementById('status').textContent === 'Connected', null, {
         timeout: 20000,
       });
       for (const sec of ['sec-sip', 'sec-joystick', 'sec-switches', 'sec-log']) {
-        await page.click(`.circle-trigger[data-section="${sec}"]`);
+        await clickSection(page, sec);
         await page.waitForTimeout(900);
         const fit = await page.evaluate(
           ({ id, vw }) => ({

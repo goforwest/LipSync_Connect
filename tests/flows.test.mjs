@@ -148,6 +148,21 @@ test('mode switch: 4.6.4 atomically moves Gamepad to Bluetooth in one MP command
   assert.deepEqual(sent, ['SETTINGS\n', 'MP,1:2\n']);
 });
 
+test('mode switch: 4.5.8–4.6.3 refuses a known-broken two-setting transition', async () => {
+  noteDeviceVersion('4.6.3');
+  app.handleLine('SUCCESS,0:OM,0:2');
+  app.handleLine('SUCCESS,0:CM,0:1');
+  const { sent, detach } = launch(() => []);
+  app.setConnectedUI(true);
+  const sel = doc.getElementById('operatingMode');
+  sel.value = 'mouse-bt';
+  sel.dispatch('change');
+  await clickAndDrain('btnSetOperatingMode');
+  detach();
+  assert.deepEqual(sent, [], 'the app never sends the half-applying legacy sequence');
+  assert.match(doc.getElementById('modeGuardHint').textContent, /firmware 4\.6\.4 or newer/i);
+});
+
 // ---- Bluetooth switch --------------------
 
 test('bluetooth switch sends CM,1:2 then SR when OM is already mouse', async () => {
@@ -184,6 +199,18 @@ test('Bluetooth shortcut uses atomic MP on 4.6.4 when starting in Gamepad', asyn
   await clickAndDrain('btnSwitchBt', { confirm: true });
   detach();
   assert.deepEqual(sent, ['SETTINGS\n', 'MP,1:2\n']);
+});
+
+test('Bluetooth shortcut refuses the Gamepad half-transition on 4.6.3', async () => {
+  noteDeviceVersion('4.6.3');
+  app.handleLine('SUCCESS,0:OM,0:2');
+  app.handleLine('SUCCESS,0:CM,0:1');
+  const { sent, detach } = launch(() => []);
+  app.setConnectedUI(true);
+  await clickAndDrain('btnSwitchBt');
+  detach();
+  assert.deepEqual(sent, []);
+  assert.match(doc.getElementById('modeGuardHint').textContent, /switch to Mouse, reconnect/i);
 });
 
 // ---- Soft / factory reset --------------------

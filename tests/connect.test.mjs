@@ -17,6 +17,10 @@ const init = (id, cls) => {
   return el;
 };
 init('btnConnect').disabled = false;
+const homeConnect = makeEl('button');
+homeConnect.id = 'btnHomeConnect';
+homeConnect.disabled = false;
+els.set('btnHomeConnect', homeConnect);
 init('btnDisconnect', 'cmd').disabled = true;
 for (const id of ['confirmDialog', 'confirmTitle', 'confirmBody', 'confirmOk', 'confirmCancel']) init(id);
 
@@ -85,6 +89,41 @@ test('connect: a dismissed picker is a quiet cancel, not an error', async () => 
   assert.match(historyFrom(histStart), /Connection cancelled: no serial port selected/);
   assert.equal(serialSession.port, null);
   assert.equal(byId('btnConnect').disabled, false, 'Connect re-enables');
+});
+
+test('connect: Home and header share one in-flight picker and restore focus on cancel', async () => {
+  let pickerCalls = 0;
+  let rejectPicker = () => {};
+  const pendingPicker = new Promise((_, reject) => {
+    rejectPicker = reject;
+  });
+  configureSerialPortSource({
+    requestPort: async () => {
+      pickerCalls++;
+      return pendingPicker;
+    },
+  });
+
+  const home = byId('btnHomeConnect');
+  home.focus();
+  const first = connect();
+  const duplicate = connect();
+
+  assert.equal(pickerCalls, 1, 'only one OS picker was requested');
+  assert.equal(byId('btnConnect').disabled, true, 'header action locks while the picker is open');
+  assert.equal(home.disabled, true, 'Home action locks while the picker is open');
+  assert.equal(home.classList.contains('btn--loading'), true, 'Home action shows its busy state');
+
+  const cancelled = new Error('The user did not select a port.');
+  cancelled.name = 'NotFoundError';
+  rejectPicker(cancelled);
+  await Promise.all([first, duplicate]);
+
+  assert.equal(pickerCalls, 1);
+  assert.equal(byId('btnConnect').disabled, false);
+  assert.equal(home.disabled, false);
+  assert.equal(home.classList.contains('btn--loading'), false);
+  assert.equal(doc.activeElement, home, 'focus returns to the connection surface that launched the picker');
 });
 
 test('connect: a port left open by the last session is cleaned up and retried once', async () => {

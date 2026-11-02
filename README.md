@@ -21,9 +21,11 @@ npm run start:https      # HTTPS on https://localhost:4443 (auto-generates a sel
 npm run dev:local        # HTTP + live reload for app/ edits
 ```
 
+Development tooling requires Node.js 22.22+ (or 24.8+); the deployed app itself is static and has no Node.js runtime.
+
 `HOST`/`PORT` env vars override the bind address and port. Opening `https://localhost:4443` once and accepting the self-signed cert lets the browser treat the page as a secure context, which Web Serial requires.
 
-Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~31 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help card for troubleshooting.
+Connect a LipSync, click **Connect**, choose the device (it appears as something like `XIAO nRF52840 Sense`), and wait for ~31 settings to load (~2 s on firmware 4.2.0+ — near-instant on 4.3.0+ once the version identifies the wire protocol; up to ~30 s on older firmware). See the built-in Help page for troubleshooting.
 
 ## Quality checks
 
@@ -38,7 +40,7 @@ npm test                # unit + integration tests (node)
 npm run test:e2e        # real-browser offline precache test (Playwright Chromium required:
                         # `npm --prefix dev exec playwright-core install chromium`)
 npm run test:browser-audit # real-browser audits against a firmware fake (same Chromium requirement):
-                        # 104 checks in 3 phases — connected-state flows (the whole app driven
+                        # 115 checks in 3 phases — connected-state flows (the whole app driven
                         #   end to end: load, steppers, thresholds, calibration, self-tests,
                         #   hub remote, profiles, the full firmware-update wizard),
                         #   viewport matrix (no horizontal scroll at phone/narrow/landscape
@@ -85,7 +87,7 @@ app/                      served application (front end)
   service-worker.js       offline precache
 dev/                      dev server, lint/type/format configs, test runner entry
   browser-audit/          real-browser audits against a browser-side firmware fake:
-                          3 phases, 104 checks — connected-state flows, viewport
+                          3 phases, 115 checks — connected-state flows, viewport
                           matrix, first-run wizard (run.mjs, connected-audit.mjs,
                           fake-firmware.mjs — extend by adding checks/notes there)
   firmware/               local firmware build script (arduino-cli → DFU zip/UF2/manifest)
