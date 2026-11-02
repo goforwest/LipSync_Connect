@@ -1,7 +1,7 @@
-// v52 carries the compact section menu, Home action hierarchy, and shared
-// tuning-control system. Hard invalidate because the new markup, controller,
-// and responsive styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v52';
+// v53 carries the four-area task navigation, symptom-based support paths, and
+// combined support report. Hard invalidate because markup, controller, and
+// responsive styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v53';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ const ASSETS = [
   './js/services/mode-switch.js',
   './js/services/log.js',
   './js/services/log-export.js',
+  './js/services/support-report.js',
   './js/services/registry.js',
   './js/services/selftest.js',
   './js/services/hub-remote.js',

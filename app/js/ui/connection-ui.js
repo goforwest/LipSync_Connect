@@ -1,12 +1,10 @@
 // Connection-side UI chrome: status pill, connect guide, error banner with
-// retry, per-card gating (dim/undim until connect), and the connect stage
-// indicator. No serial code lives here — this module renders what
+// retry, hardware-action availability, and the connect stage indicator. No
+// serial code lives here — this module renders what
 // serial/connection.js and services/settings-service.js tell it.
 import { serialApi } from '../serial/transport.js';
-import { serialSession } from '../serial/session.js';
 import { $ } from './dom.js';
 import { isSelfTestLocked } from '../services/selftest.js';
-import { SECTION_GROUPS } from './sections.js';
 
 export function setStatus(text, connected) {
   const s = $('status');
@@ -99,52 +97,24 @@ export function setCmdButtons(enabled) {
   });
 }
 
-// Serial-dependent cards (everything except Home, Help, and Log) are visually dimmed
-// until a device connects, but deliberately NOT made inert: an open card's
-// status text (loading progress, current values) must remain readable by screen
-// readers, and every interactive control inside is already disabled while
-// disconnected. Home, Help, and Log stay fully interactive — a first-time
-// user can begin guided setup and inspect help/logs before connecting.
-// The Firmware card is additionally exempt while a wizard run is active
-// (marked with data-wizard on the section): the update deliberately
-// disconnects the device, and the wizard must stay visible, bright, and
-// openable throughout — the wizard panel is the only place the user can
-// continue or follow progress.
+// Every page remains browsable while disconnected. Hardware actions are
+// already represented by disabled `.cmd` controls; dimming or blocking an
+// entire page hides instructions precisely when a person may need them. Keep
+// this lifecycle hook so connect/disconnect callers have one stable seam and
+// so stale gating classes from an older cached page are removed.
 export function updateConnectionGating() {
-  const gated = !serialSession.port;
-  const firmwareActive = () =>
-    !!document.getElementById('sec-firmware')?.getAttribute('data-wizard') ||
-    !!document.getElementById('sec-firmware')?.getAttribute('data-recover');
   document.querySelectorAll('.section-card.needs-conn').forEach((el) => {
-    el.classList.toggle('card-off', gated && !(el.id === 'sec-firmware' && firmwareActive()));
+    el.classList.remove('card-off');
   });
-  const sectionKeepsAccess = (id) =>
-    ['sec-home', 'sec-help', 'sec-log'].includes(id) || (id === 'sec-firmware' && firmwareActive());
   document.querySelectorAll('.section-tab[data-section]').forEach((/** @type {any} */ b) => {
-    const keepsAccess = sectionKeepsAccess(b.dataset.section);
-    if (!keepsAccess) {
-      b.classList.toggle('dimmed', gated);
-      b.setAttribute('aria-disabled', String(gated));
-      if (gated) b.title = 'Connect a LipSync device first';
-      else b.removeAttribute('title');
-    } else {
-      b.classList.remove('dimmed');
-      b.removeAttribute('aria-disabled');
-      b.removeAttribute('title');
-    }
+    b.classList.remove('dimmed');
+    b.removeAttribute('aria-disabled');
+    b.removeAttribute('title');
   });
   document.querySelectorAll('.circle-trigger[data-group]').forEach((/** @type {any} */ b) => {
-    const sections = SECTION_GROUPS[b.dataset.group]?.sections ?? [];
-    const hasReachableSection = sections.some((id) => sectionKeepsAccess(id));
-    const dimmed = gated && !hasReachableSection;
-    b.classList.toggle('dimmed', dimmed);
-    if (dimmed) {
-      b.setAttribute('aria-disabled', 'true');
-      b.title = 'Connect a LipSync device first';
-    } else {
-      b.removeAttribute('aria-disabled');
-      b.removeAttribute('title');
-    }
+    b.classList.remove('dimmed');
+    b.removeAttribute('aria-disabled');
+    b.removeAttribute('title');
   });
 }
 
@@ -217,6 +187,8 @@ export function setConnectedUI(connected) {
       const el = $(id);
       if (el) el.textContent = '—';
     });
+    const homeProfile = $('homeProfile');
+    if (homeProfile) homeProfile.textContent = 'Connect to check';
     syncModeBtn();
     updateBtStatus();
   }

@@ -306,12 +306,9 @@ const SECTION_IDS = [
 
 const NAV_GROUPS = {
   home: ['sec-home'],
-  movement: ['sec-cursor', 'sec-joystick'],
-  inputs: ['sec-sip', 'sec-switches', 'sec-restrictions'],
-  device: ['sec-device', 'sec-feedback', 'sec-bluetooth', 'sec-profiles'],
-  care: ['sec-diagnostics', 'sec-firmware', 'sec-maintenance'],
-  advanced: ['sec-tools', 'sec-log'],
-  help: ['sec-help'],
+  adjust: ['sec-cursor', 'sec-joystick', 'sec-sip', 'sec-switches', 'sec-feedback', 'sec-restrictions'],
+  device: ['sec-device', 'sec-bluetooth', 'sec-profiles', 'sec-firmware', 'sec-maintenance'],
+  support: ['sec-help', 'sec-diagnostics', 'sec-tools', 'sec-log'],
 };
 
 /**

@@ -62,7 +62,7 @@ const STEPS = [
   {
     id: 'verify',
     title: 'Verify',
-    text: 'Run Health check under Health & updates. A green summary means the device is ready to hand over.',
+    text: 'Run Health check under Help & support. A green summary means the device is ready to hand over.',
     actionLabel: 'Open the health check',
     action: () => {
       openSectionById('sec-diagnostics');

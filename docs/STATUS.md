@@ -11,11 +11,18 @@ rewritten silently. Index and reading order: `docs/README.md`.
 ## App
 
 - The interface now keeps its established accessible visual system while
-  grouping the feature inventory into seven primary work areas: Home,
-  Movement, Inputs, Device, Health & updates, Tools, and Help. Home is the
-  first-run/default surface; multi-page areas use a compact secondary row.
-- Health check/self-tests are separated from live diagnostics and the Hub
-  remote; the latter now live under Tools, with maintenance under Health & updates.
+  grouping the feature inventory into four fixed, task-oriented areas: Home,
+  Adjust controls, Device, and Help & support. Home is the first-run/default
+  surface; multi-page areas use a compact secondary row, and all original
+  `sec-*` deep links remain stable.
+- Help & support now starts with seven symptom-based paths and direct links to
+  the relevant adjustment or test. Health check and Test inputs remain normal
+  pages; the Hub remote, detailed log, and raw commands sit behind one clearly
+  labeled Advanced tools disclosure. One support-report action combines app and
+  device versions, a connected settings dump, and redacted session logs.
+- Every area can be browsed while disconnected; only actions that require the
+  LipSync stay disabled. Reset/erase actions likewise sit behind a full-size
+  Reset options disclosure instead of relying on hidden gestures or small targets.
 - Narrow screens now use one large Sections menu instead of a clipped horizontal
   rail, and local page tabs scroll away rather than consuming a second sticky
   band. Home owns the prominent disconnected Connect action; normal actions use
@@ -26,13 +33,13 @@ rewritten silently. Index and reading order: `docs/README.md`.
   and coarse changes remain one click away. Sip & Puff's threshold and timing
   workflows are linear page sections instead of cards nested inside a card;
   the pre-practice stats row now honors its hidden state as intended.
-- Review hardening serializes the two Connect entry points, gates initial deep
-  links before opening a page, prevents 4.5.8–4.6.3 from half-applying direct
+- Review hardening serializes the two Connect entry points, restores initial deep
+  links without blocking disconnected reading, prevents 4.5.8–4.6.3 from half-applying direct
   Gamepad↔Bluetooth transitions, scopes offline-cache deletion to this app,
   and keeps stale-while-revalidate work alive until its cache write settles.
 - Browser audit: 84/84 connected-state flows, 20/20 viewport/accessibility checks, and
   11/11 first-run wizard checks pass on the reorganized interface.
-- Integration tests pass 467/467 and offline E2E passes 2/2. CI now runs the
+- Integration tests pass 471/471 and offline E2E passes 2/2. CI now runs the
   browser audit; the dev dependency audit is 0 vulnerabilities.
 
 ## Firmware

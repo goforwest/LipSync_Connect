@@ -113,10 +113,10 @@ export async function connect() {
       // Continue button instead of a dead end.
       const wizardActive = document.getElementById('sec-firmware')?.getAttribute('data-wizard') === 'active';
       const message = wizardActive
-        ? 'That is the LipSync\u2019s update loader — an update is already in progress. Return to the Firmware section and use its Continue button to pick it there. If the update was abandoned, use \u201cRecover a device stuck in update mode\u201d.'
-        : 'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Firmware and use “Recover a device stuck in update mode” to repair it.';
+        ? 'That is the LipSync\u2019s update loader — an update is already in progress. Return to Updates and use its Continue button to pick it there. If the update was abandoned, use \u201cRecover a device stuck in update mode\u201d.'
+        : 'That is the LipSync\u2019s update loader, not the LipSync itself. If the LipSync does not start normally after replugging, its firmware was interrupted — open Updates and use “Recover a device stuck in update mode” to repair it.';
       log(message, 'log-err');
-      announceStatus('Update loader selected. Replug the LipSync — or use Firmware to recover it.');
+      announceStatus('Update loader selected. Replug the LipSync — or use Updates to recover it.');
       // Keep the Firmware card openable and its Recover button reachable
       // while disconnected — when the app firmware is incomplete, recovery
       // is the only way out (reset and replug both land back in update mode).

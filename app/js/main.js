@@ -16,6 +16,7 @@ import { debounce, fmtApiFloat, fmtHpa } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
 import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.js';
+import { bindSupportReport } from './services/support-report.js';
 import { serialApi } from './serial/transport.js';
 import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
 
@@ -285,10 +286,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // openSection state is owned by ui/sections.js; nav Reads it via getOpenSection().
 
   // --- Task-based entry (Home's collapsed More tasks list) ---
-  // Plain-language goals jump straight to the control that answers them —
-  // the caregiver path for people who don't know the vocabulary. The
-  // dimmed-guard case (not connected) already speaks via its own notice, so
-  // the focus/pulse only run when the section actually opened.
+  // Plain-language goals jump straight to the control that answers them.
+  // Hardware pages remain browsable while disconnected; their device actions
+  // stay disabled until connection.
   const TASK_TARGETS = {
     clicks: { section: 'sec-sip', focus: 'button[data-target="st"][data-step="1"]' },
     accidents: { section: 'sec-restrictions', focus: '#sapDisabled' },
@@ -301,7 +301,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const t = TASK_TARGETS[btn.dataset.task];
       if (!t) return;
       openSectionById(t.section);
-      if (getOpenSection() !== t.section) return; // the dimmed guard spoke
+      if (getOpenSection() !== t.section) return;
       const target = document.querySelector(t.focus);
       if (target && typeof target.focus === 'function') {
         target.focus();
@@ -545,20 +545,17 @@ window.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  // Initialize collapsed section cards as inert
+  // Initialize collapsed section cards as inert. Connection state never gates
+  // reading a page; only its hardware-dependent controls are disabled.
   document.querySelectorAll('.section-card').forEach((el) => {
-    if (el.id !== 'sec-home') {
-      el.setAttribute('inert', '');
-      el.setAttribute('aria-hidden', 'true');
-    }
-    if (!['sec-home', 'sec-help', 'sec-log'].includes(el.id)) el.classList.add('needs-conn');
+    el.setAttribute('inert', '');
+    el.setAttribute('aria-hidden', 'true');
   });
   // --- Hash deep links (#sec-cursor, #sec-firmware, …) ---
   // A shared/bookmarked link opens the right card on load. The hash must be
   // read BEFORE the default Home open — sections.js syncs the URL on every
-  // open, so the default would overwrite the incoming link first. The dimmed
-  // guard still applies, so a pre-connect link answers with its
-  // connect-first notice instead of pretending.
+  // open, so the default would overwrite the incoming link first. Hardware
+  // controls remain disabled until connected, but the linked page is readable.
   const sectionFromHash = () => {
     try {
       const id = String(window.location?.hash ?? '').replace(/^#/, '');
@@ -567,14 +564,12 @@ window.addEventListener('DOMContentLoaded', () => {
       return '';
     }
   };
-  // Apply the disconnected gate BEFORE honoring a deep link. Otherwise a
-  // first navigation to #sec-firmware/#sec-device sees undimmed markup for
-  // one call and opens a serial-only page without a device. A blocked deep
-  // link lands on Home after the guard explains why.
+  // Clear stale dimming from an older cached build before honoring a deep link.
   updateConnectionGating();
   openSectionById(sectionFromHash() || 'sec-home');
   if (!getOpenSection()) openSectionById('sec-home');
   initWindowLadders();
+  bindSupportReport();
   // Manual hash edits and history navigation open their section too (the
   // skip link's #main-content is not a section and is ignored).
   window.addEventListener('hashchange', () => {

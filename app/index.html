@@ -107,8 +107,7 @@
           </button>
         </div>
         <nav class="circle-nav" aria-label="Main navigation" id="sectionNav">
-          <div class="circle-nav-group" role="group" aria-label="Use and configure">
-            <span class="nav-group-label" aria-hidden="true">Use &amp; configure</span>
+          <div class="circle-nav-group" role="group" aria-label="Main areas">
             <button
               type="button"
               class="circle-trigger active"
@@ -127,74 +126,9 @@
             <button
               type="button"
               class="circle-trigger"
-              data-group="movement"
+              data-group="adjust"
               data-default-section="sec-cursor"
-              aria-controls="sec-cursor sec-joystick"
-              aria-expanded="false"
-            >
-              <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-                  <path d="M13 13l6 6" /></svg></span
-              ><span class="circle-label">Movement</span>
-            </button>
-            <button
-              type="button"
-              class="circle-trigger"
-              data-group="inputs"
-              data-default-section="sec-sip"
-              aria-controls="sec-sip sec-switches sec-restrictions"
-              aria-expanded="false"
-            >
-              <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="5" cy="12" r="2" />
-                  <circle cx="19" cy="6" r="2" />
-                  <circle cx="19" cy="18" r="2" />
-                  <path d="M7 12h4c3 0 3-6 6-6M11 12c3 0 3 6 6 6" /></svg></span
-              ><span class="circle-label">Inputs</span>
-            </button>
-            <button
-              type="button"
-              class="circle-trigger"
-              data-group="device"
-              data-default-section="sec-device"
-              aria-controls="sec-device sec-profiles sec-feedback sec-bluetooth"
-              aria-expanded="false"
-            >
-              <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" /></svg></span
-              ><span class="circle-label">Device</span>
-            </button>
-          </div>
-          <span class="circle-nav-divider" aria-hidden="true"></span>
-          <div class="circle-nav-group" role="group" aria-label="Support and help">
-            <span class="nav-group-label" aria-hidden="true">Support</span>
-            <button
-              type="button"
-              class="circle-trigger"
-              data-group="care"
-              data-default-section="sec-diagnostics"
-              aria-controls="sec-diagnostics sec-firmware sec-maintenance"
-              aria-expanded="false"
-            >
-              <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path
-                    d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"
-                  />
-                  <path d="M7 12h3l1.2-2.5L13 15l1.2-3H17" /></svg></span
-              ><span class="circle-label">Health &amp; updates</span>
-            </button>
-            <button
-              type="button"
-              class="circle-trigger"
-              data-group="advanced"
-              data-default-section="sec-tools"
-              aria-controls="sec-tools sec-log"
+              aria-controls="sec-cursor sec-joystick sec-sip sec-switches sec-feedback sec-restrictions"
               aria-expanded="false"
             >
               <span class="circle-icon" aria-hidden="true"
@@ -205,22 +139,37 @@
                   <circle cx="15" cy="12" r="2" fill="var(--panel)" />
                   <line x1="4" y1="18" x2="20" y2="18" />
                   <circle cx="11" cy="18" r="2" fill="var(--panel)" /></svg></span
-              ><span class="circle-label">Tools</span>
+              ><span class="circle-label">Adjust controls</span>
             </button>
             <button
               type="button"
               class="circle-trigger"
-              data-group="help"
-              data-default-section="sec-help"
-              aria-controls="sec-help"
+              data-group="device"
+              data-default-section="sec-device"
+              aria-controls="sec-device sec-bluetooth sec-profiles sec-firmware sec-maintenance"
               aria-expanded="false"
             >
               <span class="circle-icon" aria-hidden="true"
                 ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" /></svg></span
-              ><span class="circle-label">Help</span>
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" /></svg></span
+              ><span class="circle-label">Device</span>
+            </button>
+            <button
+              type="button"
+              class="circle-trigger"
+              data-group="support"
+              data-default-section="sec-help"
+              aria-controls="sec-help sec-diagnostics sec-tools sec-log"
+              aria-expanded="false"
+            >
+              <span class="circle-icon" aria-hidden="true"
+                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 13a8 8 0 0 1 16 0" />
+                  <path d="M4 13v4a2 2 0 0 0 2 2h2v-7H4zM20 13v4a2 2 0 0 1-2 2h-2v-7h4z" />
+                  <path d="M16 19c0 1.1-.9 2-2 2h-2" /></svg></span
+              ><span class="circle-label">Help &amp; support</span>
             </button>
           </div>
         </nav>
@@ -233,16 +182,16 @@
             <button
               type="button"
               class="section-tab"
-              data-group="movement"
+              data-group="adjust"
               data-section="sec-cursor"
               aria-controls="sec-cursor"
             >
-              Cursor
+              Pointer movement
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="movement"
+              data-group="adjust"
               data-section="sec-joystick"
               aria-controls="sec-joystick"
             >
@@ -251,29 +200,38 @@
             <button
               type="button"
               class="section-tab"
-              data-group="inputs"
+              data-group="adjust"
               data-section="sec-sip"
               aria-controls="sec-sip"
             >
-              Sip &amp; Puff
+              Sip &amp; puff
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="inputs"
+              data-group="adjust"
               data-section="sec-switches"
               aria-controls="sec-switches"
             >
-              Switches
+              External switches
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="inputs"
+              data-group="adjust"
+              data-section="sec-feedback"
+              aria-controls="sec-feedback"
+            >
+              Sound &amp; lights
+            </button>
+            <button
+              type="button"
+              class="section-tab"
+              data-group="adjust"
               data-section="sec-restrictions"
               aria-controls="sec-restrictions"
             >
-              Safety
+              Input safeguards
             </button>
             <button
               type="button"
@@ -282,16 +240,7 @@
               data-section="sec-device"
               aria-controls="sec-device"
             >
-              Overview
-            </button>
-            <button
-              type="button"
-              class="section-tab"
-              data-group="device"
-              data-section="sec-feedback"
-              aria-controls="sec-feedback"
-            >
-              Feedback
+              Overview &amp; modes
             </button>
             <button
               type="button"
@@ -301,7 +250,7 @@
               aria-controls="sec-bluetooth"
               data-feature="bluetooth"
             >
-              Bluetooth
+              Bluetooth &amp; connections
             </button>
             <button
               type="button"
@@ -310,52 +259,61 @@
               data-section="sec-profiles"
               aria-controls="sec-profiles"
             >
-              Profiles
+              Profiles &amp; backup
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="care"
-              data-section="sec-diagnostics"
-              aria-controls="sec-diagnostics"
-            >
-              Health check
-            </button>
-            <button
-              type="button"
-              class="section-tab"
-              data-group="care"
+              data-group="device"
               data-section="sec-firmware"
               aria-controls="sec-firmware"
             >
-              Firmware
+              Updates
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="care"
+              data-group="device"
               data-section="sec-maintenance"
               aria-controls="sec-maintenance"
             >
-              Maintenance
+              Restart &amp; reset
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="advanced"
+              data-group="support"
+              data-section="sec-help"
+              aria-controls="sec-help"
+            >
+              Fix a problem
+            </button>
+            <button
+              type="button"
+              class="section-tab"
+              data-group="support"
+              data-section="sec-diagnostics"
+              aria-controls="sec-diagnostics"
+            >
+              Health check &amp; self-tests
+            </button>
+            <button
+              type="button"
+              class="section-tab"
+              data-group="support"
               data-section="sec-tools"
               aria-controls="sec-tools"
             >
-              Live tools
+              Test inputs
             </button>
             <button
               type="button"
               class="section-tab"
-              data-group="advanced"
+              data-group="support"
               data-section="sec-log"
               aria-controls="sec-log"
             >
-              Log &amp; raw commands
+              Support report &amp; advanced
             </button>
           </div>
         </nav>
@@ -393,10 +351,10 @@
 
             <div class="home-guide" id="wizardGroup">
               <div class="home-guide-copy">
-                <p class="diag-title">Set up a new user</p>
+                <p class="diag-title">Guided setup</p>
                 <p class="hint">
                   Follow one guided path through connection, calibration, sip &amp; puff thresholds, and a final health
-                  check.
+                  check. Anyone supporting the setup can use it.
                 </p>
               </div>
               <!-- Not a .cmd button on purpose: connecting is the wizard's first
@@ -423,11 +381,17 @@
                 <p class="diag-title">Quick actions</p>
                 <p class="hint">Jump directly to the controls used most often.</p>
                 <div class="home-actions">
-                  <button type="button" class="home-action" data-open-section="sec-cursor">Adjust movement</button>
+                  <button type="button" class="home-action" data-open-section="sec-cursor">Adjust pointer</button>
                   <button type="button" class="home-action" data-open-section="sec-sip">Practice sip &amp; puff</button>
+                  <button type="button" class="home-action" data-open-section="sec-restrictions">
+                    Prevent accidental input
+                  </button>
                   <button type="button" class="home-action" data-open-section="sec-joystick">Calibrate joystick</button>
                   <button type="button" class="home-action" data-open-section="sec-diagnostics">
                     Run health check
+                  </button>
+                  <button type="button" class="home-action" data-open-section="sec-profiles">
+                    Profiles &amp; backup
                   </button>
                 </div>
               </div>
@@ -455,6 +419,10 @@
                     <dd id="homeMode">&mdash;</dd>
                   </div>
                   <div>
+                    <dt>Profile</dt>
+                    <dd id="homeProfile">Connect to check</dd>
+                  </div>
+                  <div>
                     <dt>Connection</dt>
                     <dd id="homeConnection">Not connected</dd>
                   </div>
@@ -475,14 +443,14 @@
             </details>
           </section>
 
-          <section class="section-card" id="sec-device" aria-label="Device overview">
+          <section class="section-card" id="sec-device" aria-label="Device overview and modes">
             <div class="card-head">
-              <h2>Device overview</h2>
+              <h2>Overview &amp; modes</h2>
               <button
                 type="button"
                 class="card-close"
                 data-close="sec-device"
-                aria-label="Close Device overview section"
+                aria-label="Close Overview and modes section"
               >
                 &times;
               </button>
@@ -526,10 +494,15 @@
             </p>
           </section>
 
-          <section class="section-card" id="sec-profiles" aria-label="Profiles">
+          <section class="section-card" id="sec-profiles" aria-label="Profiles and backup">
             <div class="card-head">
-              <h2>Profiles</h2>
-              <button type="button" class="card-close" data-close="sec-profiles" aria-label="Close Profiles section">
+              <h2>Profiles &amp; backup</h2>
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-profiles"
+                aria-label="Close Profiles and backup section"
+              >
                 &times;
               </button>
             </div>
@@ -585,10 +558,15 @@
             </details>
           </section>
 
-          <section class="section-card" id="sec-cursor" aria-label="Cursor">
+          <section class="section-card" id="sec-cursor" aria-label="Pointer movement">
             <div class="card-head">
-              <h2>Cursor</h2>
-              <button type="button" class="card-close" data-close="sec-cursor" aria-label="Close Cursor section">
+              <h2>Pointer movement</h2>
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-cursor"
+                aria-label="Close Pointer movement section"
+              >
                 &times;
               </button>
             </div>
@@ -713,10 +691,10 @@
             </div>
           </section>
 
-          <section class="section-card" id="sec-sip" aria-label="Sip and Puff">
+          <section class="section-card" id="sec-sip" aria-label="Sip and puff">
             <div class="card-head">
-              <h2>Sip & Puff</h2>
-              <button type="button" class="card-close" data-close="sec-sip" aria-label="Close Sip and Puff section">
+              <h2>Sip &amp; puff</h2>
+              <button type="button" class="card-close" data-close="sec-sip" aria-label="Close Sip and puff section">
                 &times;
               </button>
             </div>
@@ -1147,14 +1125,14 @@
             <div class="error" id="sapError" role="alert"></div>
           </section>
 
-          <section class="section-card" id="sec-restrictions" aria-label="Input restrictions">
+          <section class="section-card" id="sec-restrictions" aria-label="Input safeguards">
             <div class="card-head">
-              <h2>Input restrictions</h2>
+              <h2>Input safeguards</h2>
               <button
                 type="button"
                 class="card-close"
                 data-close="sec-restrictions"
-                aria-label="Close Input restrictions section"
+                aria-label="Close Input safeguards section"
               >
                 &times;
               </button>
@@ -1212,14 +1190,14 @@
             </details>
           </section>
 
-          <section class="section-card" id="sec-switches" aria-label="External switch actions">
+          <section class="section-card" id="sec-switches" aria-label="External switches">
             <div class="card-head">
-              <h2>External switch actions</h2>
+              <h2>External switches</h2>
               <button
                 type="button"
                 class="card-close"
                 data-close="sec-switches"
-                aria-label="Close External switch actions section"
+                aria-label="Close External switches section"
               >
                 &times;
               </button>
@@ -1385,10 +1363,15 @@
             </details>
           </section>
 
-          <section class="section-card" id="sec-joystick" aria-label="Joystick">
+          <section class="section-card" id="sec-joystick" aria-label="Joystick and calibration">
             <div class="card-head">
-              <h2>Joystick</h2>
-              <button type="button" class="card-close" data-close="sec-joystick" aria-label="Close Joystick section">
+              <h2>Joystick &amp; calibration</h2>
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-joystick"
+                aria-label="Close Joystick and calibration section"
+              >
                 &times;
               </button>
             </div>
@@ -1605,10 +1588,15 @@
             </details>
           </section>
 
-          <section class="section-card" id="sec-feedback" aria-label="Feedback">
+          <section class="section-card" id="sec-feedback" aria-label="Sound and lights">
             <div class="card-head">
-              <h2>Feedback</h2>
-              <button type="button" class="card-close" data-close="sec-feedback" aria-label="Close Feedback section">
+              <h2>Sound &amp; lights</h2>
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-feedback"
+                aria-label="Close Sound and lights section"
+              >
                 &times;
               </button>
             </div>
@@ -1678,12 +1666,17 @@
           <section
             class="section-card"
             id="sec-bluetooth"
-            aria-label="Bluetooth Configuration"
+            aria-label="Bluetooth and connections"
             data-feature="bluetooth"
           >
             <div class="card-head">
-              <h2>Bluetooth</h2>
-              <button type="button" class="card-close" data-close="sec-bluetooth" aria-label="Close Bluetooth section">
+              <h2>Bluetooth &amp; connections</h2>
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-bluetooth"
+                aria-label="Close Bluetooth and connections section"
+              >
                 &times;
               </button>
             </div>
@@ -1711,7 +1704,7 @@
               <p class="hint">3. Select it to pair. The LipSync appears as a mouse (HID).</p>
               <p class="hint">
                 4. To return to USB mode, reconnect via USB, open this panel, and select a USB mode from the operating
-                mode dropdown in the Device section.
+                mode dropdown in Overview &amp; modes.
               </p>
             </details>
           </section>
@@ -1774,15 +1767,20 @@
             </div>
           </section>
 
-          <section class="section-card" id="sec-tools" aria-label="Live and remote diagnostic tools">
+          <section class="section-card" id="sec-tools" aria-label="Test inputs">
             <div class="card-head">
-              <h2>Live tools</h2>
-              <button type="button" class="card-close" data-close="sec-tools" aria-label="Close Live tools section">
+              <h2>Test inputs</h2>
+              <button type="button" class="card-close" data-close="sec-tools" aria-label="Close Test inputs section">
                 &times;
               </button>
             </div>
+            <div class="section-intro section-intro--single">
+              <p class="section-summary">
+                See which joystick, mouthpiece, Hub-button, or external-switch inputs the LipSync is receiving.
+              </p>
+            </div>
             <div class="diag-group">
-              <p class="diag-title">Live diagnostic stream</p>
+              <p class="diag-title">Live input test</p>
               <div class="row">
                 <label for="debugMode">Live diagnostic output</label><span class="value" id="debugModeVal">Off</span
                 ><select id="debugMode" disabled>
@@ -1868,50 +1866,16 @@
                 <div class="win-scale" id="winScaleDiag" aria-hidden="true"></div>
               </div>
             </div>
-            <div class="diag-group">
-              <p class="diag-title">Remote Hub menu</p>
-              <div class="row">
-                <span class="hint row-hint"
-                  >Open starts the on-device Hub menu and mirrors its screen below; Close stops it.</span
-                >
-              </div>
-              <div class="row hub-remote" id="hubRemote">
-                <button type="button" class="cmd secondary" id="btnHubOpen" disabled>Open</button>
-                <button type="button" class="cmd secondary" id="btnHubClose" disabled>Close</button>
-              </div>
-              <div id="hubScreenWrap" hidden>
-                <div class="hub-screen" role="group" aria-label="Mirrored Hub screen">
-                  <p class="hub-screen-header" id="hubScreenHeader" aria-live="polite"></p>
-                  <ol
-                    class="hub-screen-items"
-                    id="hubScreenItems"
-                    role="listbox"
-                    aria-label="Mirrored Hub menu items"
-                  ></ol>
-                  <p class="hub-screen-note" id="hubScreenNote" hidden></p>
-                </div>
-                <div class="row">
-                  <button type="button" class="cmd secondary" id="btnHubNext" disabled>Next</button>
-                  <button type="button" class="cmd" id="btnHubSelect" disabled>Select</button>
-                </div>
-                <p class="hint">
-                  The mirror follows the Next/Select presses you send — the device never reports its menu state, so
-                  physical button presses, joystick-driven steps, or the Hub&#8217;s inactivity timeout can make it
-                  drift. Select Open again to resync (the Hub always reopens at the main menu).
-                </p>
-              </div>
-              <div class="error" id="hubRemoteError" role="alert"></div>
-            </div>
           </section>
 
-          <section class="section-card" id="sec-maintenance" aria-label="Maintenance">
+          <section class="section-card" id="sec-maintenance" aria-label="Restart and reset">
             <div class="card-head">
-              <h2>Maintenance</h2>
+              <h2>Restart &amp; reset</h2>
               <button
                 type="button"
                 class="card-close"
                 data-close="sec-maintenance"
-                aria-label="Close Maintenance section"
+                aria-label="Close Restart and reset section"
               >
                 &times;
               </button>
@@ -1921,35 +1885,42 @@
                 Restart the device safely, or deliberately return every setting to its factory default.
               </p>
             </div>
-            <div class="maintenance-grid">
+            <div class="maintenance-grid maintenance-grid--restart">
               <div class="maintenance-option">
                 <p class="diag-title">Restart device</p>
                 <p class="hint">Reboots the LipSync without changing its saved settings.</p>
-                <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Soft reset</button>
-              </div>
-              <div class="maintenance-option maintenance-option--warning">
-                <p class="diag-title">Restore default settings</p>
-                <p class="hint">
-                  Replaces the saved setup, calibration, and mappings with defaults without formatting internal storage.
-                </p>
-                <button type="button" class="cmd secondary" id="btnResetSettings" disabled>
-                  Restore default settings
-                </button>
-              </div>
-              <div class="maintenance-option maintenance-option--danger">
-                <p class="diag-title">Full factory erase</p>
-                <p class="hint">
-                  Formats internal storage and recreates the factory setup. Use only when support asks.
-                </p>
-                <button type="button" class="cmd danger" id="btnFactoryReset" disabled>Factory reset</button>
+                <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Restart LipSync</button>
               </div>
             </div>
+            <details class="danger-disclosure">
+              <summary>Reset options</summary>
+              <p class="hint">These actions remove saved setup information. Review the difference before continuing.</p>
+              <div class="maintenance-grid">
+                <div class="maintenance-option maintenance-option--warning">
+                  <p class="diag-title">Restore default settings</p>
+                  <p class="hint">
+                    Replaces the saved setup, calibration, and mappings with defaults without formatting internal
+                    storage.
+                  </p>
+                  <button type="button" class="cmd secondary" id="btnResetSettings" disabled>
+                    Restore default settings
+                  </button>
+                </div>
+                <div class="maintenance-option maintenance-option--danger">
+                  <p class="diag-title">Factory erase</p>
+                  <p class="hint">
+                    Formats internal storage and recreates the factory setup. Use only when support asks.
+                  </p>
+                  <button type="button" class="cmd danger" id="btnFactoryReset" disabled>Factory erase</button>
+                </div>
+              </div>
+            </details>
           </section>
 
-          <section class="section-card" id="sec-firmware" aria-label="Firmware update">
+          <section class="section-card" id="sec-firmware" aria-label="Updates">
             <div class="card-head">
-              <h2>Firmware</h2>
-              <button type="button" class="card-close" data-close="sec-firmware" aria-label="Close Firmware section">
+              <h2>Updates</h2>
+              <button type="button" class="card-close" data-close="sec-firmware" aria-label="Close Updates section">
                 &times;
               </button>
             </div>
@@ -2018,298 +1989,237 @@
             <input type="file" id="fwFileInput" accept=".zip,application/zip" hidden aria-label="Firmware file" />
           </section>
 
-          <section class="section-card" id="sec-help" aria-label="Help and troubleshooting">
+          <section class="section-card" id="sec-help" aria-label="Fix a problem">
             <div class="card-head">
-              <h2>Help &amp; troubleshooting</h2>
+              <h2>Fix a problem</h2>
+              <button type="button" class="card-close" data-close="sec-help" aria-label="Close Fix a problem section">
+                &times;
+              </button>
+            </div>
+            <div class="section-intro section-intro--single">
+              <p class="section-summary">
+                Choose what is happening. Each path gives a short first check and opens the control or test that can
+                help.
+              </p>
+            </div>
+            <div class="support-start">
+              <div>
+                <p class="diag-title">Not sure where to begin?</p>
+                <p class="hint">Run a health check, or create one report with device details and the session log.</p>
+              </div>
+              <div class="row">
+                <button type="button" class="secondary" data-open-section="sec-diagnostics">Run health check</button>
+                <button type="button" class="secondary" data-open-section="sec-log">Create support report</button>
+              </div>
+            </div>
+            <div class="symptom-grid" aria-label="Common problems">
+              <section class="symptom-card" aria-labelledby="problemConnect">
+                <h3 id="problemConnect">Cannot connect</h3>
+                <p>
+                  Use a USB data cable connected directly to the computer. Close serial-monitor apps, reconnect the
+                  cable, wait 10 seconds, then try again in Chrome, Edge, or Opera.
+                </p>
+                <button type="button" class="secondary" data-open-section="sec-home">Go to connection</button>
+              </section>
+              <section class="symptom-card" aria-labelledby="problemPointer">
+                <h3 id="problemPointer">Pointer is difficult to control</h3>
+                <p>
+                  Adjust speed before acceleration. If movement is uneven, inspect the live joystick view before
+                  recalibrating.
+                </p>
+                <div class="symptom-actions">
+                  <button type="button" class="secondary" data-open-section="sec-cursor">Adjust pointer</button>
+                  <button type="button" class="secondary" data-open-section="sec-joystick">Check joystick</button>
+                </div>
+              </section>
+              <section class="symptom-card" aria-labelledby="problemSip">
+                <h3 id="problemSip">Sip or puff is missed</h3>
+                <p>
+                  Practice with Live view first. Compare the measured peaks with the thresholds, then adjust sensitivity
+                  or hold timing one step at a time.
+                </p>
+                <button type="button" class="secondary" data-open-section="sec-sip">Practice sip &amp; puff</button>
+              </section>
+              <section class="symptom-card" aria-labelledby="problemAccidental">
+                <h3 id="problemAccidental">Accidental inputs occur</h3>
+                <p>
+                  Add one safeguard at a time. You can freeze the pointer during mouthpiece input, lock the mode, or
+                  disable an input method.
+                </p>
+                <button type="button" class="secondary" data-open-section="sec-restrictions">
+                  Open input safeguards
+                </button>
+              </section>
+              <section class="symptom-card" aria-labelledby="problemSwitch">
+                <h3 id="problemSwitch">External switch is not working</h3>
+                <p>
+                  Test whether the press reaches the LipSync. If it does, review the action assigned to that jack and
+                  hold length.
+                </p>
+                <div class="symptom-actions">
+                  <button type="button" class="secondary" data-open-section="sec-tools">Test inputs</button>
+                  <button type="button" class="secondary" data-open-section="sec-switches">Check mappings</button>
+                </div>
+              </section>
+              <section class="symptom-card" aria-labelledby="problemBluetooth">
+                <h3 id="problemBluetooth">Bluetooth will not connect</h3>
+                <p>
+                  Keep USB connected, confirm Bluetooth Mouse mode and the advertised device name, then pair from the
+                  computer's Bluetooth settings after the restart finishes.
+                </p>
+                <button type="button" class="secondary" data-open-section="sec-bluetooth">
+                  Open Bluetooth &amp; connections
+                </button>
+              </section>
+              <section class="symptom-card symptom-card--warning" aria-labelledby="problemUpdate">
+                <h3 id="problemUpdate">Update was interrupted</h3>
+                <p>
+                  Replug the LipSync. If it only appears as an update loader, use the recovery action in Updates. The
+                  recovery loader remains intact and the settings backup can be restored.
+                </p>
+                <button type="button" class="secondary" data-open-section="sec-firmware">Open update recovery</button>
+              </section>
+            </div>
+            <div class="help-escalation">
+              <p class="diag-title">Still need help?</p>
+              <p class="hint">
+                Create a support report after reproducing the problem. Device identifiers are removed before the report
+                is downloaded or shared.
+              </p>
+              <button type="button" class="secondary" data-open-section="sec-log">Create support report</button>
+            </div>
+          </section>
+          <section class="section-card" id="sec-log" aria-label="Support report and advanced tools">
+            <div class="card-head">
+              <h2>Support report &amp; advanced tools</h2>
               <button
                 type="button"
                 class="card-close"
-                data-close="sec-help"
-                aria-label="Close Help and troubleshooting section"
+                data-close="sec-log"
+                aria-label="Close Support report and advanced tools section"
               >
                 &times;
               </button>
             </div>
-            <div class="notice">
-              Connect via USB, click <strong>Connect</strong>, select your LipSync from the browser dialog, and wait for
-              all values to load (a few seconds on current firmware, up to ~30 seconds on older devices). Change one
-              setting at a time and wait for confirmation in the log.
+            <div class="section-intro section-intro--single">
+              <p class="section-summary">
+                Collect the information support needs in one privacy-conscious report. Expert device controls stay
+                available in the disclosure below.
+              </p>
+            </div>
+            <div class="support-report-panel">
+              <div class="support-report-copy">
+                <p class="diag-title">Create support report</p>
+                <p class="hint">
+                  Includes app and device versions, the session log, and a full settings dump when a LipSync is
+                  connected. Device identifiers are removed automatically.
+                </p>
+                <ul class="report-includes">
+                  <li>Connection, model, firmware, and operating mode</li>
+                  <li>Health-check result and session errors</li>
+                  <li>Current device settings when connected</li>
+                </ul>
+              </div>
+              <div class="support-report-actions">
+                <button type="button" id="btnDownloadSupportReport">Download support report</button>
+                <button type="button" id="btnShareSupportReport" class="secondary">Share support report</button>
+              </div>
+              <p id="supportReportStatus" class="hint" role="status" aria-live="polite"></p>
             </div>
 
-            <details>
-              <summary>Device does not appear in the browser prompt</summary>
+            <details class="advanced-tools">
+              <summary>Advanced tools</summary>
               <p class="hint">
-                <strong>Wrong cable.</strong> Many USB cables are charge-only. Use a data cable and connect directly to
-                your computer, not through a hub or dock.
+                These controls are intended for support and technical troubleshooting. Normal adjustments do not need
+                raw commands or the remote Hub menu.
               </p>
-              <p class="hint">
-                <strong>Another app is using the port.</strong> Close the Arduino IDE, CuteCom, PuTTY, or any other
-                serial monitor. Only one app can open the port at a time.
-              </p>
-              <p class="hint">
-                <strong>Browser not supported.</strong> Web Serial works in Chrome, Edge, and Opera on desktop. Chrome
-                on Android works with a USB-C / OTG cable. <strong>iOS, Firefox, and Safari are not supported.</strong>
-              </p>
-              <p class="hint">
-                <strong>Device needs a reboot.</strong> After a mode change or reset, wait ~10 seconds for the LipSync
-                to finish restarting before trying to connect.
-              </p>
-              <p class="hint">
-                <strong>Stuck in update mode after a stopped update?</strong> If the LipSync always shows as the update
-                loader even after replugging, its firmware was interrupted mid-write — open <em>Firmware</em> and use
-                <em>Recover a device stuck in update mode</em> to repair it. Your settings survive the repair.
-              </p>
-              <p class="hint">
-                If using the Android WebUSB fallback, the browser will only see the device when it is plugged in and
-                awake. Try unplugging and replugging, then click Connect again.
-              </p>
-            </details>
+              <div class="diag-group">
+                <p class="diag-title">Remote Hub menu</p>
+                <div class="row">
+                  <span class="hint row-hint"
+                    >Open starts the on-device Hub menu and mirrors its screen below; Close stops it.</span
+                  >
+                </div>
+                <div class="row hub-remote" id="hubRemote">
+                  <button type="button" class="cmd secondary" id="btnHubOpen" disabled>Open</button>
+                  <button type="button" class="cmd secondary" id="btnHubClose" disabled>Close</button>
+                </div>
+                <div id="hubScreenWrap" hidden>
+                  <div class="hub-screen" role="group" aria-label="Mirrored Hub screen">
+                    <p class="hub-screen-header" id="hubScreenHeader" aria-live="polite"></p>
+                    <ol
+                      class="hub-screen-items"
+                      id="hubScreenItems"
+                      role="listbox"
+                      aria-label="Mirrored Hub menu items"
+                    ></ol>
+                    <p class="hub-screen-note" id="hubScreenNote" hidden></p>
+                  </div>
+                  <div class="row">
+                    <button type="button" class="cmd secondary" id="btnHubNext" disabled>Next</button>
+                    <button type="button" class="cmd" id="btnHubSelect" disabled>Select</button>
+                  </div>
+                  <p class="hint">
+                    The mirror follows the Next/Select presses you send. Physical button presses or the Hub inactivity
+                    timeout can make it drift; select Open again to resync.
+                  </p>
+                </div>
+                <div class="error" id="hubRemoteError" role="alert"></div>
+              </div>
 
-            <details>
-              <summary>Firmware update does not start or gets stuck</summary>
-              <p class="hint">
-                <strong>Device did not restart into update mode.</strong> The update normally restarts the LipSync by
-                itself. If nothing happens, press the small reset button on the Hub twice, slowly — the device enters
-                update mode on its own — then click Continue in the wizard.
-              </p>
-              <p class="hint">
-                <strong>The update port does not appear in the browser dialog.</strong> Unplug the LipSync, plug it back
-                in, and try again. Use a data cable connected directly to the computer.
-              </p>
-              <p class="hint">
-                <strong>When an update fails, what was harmed depends on when it stopped.</strong> If it stopped before
-                the write began, nothing was changed — retry the update. If it was interrupted while writing, the
-                LipSync waits in its update mode (the device&#8217;s recovery loader always stays intact) and
-                <em>Recover a device stuck in update mode</em> in the Firmware section repairs it. Your settings survive
-                the repair.
-              </p>
-              <p class="hint">
-                <strong>Your settings.</strong> The app backs them up before the update and restores them afterwards
-                (you can download the backup from the wizard). If a setting looks wrong afterwards, use
-                <em>Refresh all settings</em> in the Device section.
-              </p>
-            </details>
+              <div class="diag-group">
+                <p class="diag-title">Detailed command log</p>
+                <p class="hint">Review or export the individual commands and responses from this browser session.</p>
+                <div class="row">
+                  <button type="button" id="btnDownloadLog" class="secondary">Download detailed log</button
+                  ><button type="button" id="btnShareLog" class="secondary">Share detailed log</button
+                  ><button type="button" id="btnClearLog" class="secondary">Clear log</button
+                  ><button type="button" id="btnLogErrorsOnly" class="secondary" aria-pressed="false">
+                    Errors only</button
+                  ><button type="button" id="btnCaptureSettingsDump" class="cmd secondary" disabled>
+                    Capture device dump
+                  </button>
+                </div>
+                <div id="log" role="log" tabindex="0" aria-live="off" aria-label="Detailed command log"></div>
+              </div>
 
-            <details>
-              <summary>Commands time out or return errors</summary>
-              <p class="hint">
-                Commands run one at a time over a serial queue. If a previous command did not finish, everything backs
-                up.
-                <strong>Disconnect, wait 5 seconds, then reconnect</strong> to reset the queue.
-              </p>
-              <p class="hint">
-                Do not press the physical Hub buttons or use the Hub on-screen menu while a web command is pending. The
-                device can only handle one settings interaction at a time, and the physical menu does not send a
-                response — the web app will wait until it times out.
-              </p>
-              <p class="hint">
-                If a single command repeatedly fails, run <strong>Health check</strong> under Health &amp; updates to
-                verify the device is responding correctly.
-              </p>
+              <div class="diag-group">
+                <p class="diag-title">Raw serial commands</p>
+                <div class="row">
+                  <label for="rawCommand">Raw command</label
+                  ><input
+                    type="text"
+                    id="rawCommand"
+                    placeholder="e.g. EX,0:0"
+                    maxlength="11"
+                    list="rawCommandList"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label="Raw serial command to send to the device"
+                  /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
+                </div>
+                <!-- Suggests the read-only commands every firmware answers; state-changing
+                 commands stay out on purpose (their dedicated buttons confirm first). -->
+                <datalist id="rawCommandList">
+                  <option value="EX,0:0">Full settings dump</option>
+                  <option value="PV,0:0">Read pressure</option>
+                  <option value="JV,0:0">Read joystick</option>
+                  <option value="IN,0:0">Neutral position</option>
+                  <option value="CA,0:0">Calibration values</option>
+                  <option value="VN,0:0">Firmware version</option>
+                  <option value="SS,0:0">Cursor speed</option>
+                  <option value="ST,0:0">Sip threshold</option>
+                  <option value="PT,0:0">Puff threshold</option>
+                  <option value="IZ,0:0">Inner deadzone</option>
+                  <option value="OZ,0:0">Outer deadzone</option>
+                  <option value="DM,0:0">Live diagnostic output</option>
+                </datalist>
+                <p class="hint">
+                  Send a raw serial command only when support asks. Commands that restart the device still ask for
+                  confirmation.
+                </p>
+              </div>
             </details>
-
-            <details>
-              <summary>Settings won&rsquo;t load &mdash; values show ERR or stay stuck on &hellip;</summary>
-              <p class="hint">
-                Values load one at a time in sequence. If one command times out, it shows
-                <strong>ERR</strong> and loading continues. Click <strong>Refresh all settings</strong> to reload every
-                setting, including the failed ones.
-              </p>
-              <p class="hint">
-                If the overall load takes longer than 2 minutes, the app gives up and shows whatever loaded so far. This
-                usually means the connection is unreliable — disconnect and reconnect with a shorter cable or different
-                USB port.
-              </p>
-              <p class="hint">
-                The <strong>Device</strong> section shows a progress bar during loading. Watch it to see how far along
-                the process gets.
-              </p>
-            </details>
-
-            <details>
-              <summary>Calibration fails or gets stuck</summary>
-              <p class="hint">
-                <strong>Keep the mouthpiece perfectly still</strong> for the neutral-position capture (the first step
-                and the last re-centering step). Any movement during these steps produces a bad calibration.
-              </p>
-              <p class="hint">
-                <strong>Push firmly to each corner</strong> when prompted and hold until the status updates. If a corner
-                reads below minimum strength, calibration finishes but marks it as weak — re-run and push more firmly.
-              </p>
-              <p class="hint">
-                <strong>If calibration disconnects mid-procedure</strong>, the LipSync&rsquo;s built-in calibration was
-                not completed. Just re-center the mouthpiece and start again. The previous calibration values remain in
-                place until a new one finishes.
-              </p>
-            </details>
-
-            <details>
-              <summary>Mode switch (Mouse / Bluetooth / Gamepad) seems stuck</summary>
-              <p class="hint">
-                <strong>The setting was saved but the restart did not confirm.</strong> This is common. The new mode
-                <em>is</em> stored on the device. Unplug the LipSync and plug it back in, or wait ~30 seconds for its
-                watchdog timer to trigger the restart.
-              </p>
-              <p class="hint">
-                After the restart, reconnect. The Device section will show the new operating mode. If it reconnected in
-                the old mode, open the <strong>Device</strong> card and verify the dropdown matches what you selected.
-              </p>
-              <p class="hint">
-                Gamepad mode forces a specific command order (Communication mode first, then Operating mode). The app
-                handles this automatically. Gamepad mode is USB-only.
-              </p>
-            </details>
-
-            <details>
-              <summary>Bluetooth does not pair or connect</summary>
-              <p class="hint">
-                Click <strong>Switch to Bluetooth</strong> in the Bluetooth section. The device saves the setting,
-                restarts, and begins advertising as <strong>LS_&lt;device ID&gt;</strong>. Open your computer&#8217;s
-                Bluetooth settings and pair with it.
-              </p>
-              <p class="hint">
-                If the device does not appear in Bluetooth settings, wait 30 seconds for it to finish restarting after
-                the switch, then scan again. If it still does not appear, reconnect via USB, open the Bluetooth section,
-                and verify the device name and status.
-              </p>
-              <p class="hint">
-                While in Bluetooth mode, the USB serial port remains available for settings changes. To return to USB
-                HID mode, reconnect via USB and select <strong>Mouse</strong> from the operating mode dropdown in the
-                Device section.
-              </p>
-            </details>
-
-            <details>
-              <summary>Connection keeps dropping or &ldquo;No data received for 30s&rdquo;</summary>
-              <p class="hint">
-                The app has a built-in watchdog: if no serial data arrives for 30 seconds, it warns you. If the
-                connection is actually lost, the read loop attempts to recover — it cancels the reader, waits 2 seconds,
-                and opens a new reader on the same port.
-              </p>
-              <p class="hint">
-                If recovery fails, the app disconnects. This can happen with long USB cables, hubs with power
-                management, or Android devices that put the USB bus to sleep.
-                <strong>Try a shorter cable, connect directly, and disable USB power saving</strong> if possible.
-              </p>
-            </details>
-
-            <details>
-              <summary>Health check finds problems</summary>
-              <p class="hint">
-                The diagnostics test checks: pressure sensors return plausible values (300&ndash;1200 hPa, not both
-                zero), the joystick reports valid X/Y, the neutral position is stored, and all four calibration corners
-                exist.
-              </p>
-              <p class="hint">
-                <strong>Pressure sensors read zero or out of range</strong> — the mouthpiece may be blocked, or the
-                sensor may need recalibration on the device itself. <strong>Joystick or calibration issues</strong> —
-                run a full calibration from the Joystick section.
-              </p>
-            </details>
-
-            <details>
-              <summary>Appearance settings or dark mode won&rsquo;t save</summary>
-              <p class="hint">
-                Theme settings (colors, dark mode) are saved in your browser&rsquo;s <strong>localStorage</strong>. If
-                you clear your browser data or use private/incognito mode, they reset to defaults. Click
-                <strong>Reset to defaults</strong> in the Appearance popup to start fresh.
-              </p>
-            </details>
-
-            <details>
-              <summary>Remote Hub menu controls</summary>
-              <p class="hint">
-                <strong>Open</strong> starts the Hub&#8217;s on-screen menu and shows a mirrored copy of the Hub screen
-                in the app; <strong>Close</strong> stops the menu and hides the mirror. <strong>Next</strong> and
-                <strong>Select</strong> correspond to short presses of S1 and S2 — use them to move through the menu and
-                activate items.
-              </p>
-              <p class="hint">
-                The mirror follows the presses you send, confirmed from the device&rsquo;s own menu state on firmware
-                4.5.1+. Physical button presses, joystick-driven calibration prompts, and the Hub&rsquo;s inactivity
-                timeout are not pushed over serial, so they can make the mirror drift from the real display — select
-                <strong>Open</strong>
-                again to resync (the Hub always reopens at the main menu). Firmware that pushes its menu state
-                (<kbd>CH,5</kbd>) closes this gap: the mirror will follow physical navigation too.
-              </p>
-              <p class="hint">
-                Settings changed through the Hub menu do not update the app&#8217;s displayed values — click
-                <strong>Refresh all settings</strong> afterwards.
-              </p>
-            </details>
-
-            <details>
-              <summary>General tips</summary>
-              <p class="hint">
-                <strong>Changes apply instantly.</strong> Sip/puff thresholds, deadzones, speed, scroll, sound, light,
-                and LED brightness all take effect on the device immediately after you click Set.
-              </p>
-              <p class="hint">
-                <strong>Physical menu changes</strong> sync back automatically on current firmware. On an older device,
-                click <strong>Refresh all settings</strong> after changing a value from the Hub.
-              </p>
-              <p class="hint">
-                <strong>Soft reset</strong> restarts without changing settings.
-                <strong>Restore default settings</strong> resets the saved setup and calibration.
-                <strong>Factory reset</strong> additionally formats internal storage and should normally be used only
-                when support asks.
-              </p>
-              <p class="hint">
-                Use the <strong>Download log</strong> button in the Log section to save a timestamped log file before
-                contacting support. It captures every command sent and every response received.
-              </p>
-            </details>
-          </section>
-          <section class="section-card" id="sec-log" aria-label="Log">
-            <div class="card-head">
-              <h2>Log</h2>
-              <button type="button" class="card-close" data-close="sec-log" aria-label="Close Log section">
-                &times;
-              </button>
-            </div>
-            <div class="row">
-              <button type="button" id="btnDownloadLog" class="secondary">Download log</button
-              ><button type="button" id="btnShareLog" class="secondary">Share log</button
-              ><button type="button" id="btnClearLog" class="secondary">Clear log</button
-              ><button type="button" id="btnLogErrorsOnly" class="secondary" aria-pressed="false">Errors only</button
-              ><button type="button" id="btnCaptureSettingsDump" class="cmd secondary" disabled>
-                Capture device dump
-              </button>
-            </div>
-            <div class="row">
-              <label for="rawCommand">Raw command</label
-              ><input
-                type="text"
-                id="rawCommand"
-                placeholder="e.g. EX,0:0"
-                maxlength="11"
-                list="rawCommandList"
-                autocomplete="off"
-                spellcheck="false"
-                aria-label="Raw serial command to send to the device"
-              /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
-            </div>
-            <!-- Suggests the read-only commands every firmware answers; state-changing
-             commands stay out on purpose (their dedicated buttons confirm first). -->
-            <datalist id="rawCommandList">
-              <option value="EX,0:0">Full settings dump</option>
-              <option value="PV,0:0">Read pressure</option>
-              <option value="JV,0:0">Read joystick</option>
-              <option value="IN,0:0">Neutral position</option>
-              <option value="CA,0:0">Calibration values</option>
-              <option value="VN,0:0">Firmware version</option>
-              <option value="SS,0:0">Cursor speed</option>
-              <option value="ST,0:0">Sip threshold</option>
-              <option value="PT,0:0">Puff threshold</option>
-              <option value="IZ,0:0">Inner deadzone</option>
-              <option value="OZ,0:0">Outer deadzone</option>
-              <option value="DM,0:0">Live diagnostic output</option>
-            </datalist>
-            <p class="hint">
-              Advanced: send a raw serial command — e.g. EX,0:0 for a full settings dump. The response lands in the log
-              below; commands that restart the device still ask before sending.
-            </p>
-            <div id="log" role="log" tabindex="0" aria-live="off" aria-label="Command log"></div>
           </section>
         </main>
       </div>

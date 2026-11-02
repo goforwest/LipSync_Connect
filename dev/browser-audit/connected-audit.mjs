@@ -28,19 +28,19 @@ const GROUP_BY_SECTION = {
   'sec-home': 'home',
   'sec-device': 'device',
   'sec-profiles': 'device',
-  'sec-cursor': 'movement',
-  'sec-sip': 'inputs',
-  'sec-restrictions': 'inputs',
-  'sec-switches': 'inputs',
-  'sec-joystick': 'movement',
-  'sec-feedback': 'device',
+  'sec-cursor': 'adjust',
+  'sec-sip': 'adjust',
+  'sec-restrictions': 'adjust',
+  'sec-switches': 'adjust',
+  'sec-joystick': 'adjust',
+  'sec-feedback': 'adjust',
   'sec-bluetooth': 'device',
-  'sec-diagnostics': 'care',
-  'sec-tools': 'advanced',
-  'sec-maintenance': 'care',
-  'sec-firmware': 'care',
-  'sec-help': 'help',
-  'sec-log': 'advanced',
+  'sec-diagnostics': 'support',
+  'sec-tools': 'support',
+  'sec-maintenance': 'device',
+  'sec-firmware': 'device',
+  'sec-help': 'support',
+  'sec-log': 'support',
 };
 
 async function clickSection(page, section) {
@@ -620,8 +620,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('live-stop', live0.text === 'Live view' && live0.pressed === 'false' && !live0.panel, JSON.stringify(live0));
 
-    // Hub remote: open, navigate, select Mode, close
-    await openCard('sec-tools');
+    // Hub remote: open the expert disclosure, navigate, select Mode, close
+    await openCard('sec-log');
+    await page.click('.advanced-tools > summary');
     await page.click('#btnHubOpen');
     await page.waitForTimeout(900);
     const hub1 = await evalCard(() => ({
@@ -740,7 +741,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       disc.status === 'Not connected' &&
         disc.title === 'LipSync Connect' &&
         disc.connectEnabled &&
-        disc.dimmed > 0 &&
+        disc.dimmed === 0 &&
         disc.cmdDisabled &&
         disc.health === 'Not run',
       JSON.stringify(disc),
@@ -1170,6 +1171,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }
 
     await openCard('sec-maintenance');
+    await page.click('.danger-disclosure > summary');
     await page.click('#btnFactoryReset');
     await page.waitForTimeout(500);
     const frDlg = await evalCard(() => ({
@@ -1207,6 +1209,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     );
 
     await openCard('sec-log');
+    if (!(await page.evaluate(() => document.querySelector('.advanced-tools').open))) {
+      await page.click('.advanced-tools > summary');
+    }
     // Model "desktop without share support" deterministically: headless
     // Chromium exposes navigator.share but its promise may never settle (no
     // share UI), which makes the real not-supported fallback unreachable.

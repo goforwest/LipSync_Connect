@@ -49,6 +49,7 @@ for (let i = 1; i <= 6; i++) {
 
 const app = await import('../app/js/main.js');
 const { noteDeviceVersion } = await import('../app/js/serial/commands.js');
+const { createSupportReport } = await import('../app/js/services/support-report.js');
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
@@ -497,6 +498,28 @@ test('raw command sends EX,0:0 after the handshake; the dump streams into the lo
   await clickAndDrain('btnSendRaw');
   detach();
   assert.deepEqual(sent, ['SETTINGS', 'EX,0:0']);
+});
+
+test('support report captures a connected device dump before building the file', async () => {
+  const { sent, detach } = launch((text) =>
+    text === 'SETTINGS'
+      ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }]
+      : text === 'EX,0:0'
+        ? [
+            { delay: 5, line: 'SUCCESS,0:EX,0:BEGIN' },
+            { delay: 6, line: 'SUCCESS,0:SS,0:7' },
+            { delay: 7, line: 'SUCCESS,0:EX,0:END' },
+          ]
+        : [],
+  );
+  app.setConnectedUI(true);
+  doc.getElementById('model').textContent = 'LipSync 4';
+  doc.getElementById('version').textContent = '4.6.5';
+  const report = await createSupportReport();
+  detach();
+  assert.deepEqual(sent, ['SETTINGS', 'EX,0:0']);
+  assert.match(report.text, /Settings dump: Included in the session log/);
+  assert.match(report.text, /SUCCESS,0:SS,0:7/);
 });
 
 test('raw command rejects empty and malformed input without touching the wire', async () => {

@@ -43,14 +43,6 @@ const launch = (replies = {}) => {
     },
   };
   testHooks.attach({ simulated: true }, writer);
-  // A real connect undims the nav via updateConnectionGating; the stub stays
-  // dimmed from the pre-connect DOMContentLoaded pass otherwise, and
-  // openSectionById's dimmed guard (correctly) refuses to open cards.
-  [...doc.querySelectorAll('.circle-trigger'), ...doc.querySelectorAll('.section-tab')].forEach((b) => {
-      b.classList.remove('dimmed');
-      b.removeAttribute('aria-disabled');
-      b.removeAttribute('title');
-    });
   return sent;
 };
 

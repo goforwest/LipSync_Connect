@@ -329,7 +329,7 @@ export function restoreBootloaderStrandedFromStorage() {
       setBootloaderStranded();
       // Recovery is the only useful destination for a device whose app image
       // is incomplete. Do not make a reload land on Home and require the user
-      // to discover why Health & updates is the lone enabled hardware area.
+      // to discover the recovery path in Device → Updates.
       openSectionById('sec-firmware');
       announceStatus('Firmware recovery is ready. Pick Recover a device stuck in update mode.');
     }
@@ -371,11 +371,11 @@ function setUpdateButton(entry, deviceVersion) {
       'warn',
     );
   }
-  // Badge both the Health & updates work area and its Firmware page so the available
+  // Badge both the Device area and its Updates page so the available
   // update is discoverable at either navigation level. Screen readers get the
   // same news from the check status, so the dots themselves are aria-silent.
   [
-    document.querySelector('.circle-trigger[data-group="care"]'),
+    document.querySelector('.circle-trigger[data-group="device"]'),
     document.querySelector('.section-tab[data-section="sec-firmware"]'),
   ].forEach((nav) => {
     if (!nav) return;
@@ -833,7 +833,7 @@ function setWizardVisible(show, state = 'active') {
     else section.removeAttribute('data-wizard');
   }
   // data-wizard is a disconnected-access exemption. Recompute both the page
-  // tab and its Health & updates parent whenever the exemption starts or ends;
+  // tab and its Device parent whenever the exemption starts or ends;
   // relying on a later connect/disconnect transition leaves cancel/failure
   // paths with stale navigation state.
   updateConnectionGating();
@@ -1805,7 +1805,7 @@ async function continueWizard() {
         'log-info',
       );
       setWizardStep(
-        'The update was finishing when the connection dropped — it usually completes on its own. Wait ~30 seconds, then click Connect and pick the LipSync: your settings will be restored automatically if it finished, or the Firmware section will offer recovery if it did not.',
+        'The update was finishing when the connection dropped — it usually completes on its own. Wait ~30 seconds, then click Connect and pick the LipSync: your settings will be restored automatically if it finished, or Updates will offer recovery if it did not.',
         {
           percent: 100,
           showBackup: true,
@@ -1897,7 +1897,7 @@ function failWizard(e) {
         ? // START was accepted: the app region is erased/partial, so every reset
           // and replug lands back in the update loader — only a complete flash
           // repairs it. Never claim a normal boot here.
-          'The update was interrupted while the device\u2019s memory was being rewritten. The LipSync now starts in its update loader — open Firmware and use \u201cRecover a device stuck in update mode\u201d to repair it.'
+          'The update was interrupted while the device\u2019s memory was being rewritten. The LipSync now starts in its update loader — open Updates and use \u201cRecover a device stuck in update mode\u201d to repair it.'
         : duringFlash
           ? 'The LipSync is not harmed — the update stopped before anything was written to its memory. You can retry.'
           : 'Your LipSync is not harmed — nothing was written, or the bootloader kept itself intact. You can retry.',
@@ -2013,7 +2013,7 @@ async function cancelWizard(message) {
             : stopWindowCancel
               ? 'Update cancelled while the update was finishing — it may or may not have completed. Reconnect the LipSync to find out: if it starts normally the update finished; if it stays in update mode, use Recover to repair it. Your settings will be restored automatically if it finished.'
               : postStart
-                ? 'Update stopped partway — the LipSync is now in its update loader. Use \u201cRecover a device stuck in update mode\u201d in the Firmware section to repair it.'
+                ? 'Update stopped partway — the LipSync is now in its update loader. Use \u201cRecover a device stuck in update mode\u201d in Updates to repair it.'
                 : 'Update stopped before anything was written. Unplug and replug the LipSync (or press reset once) and it starts normally again, then retry.'
           : stage === 'await-reconnect' || stage === 'mode-restored'
             ? stopWindowHedge
@@ -2449,15 +2449,15 @@ async function finishPendingUpdate(pending) {
       return;
     } catch (e) {
       modeRestoreError = e.message;
-      log('Could not restore the operating mode: ' + e.message + '. Set it in the Device section.', 'log-err');
+      log('Could not restore the operating mode: ' + e.message + '. Set it in Overview & modes.', 'log-err');
       wizard = null;
     }
   }
   const extra =
     (calibrationLost
-      ? ' Joystick calibration changed — run Calibrate in the Joystick section if the cursor drifts.'
+      ? ' Joystick calibration changed — run Calibrate in Joystick & calibration if the pointer drifts.'
       : '') +
-    (modeRestoreError ? ' The operating mode could not be restored automatically — set it in the Device section.' : '');
+    (modeRestoreError ? ' The operating mode could not be restored automatically — set it in Overview & modes.' : '');
   const message =
     'Firmware update complete.' + (failures.length ? ' Some settings could not be restored automatically.' : '');
   completedSnapshot = pending.snapshot ?? null;
@@ -2489,7 +2489,7 @@ export function resetFirmwareUpdateUi() {
   const btn = $('btnStartUpdate');
   if (btn) btn.hidden = true;
   [
-    document.querySelector('.circle-trigger[data-group="care"]'),
+    document.querySelector('.circle-trigger[data-group="device"]'),
     document.querySelector('.section-tab[data-section="sec-firmware"]'),
   ].forEach((nav) => nav?.removeAttribute('data-notify'));
   // An active wizard owns its own disconnects (the touch, the mode reboot):

@@ -1,7 +1,7 @@
 // Task-based entry (Home's collapsed More tasks): a plain-language goal opens
 // the section that answers it and focuses the exact control — and the
-// dimmed-guard case (disconnected) opens nothing, leaving the guard's own
-// notice as the answer.
+// disconnected case still opens the readable page while hardware controls stay
+// disabled.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
@@ -13,16 +13,9 @@ const { getOpenSection, closeCurrentSection } = await import('../app/js/ui/secti
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const taskBtn = (task) => doc.querySelectorAll('.task-btn').find((b) => b.dataset.task === task);
-const undim = () =>
-  [...doc.querySelectorAll('.circle-trigger'), ...doc.querySelectorAll('.section-tab')].forEach((b) => {
-    b.classList.remove('dimmed');
-    b.removeAttribute('aria-disabled');
-    b.removeAttribute('title');
-  });
 
 test('a task opens its section and focuses the answering control', () => {
   testHooks.attach({ simulated: true }, { write() {} });
-  undim();
   taskBtn('clicks').dispatch('click');
   assert.equal(getOpenSection(), 'sec-sip');
   // Focus landed on the fine sip-threshold + stepper.
@@ -37,7 +30,6 @@ test('a task opens its section and focuses the answering control', () => {
 
 test('every task maps to a real section', () => {
   testHooks.attach({ simulated: true }, { write() {} });
-  undim();
   for (const task of ['clicks', 'accidents', 'profile', 'update', 'switches']) {
     closeCurrentSection(); // reset between independent task destinations
     taskBtn(task).dispatch('click');
@@ -46,24 +38,10 @@ test('every task maps to a real section', () => {
   testHooks.detach();
 });
 
-test('disconnected, the task defers to the dimmed guard — nothing opens', () => {
-  // No port: restore the disconnected gating state (previous tests undimmed
-  // the shared stub navs) and confirm the guard swallows the task click.
+test('disconnected, a task still opens the readable destination', () => {
   closeCurrentSection();
-  doc.querySelectorAll('.circle-trigger').forEach((b) => {
-    if (!['home', 'help', 'advanced'].includes(b.dataset.group)) {
-      b.classList.add('dimmed');
-      b.setAttribute('aria-disabled', 'true');
-    }
-  });
-  doc.querySelectorAll('.section-tab').forEach((b) => {
-    if (b.dataset.section !== 'sec-log') {
-      b.classList.add('dimmed');
-      b.setAttribute('aria-disabled', 'true');
-    }
-  });
   taskBtn('clicks').dispatch('click');
-  assert.equal(getOpenSection(), null); // nothing opened — the guard spoke
+  assert.equal(getOpenSection(), 'sec-sip');
 });
 
 test('the prominent guided-setup action starts the wizard directly', async () => {

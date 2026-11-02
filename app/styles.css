@@ -54,7 +54,7 @@
     --bg: #10151c;
     --panel: #1a2230;
     --brand-accent: #e4525a;
-    --brand-accent-text: #e4525a;
+    --brand-accent-text: #e65b63; /* 4.59:1 on --panel for compact tab labels */
     --accent: #0b5cab;
     --accent2: var(--mmc-blue);
     --text: #e8edf4;
@@ -115,7 +115,7 @@ html.dark-mode {
   --bg: #10151c;
   --panel: #1a2230;
   --brand-accent: #e4525a;
-  --brand-accent-text: #e4525a;
+  --brand-accent-text: #e65b63;
   --accent: #0b5cab;
   --accent2: var(--mmc-blue);
   --text: #e8edf4;
@@ -2567,8 +2567,8 @@ html.dark-mode .guide-card {
   opacity: 1;
 }
 /* ---- Grouped information architecture ----
-   The contained rail keeps all seven work areas visible without heavy
-   standalone boxes. Multi-page areas use a quieter segmented second row. */
+   Four fixed task areas answer where to start; their pages use a quieter
+   segmented second row without adding another navigation level. */
 .section-subnav {
   width: fit-content;
   max-width: calc(100% - 32px);
@@ -3086,6 +3086,9 @@ html.dark-mode .guide-card {
   grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: 12px;
 }
+.maintenance-grid--restart {
+  grid-template-columns: minmax(min(300px, 100%), 520px);
+}
 .maintenance-option {
   display: flex;
   min-width: 0;
@@ -3113,6 +3116,157 @@ html.dark-mode .guide-card {
 .maintenance-option button {
   margin-top: auto;
 }
+.danger-disclosure,
+.advanced-tools {
+  padding: 0 16px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+.danger-disclosure {
+  border-left: 3px solid var(--warning);
+}
+.danger-disclosure > summary,
+.advanced-tools > summary {
+  min-height: 52px;
+  color: var(--text);
+  text-decoration: none;
+}
+.danger-disclosure > summary:hover,
+.advanced-tools > summary:hover {
+  color: var(--info);
+  text-decoration: none;
+}
+.danger-disclosure[open] > summary,
+.advanced-tools[open] > summary {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.danger-disclosure > .maintenance-grid {
+  margin-top: 12px;
+}
+
+/* ---- Symptom-based help and support report ---- */
+.support-start,
+.help-escalation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+.support-start .diag-title,
+.support-start .hint,
+.help-escalation .diag-title,
+.help-escalation .hint {
+  margin: 0;
+}
+.support-start .hint,
+.help-escalation .hint {
+  margin-top: 3px;
+}
+.support-start > .row {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.symptom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 12px;
+}
+.symptom-card {
+  display: flex;
+  min-width: 0;
+  min-height: 210px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 17px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+.symptom-card--warning {
+  border-left: 3px solid var(--warning);
+}
+.symptom-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+.symptom-card p {
+  margin: 7px 0 16px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.symptom-card > button,
+.symptom-actions {
+  margin-top: auto;
+}
+.symptom-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.symptom-card button {
+  min-height: 44px;
+}
+.help-escalation {
+  align-items: flex-start;
+  border-left: 3px solid var(--info);
+}
+.help-escalation button {
+  flex: 0 0 auto;
+}
+.support-report-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 24px;
+  align-items: center;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--info) 42%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--info) 6%, var(--surface-soft));
+}
+.support-report-copy .diag-title,
+.support-report-copy .hint {
+  margin: 0;
+}
+.support-report-copy .hint {
+  margin-top: 4px;
+  max-width: 72ch;
+}
+.report-includes {
+  margin: 12px 0 0;
+  padding-left: 1.25rem;
+  color: var(--muted);
+}
+.report-includes li + li {
+  margin-top: 4px;
+}
+.support-report-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.support-report-actions button {
+  min-width: 210px;
+}
+#supportReportStatus {
+  grid-column: 1 / -1;
+  min-height: 1.4em;
+  margin: 0;
+}
+.advanced-tools > .hint {
+  margin: 14px 0 0;
+}
+.advanced-tools > .diag-group {
+  margin-right: 0;
+  margin-left: 0;
+  background: var(--panel);
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 700px) {
@@ -3124,6 +3278,28 @@ html.dark-mode .guide-card {
     grid-template-columns: 1fr;
   }
   .maintenance-option {
+    min-height: 0;
+  }
+  .support-start,
+  .help-escalation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .support-start > .row,
+  .help-escalation button,
+  .support-report-actions button {
+    width: 100%;
+  }
+  .support-report-panel {
+    grid-template-columns: 1fr;
+  }
+  .support-report-actions {
+    width: 100%;
+  }
+  #supportReportStatus {
+    grid-column: 1;
+  }
+  .symptom-card {
     min-height: 0;
   }
   .card-head {
@@ -3754,7 +3930,7 @@ html.dark-mode .appearance-popup {
 }
 
 /* ---- Persistent application shell ----
-   The grouped information architecture remains unchanged; this layer gives it
+   The four-area information architecture gets
    a stable home. Wide screens use a quiet sticky rail, while narrow screens
    collapse the same controls into one compact, horizontally scrollable row. */
 .app-shell {
@@ -3948,13 +4124,6 @@ html.dark-mode .section-card.open {
 #sec-home[data-state='disconnected'] > .home-guide,
 #sec-home[data-state='loading'] > .home-guide {
   order: 2;
-}
-#sec-home[data-state='disconnected'] > .home-grid,
-#sec-home[data-state='disconnected'] > .home-more,
-#sec-home[data-state='disconnected'] > .readiness-strip,
-#sec-home[data-state='loading'] > .home-grid,
-#sec-home[data-state='loading'] > .home-more {
-  display: none;
 }
 .home-hero {
   padding: 15px 17px;

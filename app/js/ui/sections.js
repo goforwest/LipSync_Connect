@@ -1,11 +1,11 @@
-// Grouped navigation + section cards: seven primary areas name user-facing
-// work areas, while compact secondary buttons open the existing feature cards.
+// Grouped navigation + section cards: four task-oriented primary areas name
+// user-facing goals, while compact secondary buttons open the existing feature
+// cards.
 // Cards retain their old ids so device services, deep links, and support links
 // keep one stable target as the information architecture evolves.
 // updateConnectionGating (in connection-ui.js) reads the open card via
 // getOpenSection() but never mutates which card is open — that is this
 // module's single source of truth.
-import { showNotification } from './notification.js';
 import { prefersReducedMotion } from './motion.js';
 import { announceStatus } from './a11y.js';
 
@@ -13,28 +13,21 @@ let openSection = null; // id of the currently-open section card (null when none
 
 export const SECTION_GROUPS = Object.freeze({
   home: { label: 'Home', defaultSection: 'sec-home', sections: ['sec-home'] },
-  movement: { label: 'Movement', defaultSection: 'sec-cursor', sections: ['sec-cursor', 'sec-joystick'] },
-  inputs: {
-    label: 'Inputs',
-    defaultSection: 'sec-sip',
-    sections: ['sec-sip', 'sec-switches', 'sec-restrictions'],
+  adjust: {
+    label: 'Adjust controls',
+    defaultSection: 'sec-cursor',
+    sections: ['sec-cursor', 'sec-joystick', 'sec-sip', 'sec-switches', 'sec-feedback', 'sec-restrictions'],
   },
   device: {
     label: 'Device',
     defaultSection: 'sec-device',
-    sections: ['sec-device', 'sec-feedback', 'sec-bluetooth', 'sec-profiles'],
+    sections: ['sec-device', 'sec-bluetooth', 'sec-profiles', 'sec-firmware', 'sec-maintenance'],
   },
-  care: {
-    label: 'Health & updates',
-    defaultSection: 'sec-diagnostics',
-    sections: ['sec-diagnostics', 'sec-firmware', 'sec-maintenance'],
+  support: {
+    label: 'Help & support',
+    defaultSection: 'sec-help',
+    sections: ['sec-help', 'sec-diagnostics', 'sec-tools', 'sec-log'],
   },
-  advanced: {
-    label: 'Tools',
-    defaultSection: 'sec-tools',
-    sections: ['sec-tools', 'sec-log'],
-  },
-  help: { label: 'Help', defaultSection: 'sec-help', sections: ['sec-help'] },
 });
 
 const SECTION_TO_GROUP = Object.freeze(
@@ -148,25 +141,10 @@ export function getOpenSection() {
   return openSection;
 }
 
-function showConnectFirstNotice(id) {
-  showNotification(
-    id === 'sec-device'
-      ? 'Connect to a LipSync first to load device settings.'
-      : 'Connect to a LipSync first to use this section.',
-    true,
-  );
-}
-
-function sectionIsDimmed(id) {
-  const tab = getSectionTrigger(id);
-  if (tab) return tab.classList.contains('dimmed');
-  const group = getGroupForSection(id);
-  return !!getGroupTrigger(group)?.classList.contains('dimmed');
-}
-
 function syncActiveNavigation(id) {
   const activeGroup = id ? getGroupForSection(id) : null;
   /** @type {HTMLElement|null} */ let activeTrigger = null;
+  /** @type {HTMLElement|null} */ let activeTab = null;
   document.querySelectorAll('.circle-trigger[data-group]').forEach((/** @type {any} */ button) => {
     const active = !!activeGroup && button.dataset.group === activeGroup;
     button.classList.toggle('active', active);
@@ -180,8 +158,10 @@ function syncActiveNavigation(id) {
     tab.classList.toggle('group-hidden', !inGroup);
     const active = inGroup && tab.dataset.section === id;
     tab.classList.toggle('active', active);
-    if (active) tab.setAttribute('aria-current', 'page');
-    else tab.removeAttribute('aria-current');
+    if (active) {
+      tab.setAttribute('aria-current', 'page');
+      activeTab = tab;
+    } else tab.removeAttribute('aria-current');
     if (inGroup && !tab.hidden) visibleTabs.push(tab);
   });
 
@@ -205,36 +185,34 @@ function syncActiveNavigation(id) {
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
     else reveal();
   }
+  // The secondary rail is the same scroll container across groups. If the
+  // previous group was scrolled to its final page, a newly selected first page
+  // could otherwise be active entirely off-screen. Keep the selected page in
+  // view without changing the fixed tab order.
+  if (
+    activeTab &&
+    window.matchMedia?.('(max-width: 900px)').matches &&
+    typeof activeTab.scrollIntoView === 'function'
+  ) {
+    const tab = activeTab;
+    const reveal = () => tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+    else reveal();
+  }
 }
 
 export function openGroupById(group) {
   const definition = SECTION_GROUPS[group];
   if (!definition) return;
-  const groupButton = getGroupTrigger(group);
-  if (groupButton?.classList.contains('dimmed')) {
-    showConnectFirstNotice(definition.defaultSection);
-    return;
-  }
   if (openSection && getGroupForSection(openSection) === group) {
     return;
   }
-  let target = lastSectionByGroup[group] ?? definition.defaultSection;
-  if (sectionIsDimmed(target)) {
-    target = definition.sections.find((id) => !sectionIsDimmed(id)) ?? target;
-  }
+  const target = lastSectionByGroup[group] ?? definition.defaultSection;
   openSectionById(target);
 }
 
 export function openSectionById(id) {
   if (!getGroupForSection(id)) return;
-  if (sectionIsDimmed(id)) {
-    // The title tooltip only exists for pointer-hover; a tap on a touch
-    // device would otherwise look like a dead control. The polite toast
-    // covers both audiences — no separate srStatus write, or screen readers
-    // would hear the same sentence twice.
-    showConnectFirstNotice(id);
-    return;
-  }
   if (openSection === id) {
     return;
   }
@@ -260,7 +238,7 @@ export function closeCurrentSection() {
   const prev = document.getElementById(openSection);
   const wizardState = prev?.getAttribute?.('data-wizard');
   if (wizardState && wizardState !== 'done' && wizardState !== 'failed') {
-    announceStatus('The firmware update is still in progress — the Firmware section stays open.');
+    announceStatus('The firmware update is still in progress — Updates stays open.');
     return false;
   }
   if (prev) animateSectionClose(prev);

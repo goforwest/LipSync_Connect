@@ -16,14 +16,6 @@ const strip = () => doc.getElementById('readinessStrip');
 const chips = () => Array.from(strip().children ?? []).map((c) => ({ text: c.textContent, cls: c.className, el: c }));
 const connected = () => {
   testHooks.attach({ simulated: true }, { write() {} });
-  // A real connect undims the nav (updateConnectionGating); the stub stays
-  // dimmed from the pre-connect pass otherwise and openSectionById's dimmed
-  // guard (correctly) refuses chip-initiated opens.
-  [...doc.querySelectorAll('.circle-trigger'), ...doc.querySelectorAll('.section-tab')].forEach((b) => {
-    b.classList.remove('dimmed');
-    b.removeAttribute('aria-disabled');
-    b.removeAttribute('title');
-  });
 };
 
 test('green signals render the all-set state', () => {
@@ -52,7 +44,7 @@ test('an available firmware update becomes a jump chip', () => {
   c[0].el.dispatch('click');
   const nav = doc.querySelector('.section-tab[data-section="sec-firmware"]');
   assert.equal(nav.getAttribute('aria-current'), 'page');
-  assert.equal(doc.querySelector('.circle-trigger[data-group="care"]').getAttribute('aria-expanded'), 'true');
+  assert.equal(doc.querySelector('.circle-trigger[data-group="device"]').getAttribute('aria-expanded'), 'true');
   testHooks.detach();
 });
 

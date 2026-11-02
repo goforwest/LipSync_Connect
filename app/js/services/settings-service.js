@@ -85,7 +85,7 @@ export function markRestrictionsUnavailable() {
   }
   const note = $('restrictionsNote');
   if (note)
-    note.textContent = `Input restrictions need firmware ${RESTRICTIONS_MIN_FIRMWARE.join('.')}+ — update the firmware to use them.`;
+    note.textContent = `Input safeguards need firmware ${RESTRICTIONS_MIN_FIRMWARE.join('.')}+ — open Updates to install a newer version.`;
 }
 
 /**

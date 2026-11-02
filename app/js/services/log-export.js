@@ -65,6 +65,39 @@ export function buildLogFile() {
   return { text, filename };
 }
 
+/** Builds the single support artifact shown ahead of the expert log tools.
+ * Device identity is intentionally omitted from the summary and scrubbed from
+ * the transcript with the same redactor used by detailed-log exports.
+ * @param {{ dumpStatus?: string }} [options]
+ */
+export function buildSupportReport(options = {}) {
+  const read = (id, fallback = 'Not available') => {
+    const value = String($(id)?.textContent ?? '').trim();
+    return value && !['—', '…', 'ERR'].includes(value) ? value : fallback;
+  };
+  const logHistory = getLogHistory();
+  const connection = read('homeConnection', 'Not connected');
+  const header = [
+    'LipSync Connect support report',
+    'Created: ' + new Date().toISOString(),
+    'App build: ' + APP_BUILD_ID,
+    'Connection: ' + connection,
+    'Device model: ' + read('model'),
+    'Firmware: ' + read('version'),
+    'Operating mode: ' + read('opmode'),
+    'Communication mode: ' + read('commode'),
+    'Health check: ' + read('healthSummary', 'Not run'),
+    'Settings dump: ' + (options.dumpStatus || 'Not captured'),
+    'Session entries: ' + logHistory.length,
+    'Device identifiers: redacted',
+    '--- Session log ---',
+  ];
+  const transcript = redactLogIdentifiers(logHistory.join('\n'));
+  const text = header.join('\n') + '\n' + (transcript || 'No session events recorded.') + '\n';
+  const filename = `lipsync-support-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+  return { text, filename };
+}
+
 export function downloadLogFile({ text, filename }) {
   const blob = new Blob([text], { type: 'text/plain' });
   const link = document.createElement('a');
@@ -90,9 +123,13 @@ let fileShareBrokenThisSession = false;
 // confirm (the user picks the destination app), but mailto/clipboard/
 // download disclose without any further UI, so those paths ask first.
 // The callback must be synchronous-ish to stay inside transient activation.
-export async function shareLog(confirmBeforeFallback) {
-  const { text, filename } = buildLogFile();
-  const sharingMsg = 'Sharing log…';
+export async function shareTextFile(
+  { text, filename },
+  confirmBeforeFallback,
+  { title = 'LipSync Connect log', noun = 'log' } = {},
+) {
+  const nounTitle = noun.charAt(0).toUpperCase() + noun.slice(1);
+  const sharingMsg = `Sharing ${noun}…`;
   log(sharingMsg, 'log-info');
   announceStatus(sharingMsg);
   const wasCancelled = (e) => e && e.name === 'AbortError';
@@ -137,7 +174,7 @@ export async function shareLog(confirmBeforeFallback) {
   };
   const downloadFallback = () => {
     downloadLogFile({ text, filename });
-    const msg = 'Share failed — log downloaded instead.';
+    const msg = `Share failed — ${noun} downloaded instead.`;
     log(msg, 'log-err');
     showNotification(msg + ' Attach the downloaded file to your email or message.');
     announceStatus(msg);
@@ -169,7 +206,7 @@ export async function shareLog(confirmBeforeFallback) {
     // Capability-based selection (NOT UA sniffing): try an actual file share
     // only when the platform actually accepts it; otherwise always fall back
     // to the text payload, which is portable everywhere.
-    /** @type {any} */ let payload = { title: 'LipSync Connect log', text: body };
+    /** @type {any} */ let payload = { title, text: body };
     if (typeof File !== 'undefined' && 'canShare' in navigator && !fileShareBrokenThisSession) {
       try {
         // Chromium safelists shareable file EXTENSIONS, and .log is not on it:
@@ -178,7 +215,7 @@ export async function shareLog(confirmBeforeFallback) {
         // Share the same content under a .txt name — .txt is safelisted
         // everywhere — and keep the .log extension for the download path only.
         const file = new File([text], filename.replace(/\.log$/, '.txt'), { type: 'text/plain' });
-        if (navigator.canShare({ files: [file] })) payload = { files: [file], title: 'LipSync Connect log' };
+        if (navigator.canShare({ files: [file] })) payload = { files: [file], title };
       } catch {
         // files unsupported/omitted — keep the text payload
       }
@@ -227,7 +264,7 @@ export async function shareLog(confirmBeforeFallback) {
   //    clipboard FIRST and only lean on mailto when the clipboard refuses.
   if (text.length > MAIL_BODY_LIMIT) {
     if (await clipboardFallback()) {
-      const copiedMsg = 'Log copied to clipboard — paste it into an email.';
+      const copiedMsg = `${nounTitle} copied to clipboard — paste it into an email.`;
       log(copiedMsg, 'log-info');
       showNotification(copiedMsg);
       announceStatus(copiedMsg);
@@ -244,18 +281,21 @@ export async function shareLog(confirmBeforeFallback) {
     } catch {}
     try {
       window.location.href =
-        'mailto:?subject=LipSync%20Connect%20log&body=Log%20was%20too%20long%20to%20paste%20%E2%80%94%20attach%20the%20downloaded%20file.';
+        'mailto:?subject=' +
+        encodeURIComponent(title) +
+        '&body=' +
+        encodeURIComponent(`${nounTitle} was too long to paste — attach the downloaded file.`);
     } catch {
       // Navigation failure is not a second failure: the file is already saved.
     }
     if (downloaded) {
-      const msg = 'Log downloaded — attach the downloaded file to your email.';
+      const msg = `${nounTitle} downloaded — attach the downloaded file to your email.`;
       log(msg, 'log-info');
       showNotification(msg);
       announceStatus(msg);
     } else {
-      log('The log could not be downloaded — use Copy log instead.', 'log-err');
-      showNotification('The log could not be downloaded — use Copy log instead.');
+      log(`The ${noun} could not be downloaded — use Copy instead.`, 'log-err');
+      showNotification(`The ${noun} could not be downloaded — use Copy instead.`);
     }
     return;
   }
@@ -266,10 +306,14 @@ export async function shareLog(confirmBeforeFallback) {
   //    there's a guaranteed-working artifact on desktop.
   try {
     await clipboardFallback(); // best-effort; ignore the outcome
-    window.location.href = 'mailto:?subject=LipSync%20Connect%20log&body=' + encodeURIComponent(text);
+    window.location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text);
   } catch (e) {
     // e) mailto navigation itself threw (rare) — keep the download copy.
     log('Share failed: ' + e.message, 'log-err');
     downloadFallback();
   }
+}
+
+export function shareLog(confirmBeforeFallback) {
+  return shareTextFile(buildLogFile(), confirmBeforeFallback);
 }

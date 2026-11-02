@@ -19,6 +19,8 @@ export function updateReadiness() {
   if (!strip) return;
   if (!serialSession.port) {
     strip.hidden = true;
+    const profile = $('homeProfile');
+    if (profile) profile.textContent = 'Connect to check';
     return;
   }
   /** @type {{text: string, section: string|null, tone: string}[]} */
@@ -110,7 +112,11 @@ const SWITCH_SELECT_PREFIX = { SA: 'swSA', SB: 'swSB', SC: 'swSC', GA: 'swGA', G
 /** @returns {{text: string, section: string, tone: string}|null} */
 function profileMismatch() {
   const profiles = listProfiles();
-  if (!profiles.length) return null;
+  const homeProfile = $('homeProfile');
+  if (!profiles.length) {
+    if (homeProfile) homeProfile.textContent = 'None saved';
+    return null;
+  }
   /** @type {{name: string, comparable: number, mismatches: number}|null} */
   let best = null;
   for (const p of profiles) {
@@ -145,9 +151,13 @@ function profileMismatch() {
       }
     }
     if (comparable < 6) continue; // a thin profile is not judgeable
-    if (mismatches === 0) return null; // this profile is in force — done
+    if (mismatches === 0) {
+      if (homeProfile) homeProfile.textContent = p.name;
+      return null; // this profile is in force — done
+    }
     if (mismatches <= 2 && (!best || mismatches < best.mismatches)) best = { name: p.name, comparable, mismatches };
   }
+  if (homeProfile) homeProfile.textContent = 'No profile matched';
   if (!best) return null;
   return {
     text: `Device differs from “${best.name}” in ${best.mismatches} setting${best.mismatches === 1 ? '' : 's'}`,

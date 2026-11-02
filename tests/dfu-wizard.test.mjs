@@ -4955,9 +4955,9 @@ test('stranded marker: the sessionStorage mirror survives a reload and restores 
   byId('btnRecoverDevice').hidden = true;
   byId('sec-firmware').removeAttribute('data-recover');
   const firmwareTab = doc.querySelector('.section-tab[data-section="sec-firmware"]');
-  const careGroup = doc.querySelector('.circle-trigger[data-group="care"]');
+  const deviceGroup = doc.querySelector('.circle-trigger[data-group="device"]');
   firmwareTab.classList.add('dimmed');
-  careGroup.classList.add('dimmed');
+  deviceGroup.classList.add('dimmed');
 
   // The "reload": restoreBootloaderStrandedFromStorage is what
   // bindFirmwareUpdate runs at startup — Recover must come back without a
@@ -4966,7 +4966,7 @@ test('stranded marker: the sessionStorage mirror survives a reload and restores 
   assert.equal(byId('btnRecoverDevice').hidden, false, 'Recover is reachable immediately after the reload');
   assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
   assert.equal(firmwareTab.classList.contains('dimmed'), false, 'the Firmware page is openable after marker restore');
-  assert.equal(careGroup.classList.contains('dimmed'), false, 'Health & updates exposes the reachable Firmware page');
+  assert.equal(deviceGroup.classList.contains('dimmed'), false, 'Device exposes the reachable Updates page');
   assert.equal(byId('sec-firmware').classList.contains('card-off'), false, 'the recovery surface is not visually gated');
   assert.equal(byId('sec-firmware').classList.contains('open'), true, 'reload lands directly on the only recovery path');
 
