@@ -23,6 +23,7 @@ const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, step } = awai
 );
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
 const { ENDPOINT_RENDERERS } = await import('../app/js/serial/endpoints.js');
+const { getOpenSection } = await import('../app/js/ui/sections.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } = await import(
   '../app/js/serial/commands.js'
@@ -294,7 +295,14 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
     legacyAccelButtons.every((b) => b.disabled),
     'the acceleration steppers are locked on 4.1.0',
   );
-  assert.match(doc.getElementById('accelNote').textContent, /newer firmware/);
+  const accelNote = doc.getElementById('accelNote');
+  assert.match(accelNote.textContent, /newer firmware/);
+  const updatesLink = accelNote.children.find((child) => child.tagName === 'A');
+  assert.ok(updatesLink, 'the acceleration note links to Updates');
+  assert.equal(updatesLink.textContent, 'Updates');
+  assert.equal(updatesLink.href, '#sec-firmware');
+  updatesLink.dispatch('click');
+  assert.equal(getOpenSection(), 'sec-firmware', 'the Updates link opens the Updates card');
   // Defense in depth: even a stale/forced readout cannot reach AV,1.
   doc.getElementById('accelVal').textContent = '0';
   await step('accel', 1);

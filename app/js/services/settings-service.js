@@ -20,6 +20,7 @@ import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { setStatus, showConnectionError } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
+import { openSectionById, getSectionTrigger } from '../ui/sections.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
 import { updateMeter } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
@@ -114,6 +115,24 @@ export function markWindowsUnavailable() {
 // "newer firmware" explanation behind.
 let accelNoteDefault = null;
 
+/** Replace the hint's stock text with the unlock reason, linking straight to Updates. */
+function showAccelerationUnavailableNote(note) {
+  note.textContent = 'Cursor acceleration needs newer firmware — open ';
+  const link = document.createElement('a');
+  link.href = '#sec-firmware';
+  link.className = 'inline-link';
+  link.textContent = 'Updates';
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    openSectionById('sec-firmware');
+    const check = $('btnCheckUpdate');
+    const focusTarget = check && !check.disabled ? check : getSectionTrigger('sec-firmware');
+    focusTarget?.focus?.();
+  });
+  note.appendChild(link);
+  note.appendChild(document.createTextNode(' to install it.'));
+}
+
 /**
  * Firmware too old for acceleration writes (pre-4.3.0): the AV getter exists
  * and would answer, but the setter is a stub that refuses every write with
@@ -131,7 +150,7 @@ export function markAccelerationUnavailable() {
     el.removeAttribute('aria-label');
     el.removeAttribute('title');
   }
-  if (note) note.textContent = 'Cursor acceleration needs newer firmware — open Updates to install it.';
+  if (note) showAccelerationUnavailableNote(note);
   updateMeter('accelMeter', '—'); // clear segments/stale preview from a prior session
   updateStepButtons();
 }

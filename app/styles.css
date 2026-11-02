@@ -195,6 +195,15 @@ body {
 a {
   color: var(--info);
 }
+/* Inline navigation inside a hint sentence (e.g. acceleration's Updates
+   link): underlined so it reads as actionable, with the hint's own size. */
+.inline-link {
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
 /* target=_blank links get a small "opens in a new tab" arrow. A masked box,
    not a content glyph, so screen readers don't announce it — the accessible
    wording lives in the link's sr-only span instead. */

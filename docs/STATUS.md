@@ -50,8 +50,9 @@ rewritten silently. Index and reading order: `docs/README.md`.
 - Acceleration (`AV`) is now gated on firmware 4.3.0+: older firmware's getter
   answers, but its setter is a v4.0-era dispatch stub that refuses every
   `AV,1:N` with `FAIL,3` (fixed in firmware commit `52471f4`). The control
-  loads as not-applicable with a "needs newer firmware" note, snapshots omit it
-  on old firmware, and downgrade restores skip it on the connected device.
+  loads as not-applicable with a "needs newer firmware" note whose Updates
+  link opens that card, snapshots omit it on old firmware, and downgrade
+  restores skip it on the connected device.
 - Integration tests pass 480/480 and offline E2E passes 2/2. CI now runs the
   browser audit; the dev dependency audit is 0 vulnerabilities.
 
