@@ -1,7 +1,8 @@
 // Behavioral verification of the initial settings load (services/settings-service.js
-// loadDeviceInfo): the 18-endpoint read-back, placeholder -> value transitions, the
-// ERR state for a failed endpoint, and the progress bar lifecycle. Runs against the
-// real wiring (main.js module graph + gating DOM stub) with a simulated v4.1 device.
+// loadDeviceInfo): the per-endpoint read-back above the version gates, placeholder
+// -> value transitions, the ERR state for a failed endpoint, and the progress bar
+// lifecycle. Runs against the real wiring (main.js module graph + gating DOM stub)
+// with a simulated v4.1 device, which lacks acceleration writes (4.3.0+).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
@@ -80,8 +81,6 @@ test('settings load populates every endpoint and clears loading placeholders', a
     'SETTINGS',
     'SL,0:0',
     'SETTINGS',
-    'AV,0:0',
-    'SETTINGS',
     'ST,0:0',
     'SETTINGS',
     'PT,0:0',
@@ -121,7 +120,7 @@ test('a failed endpoint renders ERR and a recovery hint', async () => {
   assert.equal(errCell.textContent, 'ERR');
   assert.ok(errCell.classList.contains('err'));
   assert.equal(errCell.getAttribute('aria-label'), 'Scroll level failed to load');
-  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 18 settings failed to load/);
+  assert.match(doc.getElementById('modeGuardHint').textContent, /1 of 17 settings failed to load/);
   // The rest of the load still landed. (ST/PT render at fmtHpa's 2 decimals —
   // the device sent a bare "12".)
   assert.equal(doc.getElementById('sipVal').textContent, '12.00');

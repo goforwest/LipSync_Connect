@@ -187,6 +187,13 @@ export const USB_PID_APPLICATION_SENSE = 0x8045;
 export const USB_PID_BOOTLOADER = 0x0044;
 export const USB_PID_BOOTLOADER_SENSE = 0x0045;
 
+// Acceleration (AV) reads fine on 4.1.0, but its setter was a v4.0-era stub
+// whose dispatch table declared parameter "0" — every AV,1:N write is refused
+// with FAIL,3 until the 4.3.0 fix (firmware commit 52471f4). The app therefore
+// treats the whole setting as 4.3.0+ and never sends AV,1 to older firmware.
+/** @type {[number, number, number]} */
+export const ACCELERATION_MIN_FIRMWARE = [4, 3, 0];
+
 export const STEP_TARGETS = {
   speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
   scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
@@ -194,7 +201,14 @@ export const STEP_TARGETS = {
   // 0 is the linear no-op default. Its meter is the one center-zero variant
   // (meter--bipolar): 20 segments, |value| lit from the center outward, sign
   // picks the side — 0 lights nothing, matching the "0 = off" hint.
-  accel: { endpoint: 'AV', valueId: 'accelVal', meter: 'accelMeter', min: -10, max: 10 },
+  accel: {
+    endpoint: 'AV',
+    valueId: 'accelVal',
+    meter: 'accelMeter',
+    min: -10,
+    max: 10,
+    minFirmware: ACCELERATION_MIN_FIRMWARE,
+  },
   brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
   // ---- Float and window steppers ----
   // These were typed-number fields first (see index.html's "Set exact…"

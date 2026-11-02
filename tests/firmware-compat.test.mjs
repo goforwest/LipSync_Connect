@@ -18,7 +18,7 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi } = await import(
+const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, step } = await import(
   '../app/js/services/settings-service.js'
 );
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
@@ -28,6 +28,7 @@ const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } = aw
   '../app/js/serial/commands.js'
 );
 const {
+  ACCELERATION_MIN_FIRMWARE,
   INPUT_STATE_LIGHT_MIN_FIRMWARE,
   RESTRICTIONS_MIN_FIRMWARE,
   SWITCH_ACTIONS_MIN_FIRMWARE,
@@ -79,9 +80,10 @@ const FULL_RESPONSES = {
   'GC,0': '7,9,0',
 };
 
-// The thirteen reads that exist only on newer firmware (restrictions +
-// timing windows at 4.4.0, switch actions at 4.5.0).
+// The fourteen reads that exist only on newer firmware (acceleration at
+// 4.3.0, restrictions + timing windows at 4.4.0, switch actions at 4.5.0).
 const GATED_READS = [
+  'AV,0:0',
   'SD,0:0',
   'MA,0:0',
   'LK,0:0',
@@ -161,6 +163,7 @@ test('deviceFirmwareAtLeast draws the feature-tier boundaries for the whole span
   assert.ok(deviceFirmwareAtLeast(4, 1, 0), '4.1.0 is itself');
   assert.equal(deviceFirmwareAtLeast(4, 2, 0), false, 'wire v2 is gated off on 4.1.0');
   for (const gate of [
+    ACCELERATION_MIN_FIRMWARE,
     INPUT_STATE_LIGHT_MIN_FIRMWARE,
     RESTRICTIONS_MIN_FIRMWARE,
     SWITCH_ACTIONS_MIN_FIRMWARE,
@@ -174,7 +177,7 @@ test('deviceFirmwareAtLeast draws the feature-tier boundaries for the whole span
   noteDeviceVersion(RELEASE);
   for (const gate of [
     [4, 2, 0],
-    [4, 3, 0],
+    ACCELERATION_MIN_FIRMWARE,
     INPUT_STATE_LIGHT_MIN_FIRMWARE,
     RESTRICTIONS_MIN_FIRMWARE,
     SWITCH_ACTIONS_MIN_FIRMWARE,
@@ -262,7 +265,7 @@ test('the load withholds every version-gated read from 4.1.0 and sends them all 
 test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks them', async () => {
   resetWireNewlineFraming();
   resetGatedUi();
-  launchDevice(LEGACY);
+  const legacy = launchDevice(LEGACY);
   await loadDeviceInfo();
   await sleep(40);
   // Input restrictions: disabled, with the "needs firmware 4.4.0+" note.
@@ -279,6 +282,29 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
   // External switch actions: selects locked, with their own note.
   assert.equal(doc.getElementById('swSA0').disabled, true, 'the switch select is locked on 4.1.0');
   assert.match(doc.getElementById('switchActionsNote').textContent, /4\.5\.0\+/);
+  // Acceleration: the getter exists but the setter is the v4.0-era stub that
+  // answers FAIL,3 to every AV,1 — expose it as not-applicable, not as a
+  // control whose writes can only fail.
+  assert.equal(doc.getElementById('accelVal').textContent, '—', 'acceleration is not-applicable on 4.1.0');
+  const legacyAccelButtons = doc
+    .querySelectorAll('button[data-step]')
+    .filter((b) => b.dataset.target === 'accel');
+  assert.equal(legacyAccelButtons.length, 2, 'both acceleration steppers exist');
+  assert.ok(
+    legacyAccelButtons.every((b) => b.disabled),
+    'the acceleration steppers are locked on 4.1.0',
+  );
+  assert.match(doc.getElementById('accelNote').textContent, /4\.3\.0\+/);
+  // Defense in depth: even a stale/forced readout cannot reach AV,1.
+  doc.getElementById('accelVal').textContent = '0';
+  await step('accel', 1);
+  assert.ok(!legacy.sent.some((s) => s.startsWith('AV,1:')), 'AV,1 never reaches 4.1.0');
+  assert.ok(
+    legacyAccelButtons.every((b) => b.disabled),
+    'the acceleration steppers stay locked after a programmatic step',
+  );
+  const legacySnapshot = captureSettingsSnapshot();
+  assert.equal('AV' in legacySnapshot, false, 'a 4.1.0 snapshot never invents acceleration');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 
@@ -294,6 +320,16 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
   assert.equal(doc.getElementById('w1Input').disabled, false, 'the window input is live on 4.6.5');
   assert.equal(doc.getElementById('swSA0').disabled, false, 'the switch select is live on 4.6.5');
   assert.equal(doc.getElementById('switchActionsNote').textContent, '');
+  assert.equal(doc.getElementById('accelVal').textContent, '0', 'acceleration loads on 4.6.5');
+  assert.ok(
+    doc
+      .querySelectorAll('button[data-step]')
+      .filter((b) => b.dataset.target === 'accel')
+      .every((b) => !b.disabled),
+    'the acceleration steppers are live on 4.6.5',
+  );
+  assert.doesNotMatch(doc.getElementById('accelNote').textContent, /needs firmware/);
+  assert.equal(captureSettingsSnapshot().AV, '0', 'a 4.6.5 snapshot carries acceleration');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
@@ -330,15 +366,17 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
   await loadDeviceInfo();
   await sleep(40);
   const snapshot = captureSettingsSnapshot();
-  for (const ep of ['SS', 'SM', 'LM', 'SD', 'MA', 'WS', 'WM', 'SA', 'GC'])
+  for (const ep of ['SS', 'AV', 'SM', 'LM', 'SD', 'MA', 'WS', 'WM', 'SA', 'GC'])
     assert.ok(ep in snapshot, ep + ' is captured on 4.6.5');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 
   // Restore onto a 4.1.0 device (the natural downgrade direction): only the
-  // ten base writes land. Writing a gated family to firmware that lacks it is
-  // guaranteed FAIL,1 noise, and two such failures abort the whole restore —
-  // so the restore gates each family on the CONNECTED device, not the backup.
+  // nine writable base settings land. Acceleration is among the withheld
+  // families — its AV,1 setter pre-4.3.0 is the FAIL,3 stub. Writing any gated
+  // family to firmware that lacks it is guaranteed FAIL,1 noise, and two such
+  // failures abort the whole restore — so the restore gates each family on the
+  // CONNECTED device, not the backup.
   resetWireNewlineFraming();
   noteDeviceVersion(LEGACY);
   const legacy = restoreRecorder();
@@ -348,9 +386,10 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
   const legacyWrites = legacy.sent.filter((s) => s.includes(',1:')).map((s) => s.slice(0, 2));
   assert.deepEqual(
     legacyWrites,
-    ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'],
-    'only the ten base settings reach 4.1.0',
+    ['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'],
+    'only the nine writable base settings reach 4.1.0',
   );
+  assert.ok(!legacyWrites.includes('AV'), 'acceleration is withheld from 4.1.0 (AV,1 is FAIL,3 there)');
   for (const gated of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
     assert.ok(!legacyWrites.includes(gated), gated + ' is withheld from 4.1.0');
   testHooks.detach();
@@ -364,6 +403,7 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
   await sleep(20);
   assert.deepEqual(releaseFailures, [], 'nothing fails restoring onto 4.6.5');
   const releaseWrites = release.sent.filter((s) => s.includes(',1:')).map((s) => s.slice(0, 2));
+  assert.ok(releaseWrites.includes('AV'), 'acceleration is restored onto 4.6.5');
   for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
     assert.ok(releaseWrites.includes(ep), ep + ' is restored onto 4.6.5');
   testHooks.detach();

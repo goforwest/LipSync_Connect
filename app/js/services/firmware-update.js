@@ -52,6 +52,7 @@ import {
   FIRMWARE_CHECK_MIN_INTERVAL_MS,
   FIRMWARE_FETCH_TIMEOUT_MS,
   FIRMWARE_STRANDED_STORAGE_KEY,
+  ACCELERATION_MIN_FIRMWARE,
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
   WINDOW_SETTINGS,
@@ -523,7 +524,13 @@ function labelToValue(map, label) {
 export function captureSettingsSnapshot() {
   const snapshot = { VN: ($('version')?.textContent || '').trim() };
   const missing = [];
+  // Acceleration (4.3.0+): the setter is a FAIL,3 stub on older firmware, so
+  // the app never loads it there and a snapshot must not invent it (nor fail
+  // the capture over a setting that device cannot write). Same optional-key
+  // contract as the restriction/window/switch families below.
+  const deviceHasAcceleration = deviceFirmwareAtLeast(...ACCELERATION_MIN_FIRMWARE);
   for (const [ep, id, label] of SNAPSHOT_KEYS) {
+    if (ep === 'AV' && !deviceHasAcceleration) continue;
     const v = ($(id)?.textContent || '').trim();
     if (!v || v === '—' || v === 'ERR' || v === '…') {
       missing.push(label);
@@ -695,6 +702,10 @@ export async function restoreSettingsSnapshot(snapshot) {
   setWriteConfirmSuppressed(true);
   try {
     for (const ep of order) {
+      // Acceleration (4.3.0+): the snapshot may carry AV after a downgrade,
+      // but pre-4.3.0 firmware's AV,1 setter is the v4.0-era stub that answers
+      // FAIL,3 — skip it on the CONNECTED device, like every other family.
+      if (ep === 'AV' && !deviceFirmwareAtLeast(...ACCELERATION_MIN_FIRMWARE)) continue;
       const raw = snapshot?.[ep];
       if (raw === undefined || raw === null || raw === '') continue;
       // A snapshot captured on 4.4.0+ may carry LM=3. Firmware 4.1 accepts

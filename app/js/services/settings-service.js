@@ -7,6 +7,7 @@ import {
   VALUE_LABELS,
   DIAG_PANELS,
   LOAD_TOTAL_TIMEOUT,
+  ACCELERATION_MIN_FIRMWARE,
   RESTRICTION_SETTINGS,
   RESTRICTIONS_MIN_FIRMWARE,
   WINDOW_SETTINGS,
@@ -106,6 +107,42 @@ export function markWindowsUnavailable() {
     const btn = $('btnSet' + w.endpoint);
     if (btn) btn.disabled = true;
   }
+}
+
+// The acceleration hint's stock text, captured once so a later session on
+// firmware that HAS the setting can restore it instead of leaving the
+// "needs 4.3.0+" explanation behind.
+let accelNoteDefault = null;
+
+/**
+ * Firmware too old for acceleration writes (pre-4.3.0): the AV getter exists
+ * and would answer, but the setter is a stub that refuses every write with
+ * FAIL,3. Keep the setting honest instead of exposing a control whose writes
+ * can only fail: the readout goes not-applicable, the stepper locks, and the
+ * hint says why.
+ */
+export function markAccelerationUnavailable() {
+  const note = $('accelNote');
+  if (note && accelNoteDefault === null) accelNoteDefault = note.textContent;
+  const el = $('accelVal');
+  if (el) {
+    el.textContent = '—';
+    el.classList.remove('loading', 'err');
+    el.removeAttribute('aria-label');
+    el.removeAttribute('title');
+  }
+  if (note)
+    note.textContent = `Cursor acceleration needs firmware ${ACCELERATION_MIN_FIRMWARE.join('.')}+ — open Updates to install a newer version.`;
+  updateMeter('accelMeter', '—'); // clear segments/stale preview from a prior session
+  updateStepButtons();
+}
+
+/** A supported device answered AV: restore the stock hint and enable stepping. */
+export function markAccelerationAvailable() {
+  if (!deviceFirmwareAtLeast(...ACCELERATION_MIN_FIRMWARE)) return;
+  const note = $('accelNote');
+  if (note && accelNoteDefault !== null) note.textContent = accelNoteDefault;
+  updateStepButtons();
 }
 
 /** Disconnect/start-of-load reset: no stale checkbox may survive into a new session. */
@@ -368,7 +405,10 @@ export function getDeviceLoadTasks() {
     ['CM,0:0', (r) => ENDPOINT_RENDERERS.CM(r.value)],
     ['SS,0:0', (r) => ENDPOINT_RENDERERS.SS(r.value)],
     ['SL,0:0', (r) => ENDPOINT_RENDERERS.SL(r.value)],
-    ['AV,0:0', (r) => ENDPOINT_RENDERERS.AV(r.value)],
+    // Acceleration (4.3.0+): the read itself exists on older firmware, but the
+    // setter does not — loading it would expose a control that can only fail,
+    // so the whole setting is withheld until the 4.3.0 setter fix.
+    ['AV,0:0', (r) => ENDPOINT_RENDERERS.AV(r.value), ACCELERATION_MIN_FIRMWARE],
     ['ST,0:0', (r) => ENDPOINT_RENDERERS.ST(r.value)],
     ['PT,0:0', (r) => ENDPOINT_RENDERERS.PT(r.value)],
     ['IZ,0:0', (r) => ENDPOINT_RENDERERS.IZ(r.value)],
@@ -461,8 +501,10 @@ export async function loadDeviceInfo() {
     // unavailable and move on, the same honesty the BH health step practices.
     const minFw = /** @type {number[]|undefined} */ (/** @type {any} */ (tasks[i])[2]);
     if (minFw && !deviceFirmwareAtLeast(minFw[0], minFw[1], minFw[2] ?? 0)) {
-      if (WINDOW_SETTINGS.some((w) => w.endpoint === tasks[i][0].slice(0, 2))) markWindowsUnavailable();
-      else if (SWITCH_SETTINGS.some((s) => s.endpoint === tasks[i][0].slice(0, 2))) markSwitchActionsUnavailable();
+      const endpoint = tasks[i][0].slice(0, 2);
+      if (endpoint === STEP_TARGETS.accel.endpoint) markAccelerationUnavailable();
+      else if (WINDOW_SETTINGS.some((w) => w.endpoint === endpoint)) markWindowsUnavailable();
+      else if (SWITCH_SETTINGS.some((s) => s.endpoint === endpoint)) markSwitchActionsUnavailable();
       else markRestrictionsUnavailable();
       continue;
     }
@@ -592,6 +634,11 @@ export async function loadDeviceInfo() {
 export async function step(target, delta) {
   const cfg = STEP_TARGETS[target];
   if (!cfg || pendingSteps.has(target)) return;
+  // Defense in depth: a disabled button never fires, but a programmatic call
+  // must not reach a setting the connected firmware cannot write (AV,1 on
+  // pre-4.3.0 is the canonical case — the firmware answers FAIL,3).
+  if (cfg.minFirmware && !deviceFirmwareAtLeast(cfg.minFirmware[0], cfg.minFirmware[1], cfg.minFirmware[2] ?? 0))
+    return;
   pendingSteps.add(target);
   updateStepButtons();
   const errorId = cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ' ? 'formError' : 'sapError';
@@ -654,6 +701,12 @@ export function updateStepButtons() {
   document.querySelectorAll('button[data-step]').forEach((/** @type {any} */ b) => {
     const cfg = STEP_TARGETS[b.dataset.target];
     if (!cfg) return;
+    // Version-gated target: never offer a write the connected firmware cannot
+    // accept, even if a stale or manually-seeded readout made it look valid.
+    if (cfg.minFirmware && !deviceFirmwareAtLeast(cfg.minFirmware[0], cfg.minFirmware[1], cfg.minFirmware[2] ?? 0)) {
+      b.disabled = true;
+      return;
+    }
     if (pendingSteps.has(b.dataset.target)) {
       b.disabled = true;
       return;

@@ -190,7 +190,9 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   // Bench-observed 2026-10-16: a snapshot taken on 4.5.0 (all families)
   // restored onto a 4.1.0 device wrote SD/MA → FAIL,1 twice and aborted
   // the restore early. The restore must gate each version-gated family on
-  // the CONNECTED device's firmware and send only the base ten to 4.1.0.
+  // the CONNECTED device's firmware; 4.1.0 also cannot write acceleration
+  // (AV,1 is the pre-4.3.0 FAIL,3 stub), so only the nine writable base
+  // settings go out.
   const snapshot = {
     VN: '4.5.0',
     SS: '6', SL: '4', AV: '3', ST: '3.25', PT: '3.00', IZ: '0.10', OZ: '0.90',
@@ -217,10 +219,10 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   const writesOld = sentOld.filter((s) => s.includes(',1:'));
   assert.deepEqual(
     writesOld.map((s) => s.slice(0, 2)),
-    ['SS', 'SL', 'AV', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'],
-    'only the base ten are written to 4.1.0',
+    ['SS', 'SL', 'ST', 'PT', 'IZ', 'OZ', 'SM', 'LM', 'LL'],
+    'only the nine writable base settings are written to 4.1.0',
   );
-  for (const gated of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
+  for (const gated of ['AV', 'SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
     assert.ok(!writesOld.some((s) => s.startsWith(gated + ',')), gated + ' must not be written to old firmware');
   testHooks.detach();
 
@@ -239,6 +241,7 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   const failuresNew = await restoreSettingsSnapshot(snapshot);
   assert.deepEqual(failuresNew, [], 'nothing fails against the 4.5.0 device');
   const writesNew = sentNew.filter((s) => s.includes(',1:'));
+  assert.ok(writesNew.some((s) => s.startsWith('AV,1:')), 'acceleration is restored on 4.5.0');
   for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
     assert.ok(writesNew.some((s) => s.startsWith(ep + ',1:')), ep + ' restored on 4.5.0');
   testHooks.detach();

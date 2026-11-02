@@ -3,7 +3,11 @@
 // everywhere instead of drifting across two paths.
 import { MODELS, FEEDBACK_MODES, DEBUG_MODES, INPUT_STATE_LIGHT_MIN_FIRMWARE } from '../config/constants.js';
 import { registerEndpointRenderer } from '../services/registry.js';
-import { applyRestrictionValue, applyTimingWindowValue } from '../services/settings-service.js';
+import {
+  applyRestrictionValue,
+  applyTimingWindowValue,
+  markAccelerationAvailable,
+} from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
 import { setValue } from '../ui/values.js';
 import { fmtHpa } from '../utils/format.js';
@@ -67,6 +71,10 @@ export const ENDPOINT_RENDERERS = {
   AV: (v) => {
     setValue('accelVal', v);
     updateMeter('accelMeter', v);
+    // The AV load is only scheduled on 4.3.0+ (older firmware's setter is a
+    // FAIL,3 stub); restoring the hint here clears a previous session's
+    // "needs 4.3.0+" explanation when the user reconnects to newer firmware.
+    markAccelerationAvailable();
   },
   ST: (v) => {
     const shown = fmtHpa(v);

@@ -406,7 +406,6 @@ test('wizard: download → touch → bootloader flash → reconnect restore', as
   assert.deepEqual(writes, [
     'SS,1:5',
     'SL,1:5',
-    'AV,1:0',
     'ST,1:3.00',
     'PT,1:3.00',
     'IZ,1:0.07',
@@ -1542,7 +1541,7 @@ test('wizard: a disconnect during settings restore retries on the next connect',
   assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
   assert.deepEqual(
     sentFinal.filter((t) => /,1:/.test(t)),
-    ['SS,1:5', 'SL,1:5', 'AV,1:0', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
     'the full restore runs on the retry',
   );
   await app.disconnect({ quiet: true });
@@ -4060,7 +4059,7 @@ test('wizard: a cancel inside the final STOP window preserves the maybe-finished
   assert.equal(byId('fwWizardStep').textContent, 'Firmware update complete.');
   assert.deepEqual(
     sentVerify.filter((t) => /,1:/.test(t)),
-    ['SS,1:5', 'SL,1:5', 'AV,1:0', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
+    ['SS,1:5', 'SL,1:5', 'ST,1:3.00', 'PT,1:3.00', 'IZ,1:0.07', 'OZ,1:0.95', 'SM,1:1', 'LM,1:1', 'LL,1:5'],
     'the reconnect verified the completed update and restored the settings',
   );
   assert.equal(fw.readPending(), null, 'the pending entry completes and clears');

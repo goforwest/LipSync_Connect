@@ -39,7 +39,7 @@ import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { modeState } from '../state/modes.js';
-import { WINDOW_SETTINGS, PRESS_THRESHOLD_LEVELS } from '../config/constants.js';
+import { WINDOW_SETTINGS, PRESS_THRESHOLD_LEVELS, ACCELERATION_MIN_FIRMWARE } from '../config/constants.js';
 
 let screen = null; // current mirrored screen id; null = mirror closed
 let sel = 0; // cursor index into the current screen's rows (displayOnly rows never hold it)
@@ -314,7 +314,7 @@ const SCREENS = {
       // 4.3.0+ (roadmap item 9, upstream #86): the Hub menu's Acceleration
       // page. Older firmware has no such row — showing one would desync the
       // cursor for every row after it.
-      ...(deviceFirmwareAtLeast(4, 3, 0)
+      ...(deviceFirmwareAtLeast(...ACCELERATION_MIN_FIRMWARE)
         ? [
             {
               label: 'Acceleration',
