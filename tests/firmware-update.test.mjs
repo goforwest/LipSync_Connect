@@ -134,6 +134,40 @@ test('check finds a newer release and offers the update', async () => {
   assert.equal(fetchCalls.length, 2, 'release API then manifest asset');
 });
 
+test('a field 4.1.0 device is offered the published 4.6.5 release', async () => {
+  // The headline compatibility case: the widely deployed legacy firmware sees
+  // the new release and gets an installable update, with the device's own
+  // version named so a caregiver can tell what they are moving from.
+  storage.clear();
+  fetchImpl = async (url) =>
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.6.5'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.6.5') };
+  setDeviceVersion('4.1.0');
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.equal(current(), '4.1.0');
+  assert.equal(latest(), '4.6.5');
+  assert.match(status(), /Update available: 4\.6\.5 \(installed: 4\.1\.0\)/);
+  assert.equal(updateBtnHidden(), false, 'the Update button is offered to the legacy device');
+  assert.equal(document.getElementById('fwTargetVersion').textContent, '4.6.5');
+  assert.equal(statusState(), 'available');
+});
+
+test('a device already on 4.6.5 is told it is up to date, with no update button', async () => {
+  storage.clear();
+  fetchImpl = async (url) =>
+    url.includes('/contents/firmware-manifest.json')
+      ? contentsPayload(MANIFEST('4.6.5'))
+      : { ok: true, status: 200, json: async () => releaseWithManifest('4.6.5') };
+  setDeviceVersion('4.6.5');
+  await checkForFirmwareUpdate();
+  await flush();
+  assert.match(status(), /up to date \(4\.6\.5/);
+  assert.equal(statusState(), 'ok');
+  assert.equal(updateBtnHidden(), true);
+});
+
 test('up-to-date devices get a calm status and no update button', async () => {
   storage.clear();
   fetchImpl = async (url) =>

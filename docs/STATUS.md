@@ -6,7 +6,7 @@ date every claim. Everything else in this folder is a dated log/ledger —
 accurate as of its date, superseded by later dated notes, never
 rewritten silently. Index and reading order: `docs/README.md`.
 
-**Last updated: 2026-11-01.**
+**Last updated: 2026-11-02.**
 
 ## App
 
@@ -39,7 +39,15 @@ rewritten silently. Index and reading order: `docs/README.md`.
   and keeps stale-while-revalidate work alive until its cache write settles.
 - Browser audit: 84/84 connected-state flows, 20/20 viewport/accessibility checks, and
   11/11 first-run wizard checks pass on the reorganized interface.
-- Integration tests pass 471/471 and offline E2E passes 2/2. CI now runs the
+- A dedicated firmware compatibility matrix (`tests/firmware-compat.test.mjs`)
+  now pins the whole 4.1.0 ↔ 4.6.5 span in one place: the deviceFirmwareAtLeast
+  tier map, the wire-framing generation switch, which endpoints the load may
+  send, the locked-with-reason vs. live card states, the input-state light
+  option, and the backup/restore downgrade-safety. The 4.6.5 update path is
+  verified end to end — a field 4.1.0 device detects/offers 4.6.5, and the
+  built manifest's declared sizes and sha256 checksums match the real
+  DFU/UF2/HEX artifacts (guarding the wizard's download-time checksum gate).
+- Integration tests pass 480/480 and offline E2E passes 2/2. CI now runs the
   browser audit; the dev dependency audit is 0 vulnerabilities.
 
 ## Firmware

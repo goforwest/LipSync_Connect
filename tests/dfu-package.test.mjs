@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parseDfuPackage, unzip } from '../app/js/serial/dfu/dfu-package.js';
 
@@ -201,6 +202,25 @@ test('parses the real locally built artifact when present', { skip: !distDfuPath
   assert.ok(app.dat_file.endsWith('.dat'));
   assert.ok(pkg.bin.length > 250000, 'real firmware image is ~256 KB');
   assert.equal(pkg.dat.length, 14, 'adafruit init packet for this app is 14 bytes');
+});
+
+// The update manifest is what the in-app check compares against and what the
+// wizard's download step checksums before flashing. If the built manifest and
+// its artifacts ever disagree (a rebuild that updated one but not the other),
+// the real update fails at the sha256 gate — a late, confusing failure. Pin
+// the built release's internal consistency so that drift is caught here first.
+test('the built update manifest matches its artifacts on disk', { skip: !fs.existsSync(distManifestPath) }, () => {
+  const manifest = JSON.parse(fs.readFileSync(distManifestPath, 'utf8'));
+  assert.match(manifest.firmwareVersion ?? '', /^\d+\.\d+\.\d+$/, 'the manifest declares a full version');
+  const files = manifest.files ?? {};
+  assert.ok(files.dfu?.fileName && files.dfu?.sha256, 'the manifest publishes a DFU file + checksum to install');
+  for (const [kind, entry] of Object.entries(files)) {
+    const artifactPath = path.join(distDir, entry.fileName);
+    assert.ok(fs.existsSync(artifactPath), `${kind} artifact ${entry.fileName} exists next to the manifest`);
+    const bytes = fs.readFileSync(artifactPath);
+    assert.equal(bytes.length, entry.size, `${kind} size matches the manifest`);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), entry.sha256, `${kind} sha256 matches the manifest`);
+  }
 });
 
 test('unzip refuses to inflate entries beyond the safety cap', async () => {
