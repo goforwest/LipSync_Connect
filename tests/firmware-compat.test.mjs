@@ -294,7 +294,7 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
     legacyAccelButtons.every((b) => b.disabled),
     'the acceleration steppers are locked on 4.1.0',
   );
-  assert.match(doc.getElementById('accelNote').textContent, /4\.3\.0\+/);
+  assert.match(doc.getElementById('accelNote').textContent, /newer firmware/);
   // Defense in depth: even a stale/forced readout cannot reach AV,1.
   doc.getElementById('accelVal').textContent = '0';
   await step('accel', 1);
@@ -328,7 +328,7 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
       .every((b) => !b.disabled),
     'the acceleration steppers are live on 4.6.5',
   );
-  assert.doesNotMatch(doc.getElementById('accelNote').textContent, /needs firmware/);
+  assert.doesNotMatch(doc.getElementById('accelNote').textContent, /newer firmware/);
   assert.equal(captureSettingsSnapshot().AV, '0', 'a 4.6.5 snapshot carries acceleration');
   await app.disconnect({ quiet: true });
   testHooks.detach();

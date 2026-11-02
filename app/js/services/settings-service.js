@@ -111,7 +111,7 @@ export function markWindowsUnavailable() {
 
 // The acceleration hint's stock text, captured once so a later session on
 // firmware that HAS the setting can restore it instead of leaving the
-// "needs 4.3.0+" explanation behind.
+// "newer firmware" explanation behind.
 let accelNoteDefault = null;
 
 /**
@@ -131,8 +131,7 @@ export function markAccelerationUnavailable() {
     el.removeAttribute('aria-label');
     el.removeAttribute('title');
   }
-  if (note)
-    note.textContent = `Cursor acceleration needs firmware ${ACCELERATION_MIN_FIRMWARE.join('.')}+ — open Updates to install a newer version.`;
+  if (note) note.textContent = 'Cursor acceleration needs newer firmware — open Updates to install it.';
   updateMeter('accelMeter', '—'); // clear segments/stale preview from a prior session
   updateStepButtons();
 }

@@ -73,7 +73,7 @@ export const ENDPOINT_RENDERERS = {
     updateMeter('accelMeter', v);
     // The AV load is only scheduled on 4.3.0+ (older firmware's setter is a
     // FAIL,3 stub); restoring the hint here clears a previous session's
-    // "needs 4.3.0+" explanation when the user reconnects to newer firmware.
+    // "newer firmware" explanation when the user reconnects to newer firmware.
     markAccelerationAvailable();
   },
   ST: (v) => {
