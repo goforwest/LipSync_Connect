@@ -35,11 +35,20 @@
 // Restrictions page, the Sip & Puff ▸ Timing pages and the coarse threshold
 // level scale arrived with 4.4.0 — a 4.1 device has none of them, and showing
 // rows the device does not have would desync every Next/Select after them.
+// The hard sip/puff rows (Sip & Puff ▸ Hard Sip/Hard Puff, upstream #58)
+// joined at 4.7.0, appended in front of "... Back" so every pre-4.7.0 row
+// keeps its index.
 import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { modeState } from '../state/modes.js';
-import { WINDOW_SETTINGS, PRESS_THRESHOLD_LEVELS, ACCELERATION_MIN_FIRMWARE } from '../config/constants.js';
+import {
+  WINDOW_SETTINGS,
+  PRESS_THRESHOLD_LEVELS,
+  ACCELERATION_MIN_FIRMWARE,
+  HARD_BAND_MIN_FIRMWARE,
+  HARD_MARGIN_HPA,
+} from '../config/constants.js';
 
 let screen = null; // current mirrored screen id; null = mirror closed
 let sel = 0; // cursor index into the current screen's rows (displayOnly rows never hold it)
@@ -77,6 +86,8 @@ const FW_PAGE_TO_MIRROR = {
   54: 'sap', // SIP_PUFF_MENU
   541: 'sip', // SIP_THRESH_MENU
   542: 'puff', // PUFF_THRESH_MENU
+  543: 'hardSip', // HARD_SIP_THRESH_MENU (4.7.0+, upstream #58)
+  544: 'hardPuff', // HARD_PUFF_THRESH_MENU
   55: 'fullCalibWarning', // FULL_CALIB_PAGE (the warning page)
   551: 'calConfirm', // FULL_CALIB_CONFIRM_PAGE
   56: 'restartConfirm', // RESTART_PAGE
@@ -104,7 +115,7 @@ const FW_TRANSIENT_PAGE_MS = {
 // emitting responses, so these start from the app's last-known readout and
 // track adjustments approximately; the on-page drift note covers the gap.
 /** @type {Record<string, any>} */
-const local = { speed: 5, scroll: 5, lights: 5, accel: 0, sip: 4, puff: 4, soundOn: true };
+const local = { speed: 5, scroll: 5, lights: 5, accel: 0, sip: 4, puff: 4, hardSip: 10, hardPuff: 10, soundOn: true };
 /** @type {number[]} */
 const localWindows = [1000, 3000, 8000];
 /** @type {Record<string, boolean>} */
@@ -179,6 +190,30 @@ function threshScreen(name, key, backTo) {
   };
   return {
     header: hasLevels ? `${name}: L${levelFor(local[key])} ${fmt(local[key])}` : `${name}: ${fmt(local[key])}`,
+    items: [
+      { label: 'Increase', select: () => adjust(1) },
+      { label: 'Decrease', select: () => adjust(-1) },
+      { label: '... Back', select: () => go(backTo) },
+    ],
+  };
+}
+
+// Hard-band threshold screens (firmware 4.7.0+, upstream #58). Same coarse
+// level scale, but a step can never land below regular + margin — exactly
+// the firmware pages' clamp: Decrease stops at the floor (the setter would
+// refuse anything below it), and a stale seed below the floor heals to it on
+// entry, mirroring healHardThresholds() on the device. The regular value is
+// read from the app's live readout (the mirror's estimate contract).
+function hardThreshScreen(name, key, regularReadoutId, backTo) {
+  const fmt = (v) => Number(v).toFixed(2);
+  const floor = () => readNum(regularReadoutId, 2) + HARD_MARGIN_HPA;
+  const adjust = (dir) => {
+    const next = dir > 0 ? levelUp(local[key]) : levelDown(local[key]);
+    local[key] = Math.max(next, floor());
+    render();
+  };
+  return {
+    header: `Hard ${name}: L${levelFor(local[key])} ${fmt(local[key])}`,
     items: [
       { label: 'Increase', select: () => adjust(1) },
       { label: 'Decrease', select: () => adjust(-1) },
@@ -389,11 +424,38 @@ const SCREENS = {
             },
           ]
         : []),
+      // 4.7.0+ (upstream #58): the hard band's two rows, appended in front
+      // of Back so every earlier row keeps its firmware index.
+      ...(deviceFirmwareAtLeast(...HARD_BAND_MIN_FIRMWARE)
+        ? [
+            {
+              label: 'Hard Sip',
+              select: () => {
+                // Entry heal, mirroring the device page: a hard value below
+                // regular + margin shows at the floor the device will use.
+                local.hardSip = Math.max(readNum('hardSipVal', local.hardSip), readNum('sipVal', 2) + HARD_MARGIN_HPA);
+                go('hardSip');
+              },
+            },
+            {
+              label: 'Hard Puff',
+              select: () => {
+                local.hardPuff = Math.max(
+                  readNum('hardPuffVal', local.hardPuff),
+                  readNum('puffVal', 2) + HARD_MARGIN_HPA,
+                );
+                go('hardPuff');
+              },
+            },
+          ]
+        : []),
       { label: '... Back', select: () => go('more') },
     ],
   }),
   sip: () => threshScreen('Sip', 'sip', 'sap'),
   puff: () => threshScreen('Puff', 'puff', 'sap'),
+  hardSip: () => hardThreshScreen('Sip', 'hardSip', 'sipVal', 'sap'), // 4.7.0+
+  hardPuff: () => hardThreshScreen('Puff', 'hardPuff', 'puffVal', 'sap'),
   // Restrictions (4.4.0+, roadmap item 11): state-bearing toggle lines —
   // selecting a line flips that restriction and re-renders its label, the
   // exact shape of the firmware's RESTRICTIONS_MENU. The device pushes the
@@ -752,28 +814,35 @@ export function applyHubMenuPush(value) {
 // MANUAL pushes (a physical Hub-menu change) must refresh a visible value
 // screen: the local copies are estimates, device truth just replaced them.
 // Called from applyDeviceResponse for every MANUAL line (serial/device.js).
-const VALUE_ENDPOINT_TO_KEY = { SS: 'speed', SL: 'scroll', AV: 'accel', LL: 'lights', ST: 'sip', PT: 'puff' };
+const VALUE_ENDPOINT_TO_KEY = {
+  SS: 'speed',
+  SL: 'scroll',
+  AV: 'accel',
+  LL: 'lights',
+  ST: 'sip',
+  PT: 'puff',
+  HS: 'hardSip', // 4.7.0+, upstream #58 — the pages' and heals' MANUAL lines
+  HP: 'hardPuff',
+};
+// The readout each value screen reseeds from (same names as the keys above).
+const VALUE_SCREEN_READOUT = {
+  speed: 'speedVal',
+  scroll: 'scrollVal',
+  accel: 'accelVal',
+  lights: 'brightnessVal',
+  sip: 'sipVal',
+  puff: 'puffVal',
+  hardSip: 'hardSipVal',
+  hardPuff: 'hardPuffVal',
+};
 const RESTRICTION_ENDPOINT_TO_KEY = { SD: 'sap', MA: 'menuButtons', LK: 'modeLock', CF: 'cursorHold' };
 const WINDOW_ENDPOINT_TO_INDEX = { WS: 0, WL: 1, WM: 2 };
 
 export function noteExternalSettingsChange(endpoint) {
   if (!screen) return; // mirror closed: the value reseed happens on entry anyway
-  if (endpoint in VALUE_ENDPOINT_TO_KEY && ['speed', 'scroll', 'lights', 'accel', 'sip', 'puff'].includes(screen)) {
-    const key = VALUE_ENDPOINT_TO_KEY[endpoint];
-    local[key] = readNum(
-      key === 'speed'
-        ? 'speedVal'
-        : key === 'scroll'
-          ? 'scrollVal'
-          : key === 'lights'
-            ? 'brightnessVal'
-            : key === 'accel'
-              ? 'accelVal'
-              : key === 'sip'
-                ? 'sipVal'
-                : 'puffVal',
-      local[key],
-    );
+  const key = VALUE_ENDPOINT_TO_KEY[endpoint];
+  if (key && screen === key && VALUE_SCREEN_READOUT[key]) {
+    local[key] = readNum(VALUE_SCREEN_READOUT[key], local[key]);
     render();
   } else if (screen === 'sound' && endpoint === 'SM') {
     local.soundOn = ($('soundModeVal')?.textContent ?? 'On') !== 'Off';

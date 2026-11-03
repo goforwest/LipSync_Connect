@@ -62,6 +62,14 @@ rewritten silently. Index and reading order: `docs/README.md`.
   firmware with an honest reason note (the protocol cross-check verifies the
   4.7.0 gate, the second settings file's read keys, and that the seed defaults
   are renderable picks).
+- The Hub menu's own hard pages are mirrored by the Hub remote: on 4.7.0 the
+  Sip & Puff submenu gains Hard Sip/Hard Puff rows (firmware pages 543/544,
+  appended in front of Back so earlier rows keep their indices), each a
+  coarse-level adjust page whose Decrease clamps at the device's regular +
+  margin floor and whose entry heals a stranded value — the mirror implements
+  the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
+  CH,5) drives the pages like every other screen. The cross-check pins the
+  submenu row order and the 543/544 page mapping.
 - Integration tests pass 489/489 and offline E2E passes 2/2. CI now runs the
   browser audit; the dev dependency audit is 0 vulnerabilities.
 
@@ -74,9 +82,11 @@ rewritten silently. Index and reading order: `docs/README.md`.
   committed locally, not yet pushed/tagged).
 - 4.7.0 adds the hard band: new main states with hard-sticky classification
   (a hard hold that decays stays hard; a regular hold pushed hard stays
-  regular), HS/HP/HA/HB serial endpoints, and a second settings file
-  (`/settings2.dat`, its own 256-byte budget) so the main file's 480-byte
-  4.1.0-downgrade cliff is untouched. Factory reset re-seeds both files.
+  regular), HS/HP/HA/HB serial endpoints, Hub-menu Hard Sip/Hard Puff adjust
+  pages (the pair heals after regular-threshold steps so the band never goes
+  silently inert), and a second settings file (`/settings2.dat`, its own
+  256-byte budget) so the main file's 480-byte 4.1.0-downgrade cliff is
+  untouched. Factory reset re-seeds both files.
 - This review additionally requires P_DA on both pressure sensors before a
   sample reaches the engagement qualifier. Timer catch-up can no longer count
   one 25 Hz conversion twice. Production compiles clean with all warnings;

@@ -262,6 +262,32 @@ if (fwLevels.length !== PRESS_THRESHOLD_LEVELS.length || fwLevels.some((v, i) =>
   ok(`threshold level scale [${fwLevels.join(', ')}] agrees (${fwLevels.length} levels)`);
 }
 
+// The Sip & Puff submenu ROW LIST (upstream #58, 4.7.0): the mirror's rows
+// are addressed by firmware row index, so the order is a wire contract — the
+// hard rows must sit between Timing and Back, and every pre-4.7.0 row must
+// keep its index. The page ids and the app's page map are pinned too.
+const screenSrc = readFw('LSScreen.h');
+const sipRowsMatch = screenSrc.match(/_sipPuffThreshMenuText\[\d+\]\s*=\s*\{([^}]*)\}/);
+const sipRows = sipRowsMatch ? [...sipRowsMatch[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]) : [];
+const EXPECTED_SIP_ROWS = ['Sip Threshold', 'Puff Threshold', 'Timing', 'Hard Sip', 'Hard Puff', '... Back'];
+if (JSON.stringify(sipRows) !== JSON.stringify(EXPECTED_SIP_ROWS)) {
+  fail(`Sip & Puff menu rows differ: firmware [${sipRows.join(', ')}] != pinned [${EXPECTED_SIP_ROWS.join(', ')}]`);
+} else {
+  ok(`Sip & Puff menu rows agree (${sipRows.length} rows, hard rows before Back)`);
+}
+const hubSrc = read('app/js/services/hub-remote.js');
+const hardSipPage = screenSrc.match(/#define\s+HARD_SIP_THRESH_MENU\s+(\d+)/)?.[1];
+const hardPuffPage = screenSrc.match(/#define\s+HARD_PUFF_THRESH_MENU\s+(\d+)/)?.[1];
+if (!hardSipPage || !hardPuffPage) {
+  fail('LSScreen.h is missing HARD_SIP_THRESH_MENU / HARD_PUFF_THRESH_MENU');
+} else if (!hubSrc.includes(`${hardSipPage}: 'hardSip'`) || !hubSrc.includes(`${hardPuffPage}: 'hardPuff'`)) {
+  fail(`the app's page map lacks ${hardSipPage}->hardSip / ${hardPuffPage}->hardPuff`);
+} else if (!hubSrc.includes('HARD_BAND_MIN_FIRMWARE') || !hubSrc.includes("'Hard Sip'") || !hubSrc.includes("'Hard Puff'")) {
+  fail('the mirror does not version-gate the hard rows on HARD_BAND_MIN_FIRMWARE');
+} else {
+  ok(`hard-band menu pages ${hardSipPage}/${hardPuffPage} map to the gated mirror screens`);
+}
+
 // The external-switch remap allowlist (4.5.0+): the actions the app offers
 // in its remap selects must be exactly the actions the firmware's setter
 // accepts — an action on one side but not the other is either a pick that

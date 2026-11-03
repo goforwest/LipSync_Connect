@@ -236,6 +236,24 @@ test('the gauge shows hard-band markers once the values load', async () => {
   testHooks.detach();
 });
 
+test('a Hub-menu MANUAL push updates the hard-band readout', async () => {
+  resetWireNewlineFraming();
+  resetHardBandUi();
+  launchDevice();
+  await loadDeviceInfo();
+  await sleep(30);
+  // The Hub's hard pages and pair-heals emit MANUAL,0:HS,1:<v> lines on
+  // every step (upstream #58) — the readouts and selects must follow device
+  // truth exactly like the ST/PT menu pushes do. This is the generic
+  // applyDeviceResponse path, not the API-layer self-sync.
+  app.handleLine('MANUAL,0:HS,1:22.00');
+  assert.equal(byId('hardSipVal').textContent, '22.00');
+  app.handleLine('MANUAL,0:HB,1:8');
+  assert.equal(byId('hardPuffAction').value, '8');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
 test('the update snapshot carries the hard band on 4.7.0 and skips it on 4.6.6', async () => {
   resetWireNewlineFraming();
   resetHardBandUi();

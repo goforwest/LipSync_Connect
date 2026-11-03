@@ -260,6 +260,121 @@ test('threshold pages on 4.4.0+ step the coarse level scale with L# labels', asy
   dev.detach();
 });
 
+// ---- Hard sip/puff band rows (firmware 4.7.0+, upstream #58) ----
+// Drives the stateful 4.7.0 sim (hard: true) so the press-then-sync loop
+// runs for real: every press is followed by the CH,0:0 menu-state read, and
+// the simulator's tree is the firmware's six-row Sip & Puff page.
+
+test('a 4.7.0 device shows Hard Sip/Hard Puff between Timing and Back', async () => {
+  const sim = createMenuFirmwareSim({ hard: true });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  el('sipVal').textContent = '3.00';
+  el('puffVal').textContent = '3.00';
+  el('hardSipVal').textContent = '10.00';
+  el('hardPuffVal').textContent = '10.00';
+  await openMore('4.7.0');
+  await next(3); // Sip & Puff
+  await select();
+  await settle();
+  assert.deepEqual(labels(), [
+    'Sip Threshold',
+    'Puff Threshold',
+    'Timing',
+    'Hard Sip',
+    'Hard Puff',
+    '... Back',
+  ]);
+  // The pre-4.7.0 rows keep their indices: Back moved from row 3 to row 5
+  // on this firmware and the mirror must follow that exactly.
+  await next(3); // → Hard Sip
+  assert.equal(selectedLabel(), 'Hard Sip');
+  await select();
+  await settle();
+  assert.equal(header(), 'Hard Sip: L6 10.00');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('the hard pages clamp Decrease at regular + margin and heal a stale seed', async () => {
+  const sim = createMenuFirmwareSim({ hard: true });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  el('sipVal').textContent = '3.00'; // floor = 4.00
+  el('hardSipVal').textContent = '10.00';
+  await openMore('4.7.0');
+  await next(3); // Sip & Puff
+  await select();
+  await settle();
+  await next(3);
+  await select(); // Hard Sip
+  await settle();
+  assert.equal(header(), 'Hard Sip: L6 10.00');
+  await next(); // Decrease row
+  await select(); // 10.00 → 7.00 (level 5)
+  assert.equal(header(), 'Hard Sip: L5 7.00');
+  await select(); // → 5.00
+  assert.equal(header(), 'Hard Sip: L4 5.00');
+  await select(); // → 4.00 (the floor, level 3's span)
+  assert.equal(header(), 'Hard Sip: L3 4.00');
+  await select(); // levelDown(4.00) = 3.00 < floor → clamped at 4.00, unchanged
+  assert.equal(header(), 'Hard Sip: L3 4.00');
+  await next(); // → Back
+  await select();
+  await settle();
+  assert.equal(header(), 'Sip & Puff');
+
+  // A stale seed below the floor (the app raised the regular threshold while
+  // the mirror idled) heals to the floor on entry — the device page does the
+  // same via healHardThresholds(). Hard puff's floor tracks the regular PUFF.
+  el('puffVal').textContent = '12.00';
+  el('hardPuffVal').textContent = '10.00';
+  await next(4); // → Hard Puff
+  await select();
+  await settle();
+  assert.equal(header(), 'Hard Puff: L7 13.00'); // max(10.00, 12.00 + 1) = 13.00
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('a 4.6.6 device shows no hard rows — the tree predates them', async () => {
+  const sim = createMenuFirmwareSim({ hard: false });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  await openMore('4.6.6');
+  await next(3); // Sip & Puff
+  await select();
+  await settle();
+  assert.deepEqual(labels(), ['Sip Threshold', 'Puff Threshold', 'Timing', '... Back']);
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+test('hard pages sync from device truth and follow MANUAL threshold pushes', async () => {
+  const sim = createMenuFirmwareSim({ hard: true });
+  const dev = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(sim.behavior);
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.7.0');
+  await click('btnHubOpen');
+  await settle();
+  // The device's CH,5 pushes land the mirror on the hard pages directly.
+  // (The value shown is the mirror's local estimate, so only the page and
+  // cursor are pinned here; the MANUAL reseed below pins the value.)
+  app.handleLine('MANUAL,0:CH,5:1,543,1'); // Hard Sip page, cursor on Decrease
+  assert.match(header(), /^Hard Sip: L\d/);
+  assert.equal(selectedLabel(), 'Decrease');
+  app.handleLine('MANUAL,0:CH,5:1,544,0'); // Hard Puff page
+  assert.match(header(), /^Hard Puff: L\d/);
+  // The Hub menu's own step pushed MANUAL,0:HP,1:<v> — the readout renderer
+  // lands the value and the mirror re-seeds its estimate from it.
+  el('hardPuffVal').textContent = '15.00';
+  app.handleLine('MANUAL,0:HP,1:15.00');
+  assert.equal(header(), 'Hard Puff: L7 15.00');
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
 test('a 4.1 device shows the old menu: no Acceleration/Restrictions/Timing, ±1 hPa steps', async () => {
   const dev = ackAll();
   activeDev = dev;
@@ -313,10 +428,28 @@ test('the Info page keeps Version/ID display-only — the cursor never leaves Ba
 // "Mode is locked" page — page 32 on 4.5.1 — whose frozen-input window
 // DROPS later presses, still acking them). State is evaluated lazily at
 // CH,0:0 read time, the way the firmware's scheduled transitions behave.
-function createMenuFirmwareSim({ locked = false } = {}) {
+function createMenuFirmwareSim({ locked = false, hard = false } = {}) {
   const st = { active: 0, page: 0, row: 0, frozenUntil: 0 };
   // Selectable-row counts per page (LSScreen.h _currentMenuLength values).
-  const LEN = { 0: 5, 1: 2, 3: 4, 31: 2, 5: 11, 51: 2, 54: 4, 551: 2, 57: 2, 59: 3, 60: 5, 61: 4, 611: 3 };
+  // `hard` models the 4.7.0 tree: Sip & Puff gains Hard Sip/Hard Puff in
+  // front of Back (upstream #58), so 54 has six rows and two new pages.
+  const LEN = {
+    0: 5,
+    1: 2,
+    3: 4,
+    31: 2,
+    5: 11,
+    51: 2,
+    54: hard ? 6 : 4,
+    551: 2,
+    57: 2,
+    59: 3,
+    60: 5,
+    61: 4,
+    611: 3,
+    543: 3,
+    544: 3,
+  };
   const MORE_SELECT = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 0]; // Sound..Back
   const advanceTransients = () => {
     const now = Date.now();
@@ -360,9 +493,21 @@ function createMenuFirmwareSim({ locked = false } = {}) {
           st.row = 0;
         } // Back
         break;
-      case 54:
-        st.page = st.row === 0 ? 541 : 542;
+      case 54: {
+        // Sip / Puff / Timing / (Hard Sip / Hard Puff on 4.7.0+) / Back.
+        const rows = hard ? [541, 542, 61, 543, 544, 5] : [541, 542, 61, 5];
+        st.page = rows[st.row] ?? 5;
         st.row = 0;
+        break;
+      }
+      case 543:
+      case 544:
+        // Value screens (Increase/Decrease step the value — not modeled;
+        // the row stays put) except Back.
+        if (st.row === 2) {
+          st.page = 54;
+          st.row = 0;
+        }
         break;
       case 59:
       case 60:

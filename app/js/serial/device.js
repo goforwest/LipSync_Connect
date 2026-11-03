@@ -80,6 +80,14 @@ export function applyDeviceResponse(line) {
     AV: () => ENDPOINT_RENDERERS.AV(r.value),
     ST: () => ENDPOINT_RENDERERS.ST(r.value),
     PT: () => ENDPOINT_RENDERERS.PT(r.value),
+    // Hard band (4.7.0+, upstream #58): the load reads, the SET echoes, AND
+    // the Hub menu's own pages/heals push MANUAL,0:HS,1:<v> lines — all three
+    // shapes land in the renderers, so the readouts and the Hub mirror follow
+    // the device exactly like ST/PT.
+    HS: () => ENDPOINT_RENDERERS.HS(r.value),
+    HP: () => ENDPOINT_RENDERERS.HP(r.value),
+    HA: () => ENDPOINT_RENDERERS.HA(r.value),
+    HB: () => ENDPOINT_RENDERERS.HB(r.value),
     IZ: () => ENDPOINT_RENDERERS.IZ(r.value),
     OZ: () => ENDPOINT_RENDERERS.OZ(r.value),
     SM: () => ENDPOINT_RENDERERS.SM(r.value),
