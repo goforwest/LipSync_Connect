@@ -74,19 +74,31 @@ else ok(`all ${endpoints.length} endpoints match [A-Z]{1,4} (SUCCESS,0:EP,0:v pa
 // ---- 3. Settings JSON keys vs the keys the firmware reads ------------------
 console.log('\n[3] default settings JSON vs mem.read* keys');
 const configSrc = readFw('LSConfig.h');
-const jsonMatch = configSrc.match(/#define\s+CONF_SETTINGS_JSON\s+"(.*)"/);
-let defaults = null;
-try {
-  defaults = JSON.parse(jsonMatch[1].replace(/\\"/g, '"'));
-  ok(`CONF_SETTINGS_JSON parses (${Object.keys(defaults).length} keys)`);
-} catch (e) {
-  fail(`CONF_SETTINGS_JSON does not parse: ${e.message}`);
-}
+const parseSeed = (name) => {
+  const m = configSrc.match(new RegExp(`#define\\s+${name}\\s+"(.*)"`));
+  if (!m) return { json: null, error: `${name} not found` };
+  try {
+    return { json: JSON.parse(m[1].replace(/\\"/g, '"')), error: null };
+  } catch (e) {
+    return { json: null, error: e.message };
+  }
+};
+const { json: defaults, error: defaultsError } = parseSeed('CONF_SETTINGS_JSON');
+if (defaultsError) fail(`CONF_SETTINGS_JSON does not parse: ${defaultsError}`);
+else ok(`CONF_SETTINGS_JSON parses (${Object.keys(defaults).length} keys)`);
+// The 4.7.0+ second settings file (upstream #58): the hard-band keys live
+// there, so its seed document gets the same read-key coverage.
+const { json: defaults2, error: defaults2Error } = parseSeed('CONF_SETTINGS2_JSON');
+if (defaults2Error) fail(`CONF_SETTINGS2_JSON does not parse: ${defaults2Error}`);
+else ok(`CONF_SETTINGS2_JSON parses (${Object.keys(defaults2).length} keys)`);
 const readKeys = new Set();
+const readKeys2 = new Set();
 for (const f of ['LSAPI.ino', 'LipSync_Firmware.ino']) {
   const src = readFw(f);
   for (const m of src.matchAll(/mem\.read(?:Int|Float|String|Point)\(CONF_SETTINGS_FILE,\s*"([^"]+)"/g))
     readKeys.add(m[1]);
+  for (const m of src.matchAll(/mem\.read(?:Int|Float|String|Point)\(CONF_SETTINGS2_FILE,\s*"([^"]+)"/g))
+    readKeys2.add(m[1]);
   // Getters read through a local: String commandKey = "XX"; — but only when
   // that local is actually passed to a mem.read call nearby (some functions
   // declare it and never use it — dead labels, not keys).
@@ -94,10 +106,18 @@ for (const f of ['LSAPI.ino', 'LipSync_Firmware.ino']) {
     /String commandKey = "([^"]+)"[\s\S]{0,2000}?mem\.read\w+\(CONF_SETTINGS_FILE,\s*commandKey/g,
   ))
     readKeys.add(m[1]);
+  for (const m of src.matchAll(
+    /String commandKey = "([^"]+)"[\s\S]{0,2000}?mem\.read\w+\(CONF_SETTINGS2_FILE,\s*commandKey/g,
+  ))
+    readKeys2.add(m[1]);
   // The switch-action endpoints read through the shared core getter, invoked
   // with the endpoint key as a literal (boot load, EX dump).
   for (const m of src.matchAll(/getSwitchAction\(\s*(?:true|false),\s*(?:true|false),\s*"([A-Z]{2})"\)/g))
     readKeys.add(m[1]);
+  // The hard-action endpoints read through the shared core getter with the
+  // key as a literal (the settings2 file; upstream #58).
+  for (const m of src.matchAll(/getHardAction\([^)]*"([A-Z]{2})"/g)) readKeys2.add(m[1]);
+  for (const m of src.matchAll(/setHardAction\([^)]*"([A-Z]{2})"/g)) readKeys2.add(m[1]);
   // readPoint-style keys built dynamically (CA1..CA4)
   if (/"CA"\s*\+\s*String\(/.test(src)) {
     for (const key of ['CA1', 'CA2', 'CA3', 'CA4']) readKeys.add(key);
@@ -108,6 +128,11 @@ if (defaults) {
   if (missing.length) fail(`keys the firmware reads but the default JSON lacks: ${missing.join(', ')}`);
   else ok(`all ${readKeys.size} read keys present in the default JSON`);
 }
+if (defaults2) {
+  const missing = [...readKeys2].filter((k) => !(k in defaults2));
+  if (missing.length) fail(`hard-band keys the firmware reads but CONF_SETTINGS2_JSON lacks: ${missing.join(', ')}`);
+  else ok(`all ${readKeys2.size} hard-band read keys present in the settings2 seed JSON`);
+}
 
 // ---- 4. Every command the app sends exists on the firmware ----------------
 console.log('\n[4] app -> firmware command pairs');
@@ -117,6 +142,7 @@ const {
   STEP_TARGETS,
   SWITCH_SETTINGS,
   SWITCH_ACTION_OPTIONS,
+  HARD_ACTION_SETTINGS,
   MODE_PRESETS,
   MODE_PRESET_MIN_FIRMWARE,
 } = await import(path.join(APP, 'app/js/config/constants.js'));
@@ -150,6 +176,11 @@ for (const t of Object.values(STEP_TARGETS)) symbolicPairs.add(t.endpoint + ',1'
 for (const s of SWITCH_SETTINGS) {
   symbolicPairs.add(s.endpoint + ',0');
   symbolicPairs.add(s.endpoint + ',1');
+}
+// Hard band actions (4.7.0+): read on load, written by their selects.
+for (const a of HARD_ACTION_SETTINGS) {
+  symbolicPairs.add(a.endpoint + ',0');
+  symbolicPairs.add(a.endpoint + ',1');
 }
 for (const m of read('app/js/services/settings-service.js').matchAll(/\['([A-Z]{2}),0:0'/g))
   symbolicPairs.add(m[1] + ',0');
@@ -260,6 +291,18 @@ if (appAllowed.length !== fwAllowedSorted.length || appAllowed.some((v, i) => v 
 } else {
   ok(`switch remap allowlist agrees (${appAllowed.length} actions)`);
 }
+// The hard band reuses the same palette and the same allowlist; its seed
+// defaults (the compiled hard-row actions in CONF_SETTINGS2_JSON) must be
+// renderable picks in the app's selects — a default outside the palette
+// would load into a select the caregiver cannot re-display.
+if (defaults2) {
+  const palette = new Set(appAllowed.map(String));
+  const badSeed = ['HA', 'HB'].filter((k) => k in defaults2 && !palette.has(String(defaults2[k])));
+  if (badSeed.length)
+    fail(`hard-band seed defaults outside the app palette: ${badSeed.map((k) => `${k}=${defaults2[k]}`).join(', ')}`);
+  else if ('HA' in defaults2 || 'HB' in defaults2)
+    ok(`hard-band seed defaults are renderable picks (HA=${defaults2.HA}, HB=${defaults2.HB})`);
+}
 
 // Atomic mode presets (4.6.4+): endpoint existence alone is insufficient. A
 // code drift here would acknowledge successfully while selecting the wrong
@@ -324,6 +367,16 @@ else ok(`firmware ${fwVersion.join('.')} satisfies the ${RESTRICTIONS_MIN_FIRMWA
       `firmware ${fwVersion.join('.')} is OLDER than the app's ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate — the app would hide its own features`,
     );
   else ok(`firmware ${fwVersion.join('.')} satisfies the ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')} switch-actions gate`);
+}
+{
+  const { HARD_BAND_MIN_FIRMWARE } = await import(path.join(APP, 'app/js/config/constants.js'));
+  const [hMaj, hMin, hRev] = HARD_BAND_MIN_FIRMWARE;
+  const hbOk = fMaj > hMaj || (fMaj === hMaj && (fMin > hMin || (fMin === hMin && fRev >= hRev)));
+  if (!hbOk)
+    fail(
+      `firmware ${fwVersion.join('.')} is OLDER than the app's ${HARD_BAND_MIN_FIRMWARE.join('.')} hard-band gate — the app would hide its own features`,
+    );
+  else ok(`firmware ${fwVersion.join('.')} satisfies the ${HARD_BAND_MIN_FIRMWARE.join('.')} hard-band gate`);
 }
 {
   const [mMaj, mMin, mRev] = MODE_PRESET_MIN_FIRMWARE;

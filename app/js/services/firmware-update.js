@@ -59,6 +59,8 @@ import {
   SWITCH_SETTINGS,
   SWITCH_ACTIONS_MIN_FIRMWARE,
   SWITCH_ACTION_PACK_BASE,
+  HARD_ACTION_SETTINGS,
+  HARD_BAND_MIN_FIRMWARE,
 } from '../config/constants.js';
 
 // ---- Version parsing / comparison (pure, exported for tests) ----
@@ -513,7 +515,7 @@ const SNAPSHOT_KEYS = [
   ['OZ', 'outerDeadzoneVal', 'Outer deadzone'],
   ['LL', 'brightnessVal', 'LED brightness'],
 ];
-const FLOAT_ENDPOINTS = ['ST', 'PT', 'IZ', 'OZ'];
+const FLOAT_ENDPOINTS = ['ST', 'PT', 'IZ', 'OZ', 'HS', 'HP'];
 
 function labelToValue(map, label) {
   for (const [value, name] of Object.entries(map)) if (name === label) return value;
@@ -618,6 +620,40 @@ export function captureSettingsSnapshot() {
       snapshot[s.endpoint] = String(SWITCH_ACTION_PACK_BASE + cells[0] * 10000 + cells[1] * 100 + cells[2]);
     }
   }
+  // Hard sip/puff band (4.7.0+, upstream #58): the same optional-keys contract
+  // at its own gate — a pre-4.7.0 device simply doesn't have the settings; on
+  // firmware that does, an unloaded threshold or action is a hole (the
+  // restore promises to write the caregiver's hard-band setup back or fail
+  // loudly). The thresholds snapshot as the displayed hPa strings; the
+  // actions as the raw action numbers (0 = Nothing is a real mapping — the
+  // disabled-select check is the hole signal, never the value).
+  const deviceHasHardBand = deviceFirmwareAtLeast(
+    HARD_BAND_MIN_FIRMWARE[0],
+    HARD_BAND_MIN_FIRMWARE[1],
+    HARD_BAND_MIN_FIRMWARE[2],
+  );
+  if (deviceHasHardBand) {
+    for (const [ep, id, label] of [
+      ['HS', 'hardSipVal', 'Hard sip threshold'],
+      ['HP', 'hardPuffVal', 'Hard puff threshold'],
+    ]) {
+      const v = ($(id)?.textContent || '').trim();
+      if (!v || v === '—' || v === 'ERR' || v === '…') {
+        missing.push(label);
+        continue;
+      }
+      snapshot[ep] = v;
+    }
+    for (const a of HARD_ACTION_SETTINGS) {
+      const sel = $(a.selectId);
+      const action = parseInt(sel?.value ?? '', 10);
+      if (!sel || sel.disabled || !Number.isFinite(action)) {
+        missing.push(a.label);
+        continue;
+      }
+      snapshot[a.endpoint] = String(action);
+    }
+  }
   if (missing.length)
     throw new Error('Some settings did not load (' + missing.join(', ') + '). Click Refresh all settings and retry.');
   return snapshot;
@@ -693,6 +729,14 @@ export async function restoreSettingsSnapshot(snapshot) {
     // ints exactly as the snapshot captured them (the base included, or the
     // whole-endpoint factory reset for a 0).
     order.push('SA', 'SB', 'SC', 'GA', 'GB', 'GC');
+  }
+  if (deviceFirmwareAtLeast(HARD_BAND_MIN_FIRMWARE[0], HARD_BAND_MIN_FIRMWARE[1], HARD_BAND_MIN_FIRMWARE[2])) {
+    // Hard sip/puff band (4.7.0+): thresholds then actions. HS/HP restore
+    // AFTER ST/PT (they are in `base` above) because the firmware setter
+    // validates hard >= regular + margin against the LIVE regular threshold —
+    // restoring the hard values first could be refused by a stale regular
+    // one. HA/HB are plain action ints.
+    order.push('HS', 'HP', 'HA', 'HB');
   }
   let consecutive = 0;
   // A restore is a deliberate burst over every settings endpoint at once —

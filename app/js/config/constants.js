@@ -61,6 +61,8 @@ export const VALUE_IDS = [
   'accelVal',
   'sipVal',
   'puffVal',
+  'hardSipVal',
+  'hardPuffVal',
   'innerDeadzoneVal',
   'outerDeadzoneVal',
   'soundModeVal',
@@ -81,6 +83,8 @@ export const VALUE_LABELS = {
   accelVal: 'Cursor acceleration',
   sipVal: 'Sip threshold',
   puffVal: 'Puff threshold',
+  hardSipVal: 'Hard sip threshold',
+  hardPuffVal: 'Hard puff threshold',
   innerDeadzoneVal: 'Inner deadzone',
   outerDeadzoneVal: 'Outer deadzone',
   soundModeVal: 'Sound feedback',
@@ -194,6 +198,18 @@ export const USB_PID_BOOTLOADER_SENSE = 0x0045;
 /** @type {[number, number, number]} */
 export const ACCELERATION_MIN_FIRMWARE = [4, 3, 0];
 
+// Hard sip/puff band (firmware 4.7.0+, upstream #58): the second,
+// higher-threshold band whose action fires on release with no hold wait.
+// The thresholds live in the firmware's second settings file; the actions
+// remap through the same caregiver-safe allowlist as the switch jacks.
+/** @type {[number, number, number]} */
+export const HARD_BAND_MIN_FIRMWARE = [4, 7, 0];
+
+// The minimum gap the firmware's setter enforces between the regular and hard
+// thresholds (CONF_PRESS_HARD_MARGIN_HPA): the hard gesture must stay clearly
+// stronger than the regular one, or the band is not a distinct gesture.
+export const HARD_MARGIN_HPA = 1.0;
+
 export const STEP_TARGETS = {
   speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
   scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
@@ -220,6 +236,29 @@ export const STEP_TARGETS = {
   // short < long < max ordering contract.
   st: { endpoint: 'ST', valueId: 'sipVal', min: 2, max: 149.99, step: 0.25, hpa: true },
   pt: { endpoint: 'PT', valueId: 'puffVal', min: 2, max: 149.99, step: 0.25, hpa: true },
+  // Hard sip/puff thresholds (firmware 4.7.0+, upstream #58): the second,
+  // higher-threshold band whose action fires on release with no hold wait.
+  // The firmware setter also enforces hard >= regular + HARD_MARGIN_HPA —
+  // step()/the exact-value path pre-check that against the live regular
+  // readouts (defense in depth, mirroring the deadzone pair rule).
+  hs: {
+    endpoint: 'HS',
+    valueId: 'hardSipVal',
+    min: 2,
+    max: 149.99,
+    step: 0.25,
+    hpa: true,
+    minFirmware: HARD_BAND_MIN_FIRMWARE,
+  },
+  hp: {
+    endpoint: 'HP',
+    valueId: 'hardPuffVal',
+    min: 2,
+    max: 149.99,
+    step: 0.25,
+    hpa: true,
+    minFirmware: HARD_BAND_MIN_FIRMWARE,
+  },
   // Deadzone ceiling is 0.99, not 1.0: the firmware's GET normalizes a stored
   // deadzone of >= 1.0 back to its defaults, so a "successful" 1.00 write
   // would silently revert on the next load (and could leave inner > outer).
@@ -379,6 +418,19 @@ export const SWITCH_SETTINGS = [
     jsonKey: 'switch3GamepadActions',
     windowLabels: ['Short hold', 'Long hold', 'Very long hold'],
   },
+];
+
+// ---- Hard band actions (firmware 4.7.0+; upstream #58) ----
+// The hard band's mouse-mode action per direction: HA = hard sip, HB = hard
+// puff. One value per endpoint (no hold windows — the hard action fires on
+// release with no duration requirement). The value uses the same action
+// numbers as the switch palette (SWITCH_ACTION_OPTIONS), the firmware
+// validates against the same caregiver allowlist, and 0 (Nothing) is a real
+// mapping — the seed document carries the compiled defaults (5 = Scroll for
+// hard sip, 4 = Drag for hard puff).
+export const HARD_ACTION_SETTINGS = [
+  { endpoint: 'HA', label: 'Hard sip action', selectId: 'hardSipAction', jsonKey: 'hardSipAction' },
+  { endpoint: 'HB', label: 'Hard puff action', selectId: 'hardPuffAction', jsonKey: 'hardPuffAction' },
 ];
 
 // Live self-test narration tables: each entry pairs the firmware's narration

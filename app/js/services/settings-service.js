@@ -15,6 +15,9 @@ import {
   SWITCH_ACTIONS_MIN_FIRMWARE,
   SWITCH_ACTION_OPTIONS,
   SWITCH_ACTION_PACK_BASE,
+  HARD_BAND_MIN_FIRMWARE,
+  HARD_ACTION_SETTINGS,
+  HARD_MARGIN_HPA,
 } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
@@ -22,7 +25,7 @@ import { setStatus, showConnectionError } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { openSectionById, getSectionTrigger } from '../ui/sections.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
-import { updateMeter } from '../plotting/gauge.js';
+import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
 import { updateReadiness } from './readiness.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
@@ -285,6 +288,11 @@ export function populateSwitchActionSelects() {
   }
 }
 
+/** Populates the two hard-band action selects from the shared palette (same allowlist). */
+export function populateHardActionSelects() {
+  for (const a of HARD_ACTION_SETTINGS) populateSwitchSelect($(a.selectId));
+}
+
 /**
  * A switch-action value landed (initial load, or a write ack over the wire):
  * reflect it in the three selects. Accepts both wire shapes — the GET's
@@ -413,6 +421,166 @@ export async function resetSwitchActions() {
   log('External switch mappings restored to the factory defaults.', 'log-info');
 }
 
+// ---- Hard sip/puff band (firmware 4.7.0+; upstream #58) ----
+// The second, higher-threshold band: a hold that STARTS beyond the hard
+// threshold fires its action on release with no hold-duration requirement.
+// The thresholds live in the firmware's second settings file (HS/HP), the
+// actions are one value each (HA = hard sip, HB = hard puff).
+
+/** @param {string} endpoint @returns {{endpoint: string, label: string, selectId: string, jsonKey: string}|null} */
+function hardActionByEndpoint(endpoint) {
+  return HARD_ACTION_SETTINGS.find((a) => a.endpoint === endpoint) ?? null;
+}
+
+/** The regular threshold a hard threshold must clear (regular + margin), parsed from the live readout. */
+function hardThresholdFloor(endpoint) {
+  const regular = Number((endpoint === 'HS' ? $('sipVal') : $('puffVal'))?.textContent ?? '');
+  return Number.isFinite(regular) && regular > 0 ? regular + HARD_MARGIN_HPA : null;
+}
+
+/**
+ * A hard-action value landed (initial load, or a MANUAL push): reflect it in
+ * the select. The palette is the switch-action one (same allowlist), and a
+ * value the palette doesn't know renders honestly as "Action #n" — the same
+ * future-firmware contract the switch selects have.
+ * @param {string} endpoint HA / HB
+ * @param {string|number} value
+ */
+export function applyHardActionValue(endpoint, value) {
+  const a = hardActionByEndpoint(endpoint);
+  if (!a) return;
+  const sel = $(a.selectId);
+  if (!sel) return;
+  const action = parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(action) || action < 0) return;
+  populateSwitchSelect(sel);
+  if (!(String(action) in SWITCH_ACTION_OPTIONS)) {
+    const opt = document.createElement('option');
+    opt.value = String(action);
+    opt.textContent = `Action #${action}`;
+    sel.appendChild(opt);
+  }
+  sel.value = String(action);
+  sel.dataset.confirmed = String(action); // the revert-on-FAIL source
+  sel.disabled = false;
+  const note = $('hardBandNote');
+  if (note && !note.textContent.includes('firmware')) note.textContent = '';
+}
+
+/**
+ * Firmware too old for the hard band (pre-4.7.0): keep the card honest — the
+ * readouts go not-applicable, the controls lock, and the note says why.
+ */
+export function markHardBandUnavailable() {
+  for (const id of ['hardSipVal', 'hardPuffVal']) {
+    const el = $(id);
+    if (el) {
+      el.textContent = '—';
+      el.classList.remove('loading', 'err');
+      el.removeAttribute('aria-label');
+    }
+  }
+  for (const inputId of ['hardSipInput', 'hardPuffInput']) {
+    const input = $(inputId);
+    if (input) input.disabled = true;
+  }
+  for (const btnId of ['btnSetHardSip', 'btnSetHardPuff']) {
+    const btn = $(btnId);
+    if (btn) btn.disabled = true;
+  }
+  for (const a of HARD_ACTION_SETTINGS) {
+    const sel = $(a.selectId);
+    if (sel) sel.disabled = true;
+  }
+  const note = $('hardBandNote');
+  if (note)
+    note.textContent = `The hard sip/puff band needs firmware ${HARD_BAND_MIN_FIRMWARE.join('.')}+ — open the Updates section to install a newer version.`;
+}
+
+/** Disconnect/start-of-load reset: no stale hard-band value may survive into a new session. */
+export function resetHardBandUi() {
+  for (const id of ['hardSipVal', 'hardPuffVal']) {
+    const el = $(id);
+    if (el) {
+      el.textContent = '—';
+      el.classList.remove('loading', 'err');
+      el.removeAttribute('aria-label');
+    }
+  }
+  // The gauge's hard markers follow the readouts: hide them with the session.
+  for (const id of ['gaugeHardSipMark', 'gaugeHardPuffMark']) {
+    const mark = $(id);
+    if (mark) mark.hidden = true;
+  }
+  for (const inputId of ['hardSipInput', 'hardPuffInput']) {
+    const input = $(inputId);
+    if (input) {
+      input.value = '';
+      input.disabled = true;
+    }
+  }
+  for (const a of HARD_ACTION_SETTINGS) {
+    const sel = $(a.selectId);
+    if (sel) {
+      sel.value = '';
+      sel.disabled = true;
+      delete sel.dataset.confirmed;
+    }
+  }
+  const note = $('hardBandNote');
+  if (note) note.textContent = '';
+}
+
+/**
+ * Hard-threshold write: validates the value against the firmware's absolute
+ * range AND the hard >= regular + margin rule against the live regular
+ * readouts, then writes and re-syncs from the device's answer. The firmware
+ * validates the margin too (defense in depth); a rejected write throws with
+ * the device's truth left on screen.
+ * @param {string} endpoint HS / HP
+ * @param {number} value hPa
+ */
+export async function setHardThreshold(endpoint, value) {
+  const cfg = endpoint === 'HS' ? STEP_TARGETS.hs : STEP_TARGETS.hp;
+  if (!cfg) throw new Error('Unknown hard threshold.');
+  if (!Number.isFinite(value) || value < cfg.min || value > cfg.max)
+    throw new Error(
+      `The hard ${endpoint === 'HS' ? 'sip' : 'puff'} threshold must be between ${cfg.min} and ${cfg.max} hPa.`,
+    );
+  const floor = hardThresholdFloor(endpoint);
+  if (floor !== null && value < floor)
+    throw new Error(
+      `The hard ${endpoint === 'HS' ? 'sip' : 'puff'} threshold must stay at least ${HARD_MARGIN_HPA} hPa above the regular one (currently ${(floor - HARD_MARGIN_HPA).toFixed(2)} hPa).`,
+    );
+  const resp = await sendCommand(`${endpoint},1:${fmtApiFloat(value)}`);
+  const result = Number(resp.value ?? value);
+  setValue(cfg.valueId, cfg.hpa ? fmtHpa(result) : result);
+  recalcGaugeRange();
+  log(`Hard ${endpoint === 'HS' ? 'sip' : 'puff'} threshold set to ${fmtHpa(result)} hPa.`, 'log-info');
+}
+
+/**
+ * Writes one hard-band action from its select. A rejected write reverts the
+ * pick to the last device-confirmed value (the device is the truth — the
+ * renderer re-applies the device's answer on success).
+ * @param {string} endpoint HA / HB
+ */
+export async function setHardAction(endpoint) {
+  const a = hardActionByEndpoint(endpoint);
+  if (!a) throw new Error('Unknown hard-action endpoint.');
+  const sel = $(a.selectId);
+  const action = parseInt(sel?.value ?? '', 10);
+  if (!Number.isFinite(action) || !(String(action) in SWITCH_ACTION_OPTIONS))
+    throw new Error('Pick an action first (load the device settings).');
+  try {
+    await sendCommand(`${endpoint},1:${action}`);
+    log(`${a.label} applied.`, 'log-info');
+  } catch (e) {
+    if (sel && sel.dataset.confirmed) sel.value = sel.dataset.confirmed;
+    throw e;
+  }
+}
+
 /** The per-endpoint load plan: wire command + its render function (+ optional minimum firmware). @returns {[string, (r: any) => void, (number[] | undefined)?][]} */
 export function getDeviceLoadTasks() {
   return [
@@ -457,6 +625,18 @@ export function getDeviceLoadTasks() {
           `${s.endpoint},0:0`,
           (r) => applySwitchActionValue(s.endpoint, r.value),
           SWITCH_ACTIONS_MIN_FIRMWARE,
+        ]),
+    ),
+    // Hard sip/puff band (4.7.0+, upstream #58): same version gate — the
+    // thresholds, inputs, and action selects stay locked on older firmware.
+    ['HS,0:0', (r) => ENDPOINT_RENDERERS.HS(r.value), HARD_BAND_MIN_FIRMWARE],
+    ['HP,0:0', (r) => ENDPOINT_RENDERERS.HP(r.value), HARD_BAND_MIN_FIRMWARE],
+    ...HARD_ACTION_SETTINGS.map(
+      (a) =>
+        /** @type {[string, (r: any) => void, number[]]} */ ([
+          `${a.endpoint},0:0`,
+          (r) => applyHardActionValue(a.endpoint, r.value),
+          HARD_BAND_MIN_FIRMWARE,
         ]),
     ),
   ];
@@ -523,6 +703,8 @@ export async function loadDeviceInfo() {
       if (endpoint === STEP_TARGETS.accel.endpoint) markAccelerationUnavailable();
       else if (WINDOW_SETTINGS.some((w) => w.endpoint === endpoint)) markWindowsUnavailable();
       else if (SWITCH_SETTINGS.some((s) => s.endpoint === endpoint)) markSwitchActionsUnavailable();
+      else if (HARD_ACTION_SETTINGS.some((a) => a.endpoint === endpoint) || endpoint === 'HS' || endpoint === 'HP')
+        markHardBandUnavailable();
       else markRestrictionsUnavailable();
       continue;
     }
@@ -686,6 +868,18 @@ export async function step(target, delta) {
         }
       }
     }
+    if (cfg.endpoint === 'HS' || cfg.endpoint === 'HP') {
+      // The hard thresholds are a pair with the regular ones (upstream #58):
+      // hard >= regular + margin, or the hard band stops being a distinct
+      // gesture. Same client-side pre-check the typed-value path enforces;
+      // the firmware re-validates either way.
+      const floor = hardThresholdFloor(cfg.endpoint);
+      if (floor !== null && next < floor) {
+        if (errEl)
+          errEl.textContent = `The hard ${cfg.endpoint === 'HS' ? 'sip' : 'puff'} threshold must stay at least ${HARD_MARGIN_HPA} hPa above the regular one.`;
+        return;
+      }
+    }
     if (cfg.endpoint === 'WS' || cfg.endpoint === 'WL' || cfg.endpoint === 'WM') {
       // The window steppers delegate to the validated write: setTimingWindow
       // owns the short < long < max ordering contract, and its refusal
@@ -742,6 +936,10 @@ export function updateStepButtons() {
         String($(cfg.endpoint === 'IZ' ? 'outerDeadzoneVal' : 'innerDeadzoneVal')?.textContent ?? '').trim(),
       );
       if (Number.isFinite(other)) disabled = cfg.endpoint === 'IZ' ? next >= other : next <= other;
+    }
+    if (!disabled && (cfg.endpoint === 'HS' || cfg.endpoint === 'HP')) {
+      const floor = hardThresholdFloor(cfg.endpoint);
+      if (floor !== null) disabled = next < floor;
     }
     b.disabled = disabled;
   });

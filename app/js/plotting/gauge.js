@@ -170,7 +170,19 @@ export function suggestThresholds() {
 export function recalcGaugeRange() {
   const sip = Number($('sipVal').textContent),
     puff = Number($('puffVal').textContent);
-  if (Number.isFinite(sip) && sip > 0 && Number.isFinite(puff) && puff > 0) gaugeRange = Math.max(sip, puff) * 1.5;
+  // The hard thresholds (upstream #58) live beyond the regular ones; whenever
+  // they have loaded, the gauge must be wide enough to show them.
+  const hardSip = Number($('hardSipVal')?.textContent ?? ''),
+    hardPuff = Number($('hardPuffVal')?.textContent ?? '');
+  if (Number.isFinite(sip) && sip > 0 && Number.isFinite(puff) && puff > 0) {
+    const span = [
+      sip,
+      puff,
+      Number.isFinite(hardSip) && hardSip > 0 ? hardSip : 0,
+      Number.isFinite(hardPuff) && hardPuff > 0 ? hardPuff : 0,
+    ];
+    gaugeRange = Math.max(...span) * 1.5;
+  }
   gaugeMarks();
 }
 export function gaugeMarks() {
@@ -187,6 +199,22 @@ export function gaugeMarks() {
     puffEl.style.left = 50 + Math.min(puff / gaugeRange, 1) * 50 + '%';
     puffEl.title = 'Puff triggers at +' + puff + ' hPa';
   }
+  // Hard band markers (upstream #58): shown only once their values loaded
+  // (hidden on older firmware, where the readouts stay at the placeholder).
+  const markHard = (id, value, negative) => {
+    const el = $(id);
+    if (!el || !el.style) return;
+    if (Number.isFinite(value) && value > 0) {
+      el.hidden = false;
+      el.style.left =
+        (negative ? 50 - Math.min(value / gaugeRange, 1) * 50 : 50 + Math.min(value / gaugeRange, 1) * 50) + '%';
+      el.title = 'Hard ' + (negative ? 'sip' : 'puff') + ' triggers at ' + (negative ? '\u2212' : '+') + value + ' hPa';
+    } else {
+      el.hidden = true;
+    }
+  };
+  markHard('gaugeHardSipMark', Number($('hardSipVal')?.textContent ?? ''), true);
+  markHard('gaugeHardPuffMark', Number($('hardPuffVal')?.textContent ?? ''), false);
   $('gaugeSipLabel').textContent = '\u2212' + gaugeRange.toFixed(1) + ' hPa';
   $('gaugePuffLabel').textContent = '+' + gaugeRange.toFixed(1) + ' hPa';
   // A range change moves the peak marks with the threshold marks.

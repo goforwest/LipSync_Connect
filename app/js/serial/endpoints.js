@@ -6,6 +6,7 @@ import { registerEndpointRenderer } from '../services/registry.js';
 import {
   applyRestrictionValue,
   applyTimingWindowValue,
+  applyHardActionValue,
   markAccelerationAvailable,
 } from '../services/settings-service.js';
 import { $ } from '../ui/dom.js';
@@ -88,6 +89,24 @@ export const ENDPOINT_RENDERERS = {
     if (document.activeElement !== $('puffInput')) $('puffInput').value = shown;
     recalcGaugeRange();
   },
+  // Hard band thresholds (firmware 4.7.0+, upstream #58): same rendering
+  // contract as ST/PT, plus the gauge's hard-band markers.
+  HS: (v) => {
+    const shown = fmtHpa(v);
+    setValue('hardSipVal', shown);
+    if (document.activeElement !== $('hardSipInput')) $('hardSipInput').value = shown;
+    recalcGaugeRange();
+  },
+  HP: (v) => {
+    const shown = fmtHpa(v);
+    setValue('hardPuffVal', shown);
+    if (document.activeElement !== $('hardPuffInput')) $('hardPuffInput').value = shown;
+    recalcGaugeRange();
+  },
+  // Hard band actions (HA = hard sip, HB = hard puff): MANUAL pushes from the
+  // firmware re-sync the selects exactly like the switch-action endpoints.
+  HA: (v) => applyHardActionValue('HA', v),
+  HB: (v) => applyHardActionValue('HB', v),
   IZ: (v) => {
     setValue('innerDeadzoneVal', v);
     if (document.activeElement !== $('innerDeadzone')) $('innerDeadzone').value = v;

@@ -6,7 +6,7 @@ date every claim. Everything else in this folder is a dated log/ledger —
 accurate as of its date, superseded by later dated notes, never
 rewritten silently. Index and reading order: `docs/README.md`.
 
-**Last updated: 2026-11-02.**
+**Last updated: 2026-11-03.**
 
 ## App
 
@@ -53,22 +53,36 @@ rewritten silently. Index and reading order: `docs/README.md`.
   loads as not-applicable with a "needs newer firmware" note whose Updates
   link opens that card, snapshots omit it on old firmware, and downgrade
   restores skip it on the connected device.
-- Integration tests pass 480/480 and offline E2E passes 2/2. CI now runs the
+- The hard sip/puff band (upstream #58) is configurable on firmware 4.7.0+:
+  new HS/HP steppers and exact-value Sets (the hard >= regular + 1 hPa margin
+  rule is pre-checked against the live regular readouts, then re-validated by
+  the firmware), HA/HB action selects sharing the caregiver-safe switch
+  palette, dashed hard-threshold markers on the pressure gauge, snapshot/
+  restore, and settings-export coverage — all version-gated off on older
+  firmware with an honest reason note (the protocol cross-check verifies the
+  4.7.0 gate, the second settings file's read keys, and that the seed defaults
+  are renderable picks).
+- Integration tests pass 489/489 and offline E2E passes 2/2. CI now runs the
   browser audit; the dev dependency audit is 0 vulnerabilities.
 
 ## Firmware
 
-- Branch `firmware-release-pipeline` is based on `0cce6f3` = **4.6.5**,
-  currently untagged; newest tag is **V4.6.4** (`d239f65`).
-- 4.6.5 is the safety-hardening release: two-conversion sip/puff engagement,
-  verified bounded pressure reads, neutral-only offset refresh, physical-input
-  action witnesses, calibration persistence fixes, line-safe non-blocking CDC,
-  HID disconnect/release hardening, and safe-boot/watchdog corrections.
+- Branch `firmware-release-pipeline`: **V4.6.6** is tagged and released
+  (review-round fix set: stuck-drag on a mid-hold sensor fault, the SD-flag
+  race, fabricated calibration corners, and the minor batch); the branch
+  head additionally carries **4.7.0** (hard sip/puff, upstream #58 —
+  committed locally, not yet pushed/tagged).
+- 4.7.0 adds the hard band: new main states with hard-sticky classification
+  (a hard hold that decays stays hard; a regular hold pushed hard stays
+  regular), HS/HP/HA/HB serial endpoints, and a second settings file
+  (`/settings2.dat`, its own 256-byte budget) so the main file's 480-byte
+  4.1.0-downgrade cliff is untouched. Factory reset re-seeds both files.
 - This review additionally requires P_DA on both pressure sensors before a
   sample reaches the engagement qualifier. Timer catch-up can no longer count
-  one 25 Hz conversion twice. Production compiles clean with all warnings.
-- The source ZIP and tracked 4.6.5 flash artifacts are rebuilt from the reviewed
-  tree; release and local builders share the all-warnings/dependency gates.
+  one 25 Hz conversion twice. Production compiles clean with all warnings;
+  host suites: 165/165 timer + 105/105 core checks under ASan/UBSan.
+- The source ZIP is rebuilt from the reviewed tree; release and local builders
+  share the all-warnings/dependency gates.
 
 ## Human steps remaining (nothing else is code-blocked)
 
@@ -87,7 +101,7 @@ rewritten silently. Index and reading order: `docs/README.md`.
    working) — worth a line in the unit's history.
 5. **#80** — delete the ~48 stale remote branches upstream.
 6. Guide PDFs: Word re-export welcome, not blocking; fold the
-   4.3.0–4.6.5 endpoints into the guides' command tables.
+   4.3.0–4.7.0 endpoints into the guides' command tables.
 
 ## Still open, and why (not human steps)
 
@@ -96,10 +110,12 @@ rewritten silently. Index and reading order: `docs/README.md`.
   (switch-jack feel pass — needs populated-switch hardware; storage,
   wire protocol and post-flash restore already bench-verified via the
   4.5.0→4.5.0 re-flash).
-- **With-users passes:** #58 hard sip/puff (the action mapping is an
-  accessibility decision to make WITH affected users); #43's
-  dual-channel indicator with-users confirmation (bench-verified in
-  4.5.3, fill re-tested on the 4.5.3 build).
+- **With-users passes:** #58 hard sip/puff (implemented and app-configurable
+  as of 4.7.0 / this app change, but the action-mapping DEFAULTS — Drag on
+  hard puff, Scroll on hard sip — remain an accessibility decision to confirm
+  WITH affected users; the defaults are safe to change per-device from the
+  app in the meantime); #43's dual-channel indicator with-users confirmation
+  (bench-verified in 4.5.3, fill re-tested on the 4.5.3 build).
 - **An affected unit:** #54 mechanical drift (roadmap item 17 — the
   boot-re-center explanation closed one class; the hysteresis class
   needs the unit).

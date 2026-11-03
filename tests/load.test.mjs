@@ -107,7 +107,10 @@ test('settings load populates every endpoint and clears loading placeholders', a
   assert.equal(doc.getElementById('modeGuardHint').textContent, '');
   // Reduced-motion stub makes the progress row collapse instantly.
   assert.equal(doc.getElementById('loadProgressRow').hidden, true);
-  assert.equal(doc.getElementById('loadProgress').value, 31);
+  // The bar completes to the FULL task-list length (35: the 31 pre-#58 tasks
+  // plus the four 4.7.0-gated hard-band reads) even though a 4.1.0 device
+  // skips the gated families.
+  assert.equal(doc.getElementById('loadProgress').value, 35);
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });

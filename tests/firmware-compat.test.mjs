@@ -1,10 +1,10 @@
 // Firmware compatibility matrix: firmware 4.1.0 (the widely deployed legacy
-// line) ↔ 4.6.5 (the new release). This file is the single place that pins
+// line) ↔ 4.7.0 (the new release). This file is the single place that pins
 // the WHOLE version-gated span so a future change cannot quietly break either
 // the firmware every field device runs today or the release that lights up
-// every feature tier. The unreleased milestones in between (4.2.0–4.6.4) are
-// never shipped as such — they are the boundaries the gates below encode, so
-// enumerating the gates covers them by construction.
+// every feature tier. The intermediate milestones (4.2.0–4.6.6) are the
+// boundaries the gates below encode, so enumerating the gates covers them by
+// construction.
 //
 // Behaviors pinned here: the deviceFirmwareAtLeast tier map, the wire-framing
 // generation switch, which endpoints the load may send, the UI's
@@ -18,7 +18,7 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, step } = await import(
+const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, resetHardBandUi, step } = await import(
   '../app/js/services/settings-service.js'
 );
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
@@ -33,6 +33,7 @@ const {
   INPUT_STATE_LIGHT_MIN_FIRMWARE,
   RESTRICTIONS_MIN_FIRMWARE,
   SWITCH_ACTIONS_MIN_FIRMWARE,
+  HARD_BAND_MIN_FIRMWARE,
   MODE_RESET_PER_SETTING_MIN_FIRMWARE,
   MODE_PRESET_MIN_FIRMWARE,
 } = await import('../app/js/config/constants.js');
@@ -40,7 +41,7 @@ const {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LEGACY = '4.1.0';
-const RELEASE = '4.6.5';
+const RELEASE = '4.7.0';
 
 // Every endpoint the initial load reads, with a plausible value. The gated
 // families (SD… onward) are answered too, but a legacy device never gets
@@ -79,10 +80,17 @@ const FULL_RESPONSES = {
   'GA,0': '6,8,19',
   'GB,0': '10,11,14',
   'GC,0': '7,9,0',
+  // Hard band (4.7.0+, upstream #58): thresholds from the settings2 seed,
+  // actions from the compiled hard-row defaults (5 = Scroll, 4 = Drag).
+  'HS,0': '10.00',
+  'HP,0': '10.00',
+  'HA,0': '5',
+  'HB,0': '4',
 };
 
-// The fourteen reads that exist only on newer firmware (acceleration at
-// 4.3.0, restrictions + timing windows at 4.4.0, switch actions at 4.5.0).
+// The eighteen reads that exist only on newer firmware (acceleration at
+// 4.3.0, restrictions + timing windows at 4.4.0, switch actions at 4.5.0,
+// hard sip/puff at 4.7.0).
 const GATED_READS = [
   'AV,0:0',
   'SD,0:0',
@@ -98,6 +106,10 @@ const GATED_READS = [
   'GA,0:0',
   'GB,0:0',
   'GC,0:0',
+  'HS,0:0',
+  'HP,0:0',
+  'HA,0:0',
+  'HB,0:0',
 ];
 
 // Attaches a simulated device identified as `version`. Returns two views of
@@ -152,6 +164,7 @@ function restoreRecorder() {
 function resetGatedUi() {
   resetRestrictionsUi();
   resetSwitchActionsUi();
+  resetHardBandUi();
 }
 
 // ---- The feature-tier gate map -------------------------------------------
@@ -168,13 +181,14 @@ test('deviceFirmwareAtLeast draws the feature-tier boundaries for the whole span
     INPUT_STATE_LIGHT_MIN_FIRMWARE,
     RESTRICTIONS_MIN_FIRMWARE,
     SWITCH_ACTIONS_MIN_FIRMWARE,
+    HARD_BAND_MIN_FIRMWARE,
     MODE_RESET_PER_SETTING_MIN_FIRMWARE,
     MODE_PRESET_MIN_FIRMWARE,
   ])
     assert.equal(deviceFirmwareAtLeast(...gate), false, gate.join('.') + ' is gated off on 4.1.0');
 
-  // Release 4.6.5 satisfies every published tier; a not-yet-released tier
-  // (4.6.6) stays off, which is what keeps a future endpoint from leaking.
+  // Release 4.7.0 satisfies every published tier; a not-yet-released tier
+  // (4.7.1) stays off, which is what keeps a future endpoint from leaking.
   noteDeviceVersion(RELEASE);
   for (const gate of [
     [4, 2, 0],
@@ -186,20 +200,27 @@ test('deviceFirmwareAtLeast draws the feature-tier boundaries for the whole span
     MODE_RESET_PER_SETTING_MIN_FIRMWARE,
     MODE_PRESET_MIN_FIRMWARE,
     [4, 6, 5],
+    HARD_BAND_MIN_FIRMWARE,
   ])
-    assert.ok(deviceFirmwareAtLeast(...gate), gate.join('.') + ' is available on 4.6.5');
-  assert.equal(deviceFirmwareAtLeast(4, 6, 6), false, 'a not-yet-released tier stays gated');
+    assert.ok(deviceFirmwareAtLeast(...gate), gate.join('.') + ' is available on 4.7.0');
+  assert.equal(deviceFirmwareAtLeast(4, 7, 1), false, 'a not-yet-released tier stays gated');
 
   // An unidentified device (VN never read, or a fresh connect) is never new
   // enough — the conservative direction, so nothing gated reaches an unknown.
   resetWireNewlineFraming();
-  for (const gate of [[4, 2, 0], RESTRICTIONS_MIN_FIRMWARE, SWITCH_ACTIONS_MIN_FIRMWARE, MODE_PRESET_MIN_FIRMWARE])
+  for (const gate of [
+    [4, 2, 0],
+    RESTRICTIONS_MIN_FIRMWARE,
+    SWITCH_ACTIONS_MIN_FIRMWARE,
+    HARD_BAND_MIN_FIRMWARE,
+    MODE_PRESET_MIN_FIRMWARE,
+  ])
     assert.equal(deviceFirmwareAtLeast(...gate), false, 'unknown firmware is conservative at ' + gate.join('.'));
 });
 
 // ---- Wire-protocol framing generation ------------------------------------
 
-test('wire framing stays bare for 4.1.0 and upgrades to newline-terminated for 4.6.5', async () => {
+test('wire framing stays bare for 4.1.0 and upgrades to newline-terminated for 4.7.0', async () => {
   // 4.1.0's parser rejects a trailing newline on every comparison, so nothing
   // the app writes to it may carry one.
   resetWireNewlineFraming();
@@ -213,7 +234,7 @@ test('wire framing stays bare for 4.1.0 and upgrades to newline-terminated for 4
   await app.disconnect({ quiet: true });
   testHooks.detach();
 
-  // 4.6.5 flips to newline framing once VN identifies it. The opening
+  // 4.7.0 flips to newline framing once VN identifies it. The opening
   // handshake and the reads through VN stay bare (every firmware accepts
   // those); everything after lands newline-terminated.
   resetWireNewlineFraming();
@@ -228,7 +249,7 @@ test('wire framing stays bare for 4.1.0 and upgrades to newline-terminated for 4
   );
   assert.ok(
     release.raw.slice(vnWriteIndex + 1).some((w) => w.endsWith('\n')),
-    '4.6.5 switches to newline framing after VN lands',
+    '4.7.0 switches to newline framing after VN lands',
   );
   await app.disconnect({ quiet: true });
   testHooks.detach();
@@ -236,7 +257,7 @@ test('wire framing stays bare for 4.1.0 and upgrades to newline-terminated for 4
 
 // ---- Which endpoints the load may send -----------------------------------
 
-test('the load withholds every version-gated read from 4.1.0 and sends them all to 4.6.5', async () => {
+test('the load withholds every version-gated read from 4.1.0 and sends them all to 4.7.0', async () => {
   resetWireNewlineFraming();
   resetGatedUi();
   const legacy = launchDevice(LEGACY);
@@ -255,15 +276,15 @@ test('the load withholds every version-gated read from 4.1.0 and sends them all 
   const release = launchDevice(RELEASE);
   await loadDeviceInfo();
   await sleep(40);
-  for (const ep of GATED_READS) assert.ok(release.sent.includes(ep), ep + ' is read on 4.6.5');
+  for (const ep of GATED_READS) assert.ok(release.sent.includes(ep), ep + ' is read on 4.7.0');
   assert.equal(doc.getElementById('version').textContent, RELEASE);
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
 
-// ---- UI: locked-with-reason on 4.1.0, live on 4.6.5 ----------------------
+// ---- UI: locked-with-reason on 4.1.0, live on 4.7.0 ----------------------
 
-test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks them', async () => {
+test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks them', async () => {
   resetWireNewlineFraming();
   resetGatedUi();
   const legacy = launchDevice(LEGACY);
@@ -283,6 +304,14 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
   // External switch actions: selects locked, with their own note.
   assert.equal(doc.getElementById('swSA0').disabled, true, 'the switch select is locked on 4.1.0');
   assert.match(doc.getElementById('switchActionsNote').textContent, /4\.5\.0\+/);
+  // Hard band (4.7.0+): readouts not-applicable, selects locked, own note.
+  for (const id of ['hardSipVal', 'hardPuffVal']) {
+    assert.equal(doc.getElementById(id).textContent, '—', id + ' is not-applicable on 4.1.0');
+    assert.equal(doc.getElementById(id).classList.contains('err'), false, id + ' is not an error');
+  }
+  assert.equal(doc.getElementById('hardSipAction').disabled, true, 'the hard-sip select is locked on 4.1.0');
+  assert.equal(doc.getElementById('hardPuffAction').disabled, true, 'the hard-puff select is locked on 4.1.0');
+  assert.match(doc.getElementById('hardBandNote').textContent, /4\.7\.0\+/);
   // Acceleration: the getter exists but the setter is the v4.0-era stub that
   // answers FAIL,3 to every AV,1 — expose it as not-applicable, not as a
   // control whose writes can only fail.
@@ -322,29 +351,33 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.6.5 unlocks th
   await loadDeviceInfo();
   await sleep(40);
   for (const id of ['sapDisabled', 'menuButtonsOnly', 'modeLock', 'cursorHold'])
-    assert.equal(doc.getElementById(id).disabled, false, id + ' is live on 4.6.5');
+    assert.equal(doc.getElementById(id).disabled, false, id + ' is live on 4.7.0');
   assert.equal(doc.getElementById('restrictionsNote').textContent, '');
-  assert.equal(doc.getElementById('w1Val').textContent, '1000', 'the window readout loads on 4.6.5');
-  assert.equal(doc.getElementById('w1Input').disabled, false, 'the window input is live on 4.6.5');
-  assert.equal(doc.getElementById('swSA0').disabled, false, 'the switch select is live on 4.6.5');
+  assert.equal(doc.getElementById('w1Val').textContent, '1000', 'the window readout loads on 4.7.0');
+  assert.equal(doc.getElementById('w1Input').disabled, false, 'the window input is live on 4.7.0');
+  assert.equal(doc.getElementById('swSA0').disabled, false, 'the switch select is live on 4.7.0');
   assert.equal(doc.getElementById('switchActionsNote').textContent, '');
-  assert.equal(doc.getElementById('accelVal').textContent, '0', 'acceleration loads on 4.6.5');
+  assert.equal(doc.getElementById('hardSipVal').textContent, '10.00', 'the hard-sip readout loads on 4.7.0');
+  assert.equal(doc.getElementById('hardPuffAction').disabled, false, 'the hard-puff select is live on 4.7.0');
+  assert.equal(doc.getElementById('hardPuffAction').value, '4');
+  assert.equal(doc.getElementById('hardBandNote').textContent, '');
+  assert.equal(doc.getElementById('accelVal').textContent, '0', 'acceleration loads on 4.7.0');
   assert.ok(
     doc
       .querySelectorAll('button[data-step]')
       .filter((b) => b.dataset.target === 'accel')
       .every((b) => !b.disabled),
-    'the acceleration steppers are live on 4.6.5',
+    'the acceleration steppers are live on 4.7.0',
   );
   assert.doesNotMatch(doc.getElementById('accelNote').textContent, /newer firmware/);
-  assert.equal(captureSettingsSnapshot().AV, '0', 'a 4.6.5 snapshot carries acceleration');
+  assert.equal(captureSettingsSnapshot().AV, '0', 'a 4.7.0 snapshot carries acceleration');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
 
 // ---- The input-state light option (LM=3) ---------------------------------
 
-test('the input-state light feedback option is withheld on 4.1.0 and offered on 4.6.5', () => {
+test('the input-state light feedback option is withheld on 4.1.0 and offered on 4.7.0', () => {
   const lightSelect = doc.getElementById('lightMode');
   // Seed the real option set the VN renderer inspects (the gating DOM makes
   // bare elements; a <select> needs an options array to gate against).
@@ -359,14 +392,14 @@ test('the input-state light feedback option is withheld on 4.1.0 and offered on 
   assert.equal(lightSelect.value, '2', 'a selected LM=3 falls back to All on 4.1.0');
 
   ENDPOINT_RENDERERS.VN(RELEASE);
-  assert.equal(inputStateOption.disabled, false, 'LM=3 is offered on 4.6.5');
-  assert.equal(inputStateOption.hidden, false, 'LM=3 is visible on 4.6.5');
+  assert.equal(inputStateOption.disabled, false, 'LM=3 is offered on 4.7.0');
+  assert.equal(inputStateOption.hidden, false, 'LM=3 is visible on 4.7.0');
 });
 
 // ---- Backup / restore downgrade-safety across the span -------------------
 
-test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) onto 4.1.0', async () => {
-  // Capture a real snapshot from a fully loaded 4.6.5 device: it carries
+test('a 4.7.0 settings backup restores fully onto 4.7.0 and safely (base-only) onto 4.1.0', async () => {
+  // Capture a real snapshot from a fully loaded 4.7.0 device: it carries
   // every family because that firmware has every family.
   resetWireNewlineFraming();
   resetGatedUi();
@@ -374,8 +407,8 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
   await loadDeviceInfo();
   await sleep(40);
   const snapshot = captureSettingsSnapshot();
-  for (const ep of ['SS', 'AV', 'SM', 'LM', 'SD', 'MA', 'WS', 'WM', 'SA', 'GC'])
-    assert.ok(ep in snapshot, ep + ' is captured on 4.6.5');
+  for (const ep of ['SS', 'AV', 'SM', 'LM', 'SD', 'MA', 'WS', 'WM', 'SA', 'GC', 'HS', 'HA'])
+    assert.ok(ep in snapshot, ep + ' is captured on 4.7.0');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 
@@ -390,7 +423,7 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
   const legacy = restoreRecorder();
   const legacyFailures = await restoreSettingsSnapshot(snapshot);
   await sleep(20);
-  assert.deepEqual(legacyFailures, [], 'nothing fails restoring the 4.6.5 backup onto 4.1.0');
+  assert.deepEqual(legacyFailures, [], 'nothing fails restoring the 4.7.0 backup onto 4.1.0');
   const legacyWrites = legacy.sent.filter((s) => s.includes(',1:')).map((s) => s.slice(0, 2));
   assert.deepEqual(
     legacyWrites,
@@ -398,22 +431,22 @@ test('a 4.6.5 settings backup restores fully onto 4.6.5 and safely (base-only) o
     'only the nine writable base settings reach 4.1.0',
   );
   assert.ok(!legacyWrites.includes('AV'), 'acceleration is withheld from 4.1.0 (AV,1 is FAIL,3 there)');
-  for (const gated of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
+  for (const gated of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC', 'HS', 'HP', 'HA', 'HB'])
     assert.ok(!legacyWrites.includes(gated), gated + ' is withheld from 4.1.0');
   testHooks.detach();
 
-  // Restore onto a 4.6.5 device (the upgrade/same-version direction): every
+  // Restore onto a 4.7.0 device (the upgrade/same-version direction): every
   // family is written back.
   resetWireNewlineFraming();
   noteDeviceVersion(RELEASE);
   const release = restoreRecorder();
   const releaseFailures = await restoreSettingsSnapshot(snapshot);
   await sleep(20);
-  assert.deepEqual(releaseFailures, [], 'nothing fails restoring onto 4.6.5');
+  assert.deepEqual(releaseFailures, [], 'nothing fails restoring onto 4.7.0');
   const releaseWrites = release.sent.filter((s) => s.includes(',1:')).map((s) => s.slice(0, 2));
-  assert.ok(releaseWrites.includes('AV'), 'acceleration is restored onto 4.6.5');
-  for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
-    assert.ok(releaseWrites.includes(ep), ep + ' is restored onto 4.6.5');
+  assert.ok(releaseWrites.includes('AV'), 'acceleration is restored onto 4.7.0');
+  for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC', 'HS', 'HP', 'HA', 'HB'])
+    assert.ok(releaseWrites.includes(ep), ep + ' is restored onto 4.7.0');
   testHooks.detach();
   resetWireNewlineFraming();
 });

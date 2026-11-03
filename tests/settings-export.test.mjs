@@ -49,6 +49,8 @@ test('a loaded device exports labeled settings with no holes', () => {
   assert.equal(data.settings.cursorSpeedLevel, '5');
   assert.equal(data.settings.calibrationCorner1, '-13.00|13.00');
   assert.deepEqual(data.notLoaded, [
+    'hardSipThresholdhPa',
+    'hardPuffThresholdhPa',
     'inputWindowShortMs',
     'inputWindowLongMs',
     'inputWindowMaxMs',
@@ -62,6 +64,8 @@ test('a loaded device exports labeled settings with no holes', () => {
     'switch1GamepadActions',
     'switch2GamepadActions',
     'switch3GamepadActions',
+    'hardSipAction',
+    'hardPuffAction',
   ]);
   assert.match(data.note, /identifier is redacted/);
 });
@@ -73,6 +77,8 @@ test('values that did not load are listed as holes, not exported as garbage', ()
   assert.deepEqual(data.notLoaded, [
     'sipThresholdhPa',
     'puffThresholdhPa',
+    'hardSipThresholdhPa',
+    'hardPuffThresholdhPa',
     'debugMode',
     'inputWindowShortMs',
     'inputWindowLongMs',
@@ -87,6 +93,8 @@ test('values that did not load are listed as holes, not exported as garbage', ()
     'switch1GamepadActions',
     'switch2GamepadActions',
     'switch3GamepadActions',
+    'hardSipAction',
+    'hardPuffAction',
   ]);
   assert.match(data.note, /notLoaded/);
 });

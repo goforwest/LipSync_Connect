@@ -9,7 +9,7 @@ import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { announceStatus } from '../ui/a11y.js';
 import { downloadLogFile } from './log-export.js';
-import { RESTRICTION_SETTINGS, SWITCH_SETTINGS } from '../config/constants.js';
+import { RESTRICTION_SETTINGS, SWITCH_SETTINGS, HARD_ACTION_SETTINGS } from '../config/constants.js';
 
 // [element id, JSON key] — every value is read from the live readout, so the
 // export always matches what the user sees (and can act as a screenshot-
@@ -23,6 +23,8 @@ const EXPORTED_VALUES = [
   ['scrollVal', 'scrollLevel'],
   ['sipVal', 'sipThresholdhPa'],
   ['puffVal', 'puffThresholdhPa'],
+  ['hardSipVal', 'hardSipThresholdhPa'],
+  ['hardPuffVal', 'hardPuffThresholdhPa'],
   ['innerDeadzoneVal', 'innerDeadzone'],
   ['outerDeadzoneVal', 'outerDeadzone'],
   ['soundModeVal', 'soundFeedback'],
@@ -85,6 +87,18 @@ export function collectSettingsExport() {
       continue;
     }
     settings[s.jsonKey] = cells;
+  }
+  // Hard band actions (4.7.0+, upstream #58): one action number each; 0
+  // (Nothing) is a real mapping, never confused with a hole — a disabled
+  // select is the hole signal, same contract as everything else.
+  for (const a of HARD_ACTION_SETTINGS) {
+    const sel = $(a.selectId);
+    const action = parseInt(sel?.value ?? '', 10);
+    if (!sel || sel.disabled || !Number.isFinite(action)) {
+      notLoaded.push(a.jsonKey);
+      continue;
+    }
+    settings[a.jsonKey] = action;
   }
   return {
     device: 'LipSync',

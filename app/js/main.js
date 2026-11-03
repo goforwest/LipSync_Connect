@@ -60,7 +60,12 @@ import {
   resetSwitchActionsUi,
   setSwitchAction,
   resetSwitchActions,
+  setHardThreshold,
+  setHardAction,
+  populateHardActionSelects,
+  resetHardBandUi,
 } from './services/settings-service.js';
+import { HARD_ACTION_SETTINGS } from './config/constants.js';
 
 // Gauge-mark updates on sip/puff input are debounced (100ms); the marks live in
 // plotting/gauge.js, and this binding calls them on input edits.
@@ -151,6 +156,7 @@ const clearSessionUi = () => {
   resetFirmwareUpdateUi();
   resetRestrictionsUi();
   resetSwitchActionsUi();
+  resetHardBandUi(); // the hard sip/puff band (4.7.0+) reads and locks with the same stroke
   resetCalibrationUi(); // no stale "Calibration complete" from a previous session
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   // The streaming select is only meaningful once the device's DM value has
@@ -960,6 +966,71 @@ window.addEventListener('DOMContentLoaded', () => {
           p.hidden = p.dataset.mode !== tab.dataset.mode;
         });
       });
+    });
+
+    // Hard sip/puff band (upstream #58; firmware 4.7.0+): the two exact-value
+    // Set buttons validate range AND the hard >= regular + margin rule
+    // against the live regular readouts before writing; the action selects
+    // write on change with revert-on-FAIL, same as the switch jacks.
+    populateHardActionSelects();
+    HARD_ACTION_SETTINGS.forEach((a) => {
+      $(a.selectId).addEventListener(
+        'change',
+        guard(
+          async () => {
+            $('sapError').textContent = '';
+            try {
+              await setHardAction(a.endpoint);
+            } catch (e) {
+              $('sapError').textContent = e.message;
+              throw e;
+            }
+          },
+          { quiet: true },
+        ),
+      );
+    });
+    $('btnSetHardSip').addEventListener(
+      'click',
+      guard(
+        async () => {
+          $('sapError').textContent = '';
+          try {
+            const v = requireNumber('hardSipInput', 2, 149.99, 'Hard sip threshold');
+            await setHardThreshold('HS', v);
+          } catch (e) {
+            $('sapError').textContent = e.message;
+            throw e;
+          }
+        },
+        { quiet: true },
+      ),
+    );
+    $('btnSetHardPuff').addEventListener(
+      'click',
+      guard(
+        async () => {
+          $('sapError').textContent = '';
+          try {
+            const v = requireNumber('hardPuffInput', 2, 149.99, 'Hard puff threshold');
+            await setHardThreshold('HP', v);
+          } catch (e) {
+            $('sapError').textContent = e.message;
+            throw e;
+          }
+        },
+        { quiet: true },
+      ),
+    );
+    $('hardSipInput').addEventListener('input', () => {
+      const v = Number($('hardSipInput').value);
+      if ($('sapError').textContent && (!Number.isFinite(v) || (v >= 2 && v <= 149.99))) $('sapError').textContent = '';
+      debouncedGaugeMarks();
+    });
+    $('hardPuffInput').addEventListener('input', () => {
+      const v = Number($('hardPuffInput').value);
+      if ($('sapError').textContent && (!Number.isFinite(v) || (v >= 2 && v <= 149.99))) $('sapError').textContent = '';
+      debouncedGaugeMarks();
     });
 
     $('btnReadPressure').addEventListener(

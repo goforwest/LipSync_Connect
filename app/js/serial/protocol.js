@@ -24,6 +24,11 @@ export const ECHO_WRITE_ENDPOINTS = new Set([
   'SL',
   'ST',
   'PT',
+  // Hard band (4.7.0+, upstream #58): the SET acks echo the written value.
+  'HS',
+  'HP',
+  'HA',
+  'HB',
   'IZ',
   'OZ',
   'SM',

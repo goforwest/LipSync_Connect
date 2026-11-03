@@ -283,9 +283,25 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         sip.sipInput === '12.50' &&
         sip.markLeft !== '' &&
         sip.scaleLabel.includes('hPa') &&
-        sip.stepperGroups === 5 &&
+        // 5 pre-#58 rows (sip, puff, and the three timing windows) + the two
+        // hard-band rows (4.7.0+; DOM-present, gated on this 4.5.2 device).
+        sip.stepperGroups === 7 &&
         sip.statsHidden,
       JSON.stringify(sip),
+    );
+    // Hard band on a pre-4.7.0 device (upstream #58): the readouts stay
+    // not-applicable and the controls lock with the honest reason note — the
+    // same gated-card contract the restriction/window/switch families keep.
+    const hardBand = await evalCard(() => ({
+      sipVal: document.getElementById('hardSipVal').textContent,
+      note: document.getElementById('hardBandNote').textContent,
+      sipLocked: document.getElementById('hardSipAction').disabled,
+      setLocked: document.getElementById('btnSetHardSip').disabled,
+    }));
+    note(
+      'hard-band-gated',
+      hardBand.sipVal === '—' && hardBand.sipLocked && hardBand.setLocked && /4\.7\.0\+/.test(hardBand.note),
+      JSON.stringify(hardBand),
     );
 
     await page.click('text=Set exact threshold values');

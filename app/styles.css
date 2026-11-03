@@ -1348,6 +1348,12 @@ footer p {
   background: transparent;
   border-left: 2px dashed var(--info);
 }
+/* Hard sip/puff band (upstream #58): the hard thresholds as dashed marks in
+   the warning color, beyond the solid regular-threshold marks. */
+.gauge .mark.hard {
+  background: transparent;
+  border-left: 2px dashed var(--warn, var(--brand-accent));
+}
 .gauge-scale {
   display: flex;
   justify-content: space-between;
