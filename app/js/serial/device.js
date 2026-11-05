@@ -17,6 +17,7 @@ import { gaugeDelta } from '../plotting/gauge.js';
 import { plotCorner, plotRawXY, orientFromOutput, cornerState } from '../plotting/plot.js';
 import { updateStepButtons, calibrationIsRunning, applySwitchActionValue } from '../services/settings-service.js';
 import { noteExternalSettingsChange, applyHubMenuPush } from '../services/hub-remote.js';
+import { applyBluetoothPush, applyHostCount, applyHostRow } from '../services/bt-hosts.js';
 import { captureWriteConfirm } from '../services/confirm.js';
 import { $ } from '../ui/dom.js';
 
@@ -182,14 +183,25 @@ export function applyDeviceResponse(line) {
         'Device acknowledged update-mode entry (UM). Entering its update loader — the Hub screen shows the "Update mode" message.',
         'log-info',
       ),
-    // FR/CH/RT all emit a value-bearing ack (SUCCESS,0:<EP>,1:<n>); without a
-    // handler here each would fall through to the 'Unrecognized device response'
-    // log line even though the app issued the command itself. Log them as what
-    // they are so the command log is a faithful transcript. CH,1 acks only:
-    // CH,0 (the 4.5.1+ menu-state read) is the hub-remote's own sync traffic
-    // and is consumed by its promise — logging every poll would flood the
-    // transcript.
+    // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): the read
+    // ACKs (BT,0:<i>:<name>:<active>, BT,1/2/3 acks) land in the host-table
+    // renderer below so the card follows device truth; the MANUAL BT,4/BT,5
+    // pushes land in applyBluetoothPush — device truth replaces the mirror
+    // without resolving any waiter.
     FR: () => log('Device acknowledged factory reset (FR). Device will restart with defaults…', 'log-info'),
+    BT: () => {
+      // Both the count answer and a row answer parse as cmd "BT,0" — they
+      // differ only in the value: a bare integer vs "i:name:active".
+      if (r.cmd === 'BT,0') {
+        if (String(r.value).includes(':')) applyHostRow(r.value);
+        else applyHostCount(r.value);
+        return;
+      }
+      // MANUAL,0:BT,4:<count> and MANUAL,0:BT,5:<activeRow> pushes (and the
+      // BT,1/2/3 acks, which the module ignores — its own calls already
+      // validated them).
+      applyBluetoothPush(r.cmd, r.value);
+    },
     CH: () => {
       // Two-way Hub remote (protocol proposal: docs/upstream-issue-comments.md):
       // a MANUAL CH,5 line is the device pushing its live menu state after a

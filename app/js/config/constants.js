@@ -205,6 +205,15 @@ export const ACCELERATION_MIN_FIRMWARE = [4, 3, 0];
 /** @type {[number, number, number]} */
 export const HARD_BAND_MIN_FIRMWARE = [4, 7, 0];
 
+// Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): the BT
+// endpoint family — read the paired-host table (BT,0), switch (BT,1), forget
+// one bond (BT,2), pair-new (BT,3), plus the MANUAL BT,4/BT,5 pushes. The
+// host table lives in the device's bond store, not in any settings file, so
+// nothing here touches snapshot/restore or settings-export (excluded by
+// omission from those key lists — pinned by the protocol cross-check).
+/** @type {[number, number, number]} */
+export const BT_HOSTS_MIN_FIRMWARE = [4, 8, 0];
+
 // The minimum gap the firmware's setter enforces between the regular and hard
 // thresholds (CONF_PRESS_HARD_MARGIN_HPA): the hard gesture must stay clearly
 // stronger than the regular one, or the band is not a distinct gesture.

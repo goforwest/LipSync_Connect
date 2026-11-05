@@ -155,6 +155,7 @@ const appSources = [
   'app/js/services/health.js',
   'app/js/services/firmware-update.js',
   'app/js/services/calibration.js',
+  'app/js/services/bt-hosts.js',
   'app/js/serial/commands.js',
 ].map(read);
 // Literal commands: sendCommand('EP,c:v...') — kept with their parameter so a
@@ -481,6 +482,85 @@ if (!localBuildScript.includes('--warnings all') || !releaseWorkflow.includes('-
   fail('local and release firmware builds must both enforce --warnings all');
 } else {
   ok('local and release builds share the all-warnings gate');
+}
+
+// ---- 9. Multi-host Bluetooth switching couplings (upstream #16, 4.8.0) -----
+console.log('\n[9] multi-host Bluetooth (BT endpoint family, upstream #16)');
+{
+  const btSrc = read('app/js/services/bt-hosts.js');
+  const lsbleSrc = readFw('LSBLE.h');
+  const lsapiFwSrc = readFw('LSAPI.ino');
+  const hostSwitchSrc = readFw('LSHostSwitch.h');
+
+  // (a) The firmware dispatch table owns exactly the four BT codes the app
+  // sends — a fifth code on either side is an endpoint the other never calls.
+  const fwBtPairs = Object.keys(dispatch)
+    .filter((k) => k.startsWith('BT,'))
+    .sort();
+  const expectedBtPairs = ['BT,0', 'BT,1', 'BT,2', 'BT,3'];
+  if (JSON.stringify(fwBtPairs) !== JSON.stringify(expectedBtPairs)) {
+    fail(`firmware BT dispatch pairs [${fwBtPairs.join(', ')}] != pinned [${expectedBtPairs.join(', ')}]`);
+  } else if (dispatch['BT,3'] !== '1') {
+    fail(`BT,3 must pin parameter "1" (the app sends BT,3:1); firmware pins "${dispatch['BT,3']}"`);
+  } else {
+    ok(`BT dispatch pairs agree (${fwBtPairs.join(', ')}; BT,3 pins parameter 1)`);
+  }
+
+  // (b) The MANUAL push half is firmware-initiated, so pin the literals: the
+  // firmware prints BT,4/BT,5 via lsHostPushState and the app branches on
+  // exactly those two.
+  const fwPushes = [...lsbleSrc.matchAll(/"BT,([45])"/g)].map((m) => `BT,${m[1]}`).sort();
+  if (JSON.stringify([...new Set(fwPushes)]) !== JSON.stringify(['BT,4', 'BT,5'])) {
+    fail(`firmware push literals [${[...new Set(fwPushes)].join(', ')}] != pinned [BT,4, BT,5]`);
+  } else if (!btSrc.includes("'BT,4'") || !btSrc.includes("'BT,5'")) {
+    fail("the app's applyBluetoothPush does not branch on both 'BT,4' and 'BT,5'");
+  } else {
+    ok('MANUAL push literals agree (firmware prints BT,4/BT,5; app branches on both)');
+  }
+
+  // (c) Row grammar: the firmware's row value is "<i>:<name>:<active>" (two
+  // colons); the app's parseHostRow splits exactly 3 parts. An extra field on
+  // either side would silently corrupt every named row.
+  const rowShape = lsapiFwSrc.match(
+    /rowValue \+= row;[\s\S]{0,120}rows\[row - 1\]\.name;[\s\S]{0,60}rowValue \+= ':';[\s\S]{0,120}rows\[row - 1\]\.active;/,
+  );
+  if (!rowShape) fail('LSAPI.ino getBluetoothHost no longer builds the "i:name:active" row shape');
+  else if (!btSrc.includes('parts.length !== 3'))
+    fail("the app's parseHostRow no longer requires exactly 3 row fields");
+  else ok('row grammar agrees (firmware "i:name:active", app parses exactly 3 fields)');
+
+  // (d) Wire-name sanitization: the firmware replaces ',' ':' '/' before the
+  // name ever reaches the wire — the app's grammar depends on it.
+  const sanitizer = hostSwitchSrc.match(/c == ',' \|\| c == ':' \|\| c == '\/'/);
+  if (!sanitizer) fail('LSHostSwitch.h no longer sanitizes , : / in host names (the wire grammar would break)');
+  else ok('firmware sanitizes , : / in host names before the wire (the app grammar holds)');
+
+  // (e) The Hub page id: firmware 62 ↔ the app's mirror map, and the mirror's
+  // More row is version-gated on the BT constant.
+  const btPage = screenSrc.match(/#define\s+BT_HOSTS_MENU\s+(\d+)/)?.[1];
+  if (!btPage) fail('LSScreen.h is missing BT_HOSTS_MENU');
+  else if (!hubSrc.includes(`${btPage}: 'btHosts'`)) fail(`the app's page map lacks ${btPage}->btHosts`);
+  else if (!hubSrc.includes('BT_HOSTS_MIN_FIRMWARE')) fail('the mirror does not version-gate the Bluetooth row');
+  else ok(`Bluetooth Hub page ${btPage} maps to the gated mirror screen`);
+
+  // (f) Display caps: both surfaces show the MAC-lowest 4 rows
+  // (LSHOST_MENU_MAX_ROWS ↔ the app card's slice(0, 4)).
+  const fwCap = hostSwitchSrc.match(/#define\s+LSHOST_MENU_MAX_ROWS\s+(\d+)/)?.[1];
+  if (!fwCap) fail('LSHostSwitch.h is missing LSHOST_MENU_MAX_ROWS');
+  else if (!btSrc.includes('.slice(0, 4)'))
+    fail("the app's card render does not cap at 4 rows like the Hub page");
+  else ok(`host-row display cap agrees (firmware LSHOST_MENU_MAX_ROWS=${fwCap}, app slice(0, 4))`);
+
+  // (g) The version gate (the check-6 pattern): firmware must be at least the
+  // app's BT_HOSTS_MIN_FIRMWARE or the app would hide its own feature.
+  const { BT_HOSTS_MIN_FIRMWARE } = await import(path.join(APP, 'app/js/config/constants.js'));
+  const [bMaj, bMin, bRev] = BT_HOSTS_MIN_FIRMWARE;
+  const btOk = fMaj > bMaj || (fMaj === bMaj && (fMin > bMin || (fMin === bMin && fRev >= bRev)));
+  if (!btOk)
+    fail(
+      `firmware ${fwVersion.join('.')} is OLDER than the app's ${BT_HOSTS_MIN_FIRMWARE.join('.')} bluetooth-hosts gate — the app would hide its own features`,
+    );
+  else ok(`firmware ${fwVersion.join('.')} satisfies the ${BT_HOSTS_MIN_FIRMWARE.join('.')} bluetooth-hosts gate`);
 }
 
 console.log(`\n${problems.length ? problems.length + ' PROBLEM(S)' : 'ALL CHECKS PASS'}`);

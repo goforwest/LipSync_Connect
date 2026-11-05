@@ -2304,6 +2304,13 @@ export async function afterDeviceLoad() {
     await finishPendingUpdate(pending);
     return;
   }
+  // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): load the
+  // paired-host table and start keeping it in sync with the device. Older
+  // devices simply skip it — nothing is required for the rest of the page to
+  // work.
+  const { bindBluetoothHosts, startBtHostsPoller } = await import('./bt-hosts.js');
+  bindBluetoothHosts();
+  startBtHostsPoller();
   // The page may have died mid-flash (reload, crash, tab close): the
   // bootloader finishes the update on its own, so a device already running
   // the target version with an unmarked pending update is a completed

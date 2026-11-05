@@ -1852,7 +1852,14 @@
               <div class="row"><label>BLE device name</label><span class="value" id="btName">&mdash;</span></div>
               <div class="row"><label>Status</label><span class="value" id="btStatus">&mdash;</span></div>
             </div>
-            <div class="row"><button type="button" id="btnSwitchBt" disabled>Switch to Bluetooth</button></div>
+            <div class="row"><button type="button" id="btnSwitchBt" disabled>Switch to Bluetooth</button>
+              <div class="row" id="btHostSummaryRow" hidden><label>Paired hosts</label><span class="value" id="btHostSummary">&mdash;</span></div>
+              <div id="btHostList" role="list" aria-label="Paired hosts" class="bt-host-list" hidden></div>
+              <div class="bt-card-controls" id="btCardControls" hidden>
+                <button type="button" id="btPairNew" class="btn-secondary">Pair new…</button>
+                <button type="button" id="btForgetAll" class="btn-secondary">Forget all…</button>
+              </div>
+            </div>
             <details>
               <summary>Pairing instructions</summary>
               <p class="hint">

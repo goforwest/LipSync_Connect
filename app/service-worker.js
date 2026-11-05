@@ -22,6 +22,7 @@ const ASSETS = [
   './js/ui/guard.js',
   './js/ui/sections.js',
   './js/services/mode-switch.js',
+  './js/services/bt-hosts.js',
   './js/services/log.js',
   './js/services/log-export.js',
   './js/services/support-report.js',

@@ -48,6 +48,7 @@ import {
   ACCELERATION_MIN_FIRMWARE,
   HARD_BAND_MIN_FIRMWARE,
   HARD_MARGIN_HPA,
+  BT_HOSTS_MIN_FIRMWARE,
 } from '../config/constants.js';
 
 let screen = null; // current mirrored screen id; null = mirror closed
@@ -98,6 +99,9 @@ const FW_PAGE_TO_MIRROR = {
   60: 'restrictions', // RESTRICTIONS_MENU
   61: 'timing', // TIMING_MENU
   611: 'timingAdjust', // TIMING_ADJUST_MENU
+  62: 'btHosts', // BT_HOSTS_MENU (4.8.0+, upstream #16)
+  621: 'btSwitchConfirm', // BT_SWITCH_CONFIRM_PAGE
+  622: 'btForgetList', // BT_FORGET_LIST_PAGE
 };
 
 // Device pages that advance THEMSELVES after a fixed dwell (scheduled
@@ -109,6 +113,8 @@ const FW_TRANSIENT_PAGE_MS = {
   32: 2000 + 600, // modeLockedPage → modeMenu (finishModeLocked)
   21: 2500 + 700, // centerResetPage → centerResetCompletePage → main menu
   55: 3000 + 600, // fullCalibrationPage → fullCalibrationConfirmPage
+  623: 2000 + 600, // btSwitchingPage → btHostsMenu (finishBtSwitch, upstream #16)
+  624: 2000 + 600, // btNotePage → btHostsMenu / moreMenu (finishBtNote)
 };
 
 // Local copies for the Hub's value screens. The Hub edits settings without
@@ -376,7 +382,38 @@ const SCREENS = {
             },
           ]
         : []),
+      // 4.8.0+ (upstream #16): the Bluetooth host page. The mirror shows a
+      // read-only note — enumerating bonds from here would race the device's
+      // own list rendering; the Bluetooth card is the full surface.
+      ...(deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE)
+        ? [{ label: 'Bluetooth', select: () => go('btHosts') }]
+        : []),
       { label: '... Back', select: () => go('main') },
+    ],
+  }),
+  // 4.8.0+ (upstream #16): the device's Bluetooth host pages. Row indices are
+  // NOT mirrored (the device rebuilds its list from the bond directory on
+  // every entry, and the app's card owns the switch/forget flows) — these
+  // screens only keep the mirror honest about where the device menu is.
+  btHosts: () => ({
+    header: 'Bluetooth hosts',
+    items: [
+      { label: 'Manage hosts in the Bluetooth card', displayOnly: true },
+      { label: '... Back', select: () => go('more') },
+    ],
+  }),
+  btSwitchConfirm: () => ({
+    header: 'Switch host?',
+    items: [
+      { label: 'Confirm on the device', displayOnly: true },
+      { label: '... Back', select: () => go('btHosts') },
+    ],
+  }),
+  btForgetList: () => ({
+    header: 'Forget host',
+    items: [
+      { label: 'Choose on the device', displayOnly: true },
+      { label: '... Back', select: () => go('btHosts') },
     ],
   }),
   sound: () => ({

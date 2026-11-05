@@ -52,6 +52,7 @@ import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
+import { bindBluetoothHosts, startBtHostsPoller, resetBluetoothHostsUi } from './services/bt-hosts.js';
 import {
   setRestriction,
   resetRestrictionsUi,
@@ -159,6 +160,10 @@ const clearSessionUi = () => {
   resetHardBandUi(); // the hard sip/puff band (4.7.0+) reads and locks with the same stroke
   resetCalibrationUi(); // no stale "Calibration complete" from a previous session
   resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
+  // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): the paired
+  // host table is session-scoped — clear it on disconnect so a stale "Active"
+  // marker never survives into a new session.
+  resetBluetoothHostsUi();
   // The streaming select is only meaningful once the device's DM value has
   // loaded; disabling it is also the signal auto-live uses to refuse to send
   // DM over a stream whose current state is still unknown.
