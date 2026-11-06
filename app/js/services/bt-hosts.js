@@ -30,10 +30,10 @@ import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { log, noisyLineLog } from '../services/log.js';
 import { $ } from '../ui/dom.js';
-
-// The minimum firmware that owns the BT endpoint family + the MANUAL,0:BT,4/5
-// pushes.
-export const BT_HOSTS_MIN_FIRMWARE = [4, 8, 0];
+// Single source of truth for the gate (constants.js): hub-remote's mirror and
+// the firmware↔Connect protocol cross-check both read THIS copy — a second
+// local number here could drift and split the card's gate from the mirror's.
+import { BT_HOSTS_MIN_FIRMWARE } from '../config/constants.js';
 
 // In-memory mirror of the host table. Row keys are 1-based enumeration indices
 // in MAC order; 'count' holds the total number of bonds (the device's Hub page
@@ -423,7 +423,10 @@ export function startBtHostsPoller() {
     }
   };
   tick();
-  const timer = setInterval(tick, 1000);
-  // Node test runs must not hang on the poller's interval.
-  if (typeof timer === 'object' && typeof timer.unref === 'function') timer.unref();
+  const timer = /** @type {any} */ (setInterval(tick, 1000));
+  // Node test runs must not hang on the poller's interval: Node's timer is an
+  // object with unref(); a browser's is a number, so guard before unref. The
+  // any-cast is deliberate — the DOM lib types setInterval as returning a
+  // number, and no lib type describes the Node runtime shape this guards for.
+  if (timer && typeof timer.unref === 'function') timer.unref();
 }

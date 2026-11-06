@@ -113,8 +113,11 @@ const FW_TRANSIENT_PAGE_MS = {
   32: 2000 + 600, // modeLockedPage → modeMenu (finishModeLocked)
   21: 2500 + 700, // centerResetPage → centerResetCompletePage → main menu
   55: 3000 + 600, // fullCalibrationPage → fullCalibrationConfirmPage
+  11: 500 + 600, // exitingPage → menu closes (screenExitTransitionDone) — the next CH,0:0 answers active=0
+  33: 2000 + 600, // changingModePage → softwareReset (the poll fails while the port re-enumerates; reconnect re-syncs)
   623: 2000 + 600, // btSwitchingPage → btHostsMenu (finishBtSwitch, upstream #16)
   624: 2000 + 600, // btNotePage → btHostsMenu / moreMenu (finishBtNote)
+  572: 2000 + 600, // factoryResetWarnPage → FACTORY_RESET_CONFIRM2_PAGE 571 (frConfirm2)
 };
 
 // Local copies for the Hub's value screens. The Hub edits settings without
@@ -237,7 +240,28 @@ function seedWindows() {
   });
 }
 
-/** @type {Record<string, () => { header: string, items: { label: string, current?: boolean, displayOnly?: boolean, select: () => void }[], note?: string }>} */
+/**
+ * Hub menu rows. A row either selects (a normal menu line) or is display-only
+ * (a label line the cursor can never sit on — the firmware's Version/ID rows,
+ * the mirror's note pages). Selectable rows must carry `select`; display-only
+ * rows must not need it (the renderer and snapSel guard on `displayOnly`
+ * before any select call). A stray displayOnly+select pair stays legal — the
+ * select is simply never invoked.
+ *
+ * @typedef {Object} HubItemSelectable
+ * @property {string} label
+ * @property {() => void} select
+ * @property {boolean} [current]
+ * @property {false} [displayOnly]
+ * @typedef {Object} HubItemDisplayOnly
+ * @property {string} label
+ * @property {true} displayOnly
+ * @property {boolean} [current]
+ * @property {() => void} [select]
+ * @typedef {HubItemSelectable | HubItemDisplayOnly} HubItem
+ */
+
+/** @type {Record<string, () => { header: string, items: HubItem[], note?: string }>} */
 const SCREENS = {
   main: () => ({
     header: 'Main menu',

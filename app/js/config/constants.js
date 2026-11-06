@@ -282,6 +282,7 @@ export const STEP_TARGETS = {
 // Four boolean gates against accidental input, all defaulting to off (the
 // unrestricted legacy behavior). Every value is 1 = restriction active.
 // checkboxId is the card control; jsonKey is the settings-export key.
+/** @type {[number, number, number]} */
 export const RESTRICTIONS_MIN_FIRMWARE = [4, 4, 0];
 export const RESTRICTION_SETTINGS = [
   { endpoint: 'SD', checkboxId: 'sapDisabled', label: 'Sip & puff disabled', jsonKey: 'sipPuffDisabled' },
@@ -355,6 +356,7 @@ export const PRESS_THRESHOLD_LEVELS = [2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 22.0
 // mapping. The action palette below mirrors the firmware's caregiver-safe
 // allowlist (CONF_SWITCH_REMAP_ALLOWED); the cross-check verifies the two
 // agree, and the firmware rejects anything else with FAIL,3.
+/** @type {[number, number, number]} */
 export const SWITCH_ACTIONS_MIN_FIRMWARE = [4, 5, 0];
 export const SWITCH_ACTION_PACK_BASE = 100000;
 export const SWITCH_ACTION_OPTIONS = {

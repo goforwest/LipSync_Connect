@@ -52,7 +52,10 @@ import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
-import { bindBluetoothHosts, startBtHostsPoller, resetBluetoothHostsUi } from './services/bt-hosts.js';
+// bindBluetoothHosts/startBtHostsPoller are dynamically imported by
+// firmware-update.js's afterDeviceLoad() — main.js only needs the session
+// reset.
+import { resetBluetoothHostsUi } from './services/bt-hosts.js';
 import {
   setRestriction,
   resetRestrictionsUi,
