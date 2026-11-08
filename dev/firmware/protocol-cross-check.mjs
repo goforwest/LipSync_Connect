@@ -543,13 +543,18 @@ console.log('\n[9] multi-host Bluetooth (BT endpoint family, upstream #16)');
   else if (!hubSrc.includes('BT_HOSTS_MIN_FIRMWARE')) fail('the mirror does not version-gate the Bluetooth row');
   else ok(`Bluetooth Hub page ${btPage} maps to the gated mirror screen`);
 
-  // (f) Display caps: both surfaces show the MAC-lowest 4 rows
-  // (LSHOST_MENU_MAX_ROWS ↔ the app card's slice(0, 4)).
+  // (f) Display caps (design Q5 item 4): the Hub OLED page caps at
+  // LSHOST_MENU_MAX_ROWS; the app card lists ALL enumerated rows (up to the
+  // wire's LSHOST_ENUM_CAP). The 4.8.7 review fixed the app to match the
+  // design — the old shared cap left bonds 5-8 visible to BT,0 but not
+  // individually switchable from the app.
   const fwCap = hostSwitchSrc.match(/#define\s+LSHOST_MENU_MAX_ROWS\s+(\d+)/)?.[1];
+  const fwEnumCap = hostSwitchSrc.match(/#define\s+LSHOST_ENUM_CAP\s+(\d+)/)?.[1];
   if (!fwCap) fail('LSHostSwitch.h is missing LSHOST_MENU_MAX_ROWS');
-  else if (!btSrc.includes('.slice(0, 4)'))
-    fail("the app's card render does not cap at 4 rows like the Hub page");
-  else ok(`host-row display cap agrees (firmware LSHOST_MENU_MAX_ROWS=${fwCap}, app slice(0, 4))`);
+  else if (!fwEnumCap) fail('LSHostSwitch.h is missing LSHOST_ENUM_CAP');
+  else if (btSrc.includes('.slice(0, 4)'))
+    fail("the app's card render caps at 4 rows — design Q5: the Hub caps at 4, the app lists ALL enumerated rows");
+  else ok(`host-row display caps agree (Hub LSHOST_MENU_MAX_ROWS=${fwCap}, app lists all up to LSHOST_ENUM_CAP=${fwEnumCap})`);
 
   // (g) The version gate (the check-6 pattern): firmware must be at least the
   // app's BT_HOSTS_MIN_FIRMWARE or the app would hide its own feature.

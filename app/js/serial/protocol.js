@@ -9,9 +9,19 @@ export function parseResponse(line) {
 
 // Plain-text firmware diagnostics are intentional out-of-band witnesses, not
 // serial corruption. They stay visible as received log lines but must not feed
-// the noisy "undecodable / possible corruption" counter.
+// the noisy "undecodable / possible corruption" counter. INFO: (firmware
+// 4.8.4+) is the BT host-switch window's own telemetry line class
+// (lsHostExecuteSwitch/lsHostSwitchWindowTick) — logging it as corruption
+// would name the exact operation being diagnosed as a broken wire.
+// ERROR-0xx (4.9.0) is the safe menu's hardware error code shape (LSScreen.h
+// snprintf "ERROR-%03u"). The 4.9.0 review verified the CURRENT firmware
+// renders it on the OLED only (it is _safeModeReasonText), never on the
+// serial wire — this alternative is deliberate forward cover: if the
+// firmware ever prints the code, it must be classified as firmware and not
+// feed the "possible corruption" counter; meanwhile it swallows nothing
+// unrelated.
 export function isDeviceDiagnosticLine(line) {
-  return /^(?:HB:|BOOT:|ERROR:|WARNING:|FAULT\b|SDFAULT\b|USB-EVT:|USB\s)/.test(line);
+  return /^(?:HB:|BOOT:|ERROR:|ERROR-\d{3}\b|WARNING:|INFO:|FAULT\b|SDFAULT\b|USB-EVT:|USB\s)/.test(line);
 }
 
 // Write endpoints whose SUCCESS ack echoes the written value verbatim —

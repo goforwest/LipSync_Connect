@@ -54,7 +54,10 @@ export function updateBtStatus() {
   // CM=2 proves the selected transport, not the live radio state. Advertising
   // may have failed or stopped because a bonded host already connected, so do
   // not claim "advertising" without a firmware runtime-status endpoint.
-  setValue('btStatus', bt ? 'Bluetooth mode selected' : 'USB mode');
+  // (4.9.0 round-2 review) null = CM never loaded / disconnected — do NOT
+  // claim "USB mode" (the old else arm asserted a mode the app cannot know;
+  // the markup placeholder is '—').
+  setValue('btStatus', modeState.currentComMode == null ? '—' : bt ? 'Bluetooth mode selected' : 'USB mode');
   const btn = $('btnSwitchBt');
   if (btn) btn.disabled = bt || !serialSession.port;
 }

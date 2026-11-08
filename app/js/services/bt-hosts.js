@@ -37,7 +37,9 @@ import { BT_HOSTS_MIN_FIRMWARE } from '../config/constants.js';
 
 // In-memory mirror of the host table. Row keys are 1-based enumeration indices
 // in MAC order; 'count' holds the total number of bonds (the device's Hub page
-// shows the MAC-lowest 4; the app mirrors that cap on the card).
+// shows the MAC-lowest 4; the app card deliberately lists ALL up to
+// LSHOST_ENUM_CAP=8 — a control the wire surface exposes — with the list
+// scrolling in CSS, per the 4.8.7 review).
 /** @typedef {{ i: number, mac: string, name: string, active: number }} BtHostRow */
 /** @type {{ count: number, rows: Record<number, BtHostRow> }} */
 export const btHostTable = { count: 0, rows: {} };
@@ -241,8 +243,12 @@ function refetchSoon() {
 
 // ---- UI ----
 
-/** Render the card's host list (device cap: the lowest 4 by MAC, matching the
- * Hub page). The full table still exists in btHostTable for forget math. */
+/** Render the card's host list (device cap: all enumerated rows — 4.8.7
+ * review: the old 4-row slice left bonds 5-8 visible to BT,0 and to
+ * "Forget all…" but never individually switchable, a control the wire
+ * surface exposes; the list scrolls via .bt-host-list's max-height — the
+ * 4.9.0 review added the CSS the class names always implied). The full
+ * table still exists in btHostTable for forget math. */
 function renderHostList() {
   const listEl = $('btHostList');
   if (!listEl) return;
@@ -250,7 +256,6 @@ function renderHostList() {
   const rows = Object.keys(btHostTable.rows)
     .map(Number)
     .sort((a, b) => a - b)
-    .slice(0, 4)
     .map((i) => btHostTable.rows[i])
     .filter(Boolean);
 
@@ -380,8 +385,15 @@ function bindBluetoothControls() {
 }
 
 /** Session-scoped reset: drop the mirror and hide the UI so a stale table
- * never survives into a new session. */
+ * never survives into a new session. Also stops the poller (4.8.7 review:
+ * the interval used to leak — one new 1 s setInterval per connect, never
+ * cleared, multiplying SETTINGS-handshake BT,0 polls onto the shared
+ * command queue after every reconnect). */
 export function resetBluetoothHostsUi() {
+  if (btHostsPollerTimer !== null) {
+    clearInterval(btHostsPollerTimer);
+    btHostsPollerTimer = null;
+  }
   btHostTable.count = 0;
   btHostTable.rows = {};
   const listEl = $('btHostList');
@@ -395,11 +407,16 @@ export function resetBluetoothHostsUi() {
   if (controls) controls.hidden = true;
 }
 
+/** The poller's interval handle (module-level so a reconnect re-uses the
+ * running poller instead of stacking another one). */
+let btHostsPollerTimer = /** @type {any} */ (null);
+
 /** Poll BT,0:0 once per second while a gated session is live and refetch the
  * rows whenever the count changes (a pair or forget elsewhere). The push
  * paths (BT,4/BT,5) make this a backstop, not the primary sync. */
 export function startBtHostsPoller() {
   if (!serialSession.port || !deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE)) return;
+  if (btHostsPollerTimer !== null) return; // already running for this session — resetBluetoothHostsUi owns the stop
   let lastCount = btHostTable.count;
   let inFlight = false;
   const tick = async () => {
@@ -417,16 +434,16 @@ export function startBtHostsPoller() {
       }
     } catch {
       // Port died mid-poll (an active host was forgotten and the link
-      // dropped): the next session re-arms this poller; stay quiet.
+      // dropped): the session reset clears this poller; stay quiet.
     } finally {
       inFlight = false;
     }
   };
   tick();
-  const timer = /** @type {any} */ (setInterval(tick, 1000));
+  btHostsPollerTimer = /** @type {any} */ (setInterval(tick, 1000));
   // Node test runs must not hang on the poller's interval: Node's timer is an
   // object with unref(); a browser's is a number, so guard before unref. The
   // any-cast is deliberate — the DOM lib types setInterval as returning a
   // number, and no lib type describes the Node runtime shape this guards for.
-  if (timer && typeof timer.unref === 'function') timer.unref();
+  if (btHostsPollerTimer && typeof btHostsPollerTimer.unref === 'function') btHostsPollerTimer.unref();
 }

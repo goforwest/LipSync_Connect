@@ -91,6 +91,12 @@ test('window steps delegate to the validated write and refuse out-of-order', asy
 });
 
 test('bounds disable the stepper buttons per current value', () => {
+  // (4.9.0) updateStepButtons' disconnect guard (4.8.7 review) disables
+  // everything without a port — attach the harness writer so this test
+  // exercises the BOUNDS logic it exists for (the no-port contract has its
+  // own assertion below).
+  const writer = { write() {} };
+  testHooks.attach({ simulated: true }, writer);
   doc.getElementById('outerDeadzoneVal').textContent = '0.99'; // the oz max
   updateStepButtons();
   const ozPlus = doc.querySelector('button[data-target="oz"][data-step="1"]');
@@ -100,6 +106,13 @@ test('bounds disable the stepper buttons per current value', () => {
   doc.getElementById('outerDeadzoneVal').textContent = '0.98';
   updateStepButtons();
   assert.ok(!doc.querySelector('button[data-target="oz"][data-step="1"]').disabled, 'fine + re-enables below max');
+  testHooks.detach();
+  // No port → every hardware-writing stepper is disabled (the 4.8.7 review
+  // contract: a disconnect's disabled state must survive an in-flight
+  // step's finally).
+  updateStepButtons();
+  assert.ok(doc.querySelector('button[data-target="oz"][data-step="1"]').disabled, 'no port disables fine +');
+  assert.ok(doc.querySelector('button[data-target="oz"][data-step="-1"]').disabled, 'no port disables fine −');
 });
 
 test('deadzone steppers refuse to cross their sibling and surface formError', async () => {

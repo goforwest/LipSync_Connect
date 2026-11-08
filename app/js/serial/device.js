@@ -218,8 +218,14 @@ export function applyDeviceResponse(line) {
   // Inline confirm/undo (services/confirm.js): snapshot the pre-write
   // control state BEFORE the renderers replace it, commit the chip after
   // they land the new device truth. Write responses only (",1") — reads and
-  // MANUAL pushes confirm nothing.
-  const pendingConfirm = captureWriteConfirm(endpoint, r.cmd);
+  // MANUAL pushes confirm nothing. The MANUAL gate lives HERE (4.8.7
+  // review): a MANUAL,0:SS,1:<v> push parses to cmd "SS,1", which the
+  // endsWith(',1') filter inside captureWriteConfirm cannot distinguish
+  // from an app-write ack — without this gate every physical Hub-menu
+  // change raised a user-facing "✓ changed · Undo" chip whose Undo wrote
+  // the stale value back over the wire, exactly what confirm.js's contract
+  // ("MANUAL pushes … already have their own sync") forbids.
+  const pendingConfirm = r.type === 'MANUAL' ? null : captureWriteConfirm(endpoint, r.cmd);
   if (updates[endpoint]) updates[endpoint]();
   else if (!r.cmd.startsWith('DEBUG,')) {
     // When firmware adds an endpoint and this map doesn't know it, the response

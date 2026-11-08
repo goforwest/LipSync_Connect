@@ -24,7 +24,8 @@ import { gaugeDelta, recalcGaugeRange, gaugeMarks, resetPracticePeaks, suggestTh
 import { initWindowLadders } from './plotting/windows.js';
 
 import { setValue } from './ui/values.js';
-import { bindModeSwitch } from './services/mode-switch.js';
+import { bindModeSwitch, updateModeDisplay } from './services/mode-switch.js';
+import { modeState } from './state/modes.js';
 import { bindCalibration, resetCalibrationUi } from './services/calibration.js';
 import { loadDeviceInfo } from './services/settings-service.js';
 
@@ -175,6 +176,13 @@ const clearSessionUi = () => {
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
+  // 4.8.7 review: the OM/CM mode state is device-reported — a stale value
+  // from a previous device/session fed currentModeKey() in the Hub mirror
+  // and the btStatus readout until the next session's reads landed (or
+  // forever, if they failed). Clear with the session and re-render.
+  modeState.currentOpMode = null;
+  modeState.currentComMode = null;
+  updateModeDisplay();
   updateReadiness(); // no port: the strip hides itself
   autoLiveMode = null; // the device's debug mode dies with the port
   autoLivePending = false;

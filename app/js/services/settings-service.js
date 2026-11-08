@@ -910,6 +910,16 @@ export async function step(target, delta) {
 }
 
 export function updateStepButtons() {
+  // 4.8.7 review: a disconnect's setCmdButtons(false) disables everything,
+  // but an in-flight step's finally used to re-enable hardware-writing
+  // steppers with no port check — a click then died later at sendCommand's
+  // "Not connected". Every sibling path guards on the port; so does this.
+  if (!serialSession.port) {
+    document.querySelectorAll('button[data-step]').forEach((/** @type {any} */ b) => {
+      b.disabled = true;
+    });
+    return;
+  }
   document.querySelectorAll('button[data-step]').forEach((/** @type {any} */ b) => {
     const cfg = STEP_TARGETS[b.dataset.target];
     if (!cfg) return;

@@ -450,7 +450,7 @@ function createMenuFirmwareSim({ locked = false, hard = false } = {}) {
     543: 3,
     544: 3,
   };
-  const MORE_SELECT = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 0]; // Sound..Back
+  const MORE_SELECT = [51, 52, 53, 54, 552, 56, 57, 58, 59, 60, 0]; // Sound..Back (Full Calibration enters 552, the warning dwell)
   const advanceTransients = () => {
     const now = Date.now();
     if (st.page === 32 && now >= st.frozenUntil) {
@@ -458,8 +458,13 @@ function createMenuFirmwareSim({ locked = false, hard = false } = {}) {
       st.row = 0;
       st.frozenUntil = 0;
     }
+    if (st.page === 552 && now >= st.frozenUntil) {
+      st.page = 551; // fullCalibrationConfirmMenu (552 = the warning dwell)
+      st.row = 0;
+      st.frozenUntil = 0;
+    }
     if (st.page === 55 && now >= st.frozenUntil) {
-      st.page = 551; // fullCalibrationConfirmMenu
+      st.page = 0; // the calibration RUN page (55) ends at returnToMenu -> main menu
       st.row = 0;
       st.frozenUntil = 0;
     }
@@ -483,15 +488,24 @@ function createMenuFirmwareSim({ locked = false, hard = false } = {}) {
       case 5:
         st.page = MORE_SELECT[st.row];
         st.row = 0;
-        if (st.page === 55) st.frozenUntil = Date.now() + 3000; // the warning page
+        if (st.page === 552) st.frozenUntil = Date.now() + 3000; // the warning dwell (552 -> 551)
         break;
       case 31:
-      case 551:
       case 57:
         if (st.row === 1) {
           st.page = 0;
           st.row = 0;
         } // Back
+        break;
+      case 551:
+        if (st.row === 0) {
+          st.page = 55; // confirmation -> the calibration RUN page
+          st.row = 0;
+          st.frozenUntil = Date.now() + 2000; // its entry freeze
+        } else {
+          st.page = 5; // Back -> More
+          st.row = 0;
+        }
         break;
       case 54: {
         // Sip / Puff / Timing / (Hard Sip / Hard Puff on 4.7.0+) / Back.
@@ -739,6 +753,34 @@ test('a pushed unmapped page shows the honest notice instead of a guess', async 
   app.handleLine('MANUAL,0:CH,5:1,999,0'); // a page id the mirror predates
   assert.match(note(), /does not render/);
   assert.match(note(), /Select Open to resync/);
+  await app.disconnect({ quiet: true });
+  dev.detach();
+});
+
+// (4.9.0) the seven dwell pages the mirror used to park on the "does not
+// render" note (pages 11/33/34/552/572/623/624): each must render as itself
+// (the mapped screen, not the honest-notice fallback).
+test('the 4.9.0 dwell pages render as themselves, not the unmapped notice', async () => {
+  const dev = ackAll();
+  activeDev = dev;
+  resetWireNewlineFraming();
+  noteDeviceVersion('4.9.0');
+  await click('btnHubOpen');
+  await settle();
+  const pages = [
+    [11, /Exiting the menu/],
+    [33, /Changing mode/],
+    [34, /HOLD the row/],
+    [552, /may cause drift/],
+    [572, /erase all custom settings/],
+    [623, /Switching to the selected host/],
+    [624, /Bluetooth notice/],
+  ];
+  for (const [page, expected] of pages) {
+    app.handleLine(`MANUAL,0:CH,5:1,${page},0`);
+    assert.ok(!/does not render/.test(note()), `page ${page} must render as itself`);
+    assert.match(note(), expected, `page ${page} note`);
+  }
   await app.disconnect({ quiet: true });
   dev.detach();
 });

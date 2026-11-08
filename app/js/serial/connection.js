@@ -276,6 +276,7 @@ async function readLoop() {
   const decoder = new TextDecoder();
   const MAX_RECOVERY_ATTEMPTS = 3;
   let buffer = '';
+  let oversizeDropped = false; // one named note per read-loop lifetime for the unterminated-stream cap below
   let readClosed = false;
   let recovered = false;
   let recoveryAttempts = 0;
@@ -306,6 +307,18 @@ async function readLoop() {
         recoveryAttempts = 0;
         resetReadTimer(myGen);
         buffer += decoder.decode(value, { stream: true });
+        // 4.8.7 review: the buffer is only drained on a newline — a device
+        // streaming without terminators (wrong baud, wedged firmware)
+        // accumulated bytes without bound. Cap it: keep the tail (a line
+        // split across the cap still lands complete if a terminator ever
+        // arrives) and drop the head, once, with a named note.
+        if (buffer.length > 4096) {
+          if (!oversizeDropped) {
+            oversizeDropped = true;
+            log('Oversized unterminated line dropped (device streaming without line endings?)', 'log-err');
+          }
+          buffer = buffer.slice(-4096);
+        }
         let idx;
         while ((idx = buffer.search(/\r\n|\n/)) >= 0) {
           const line = buffer.slice(0, idx).trim();

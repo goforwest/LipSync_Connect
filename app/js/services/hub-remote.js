@@ -89,11 +89,13 @@ const FW_PAGE_TO_MIRROR = {
   542: 'puff', // PUFF_THRESH_MENU
   543: 'hardSip', // HARD_SIP_THRESH_MENU (4.7.0+, upstream #58)
   544: 'hardPuff', // HARD_PUFF_THRESH_MENU
-  55: 'fullCalibWarning', // FULL_CALIB_PAGE (the warning page)
+  55: 'fullCalibRunning', // FULL_CALIB_PAGE — the RUN page ("Follow on screen prompts"), not the warning (4.9.0: 552 is the warning)
   551: 'calConfirm', // FULL_CALIB_CONFIRM_PAGE
+  552: 'fullCalibWarning', // FULL_CALIB_WARN_PAGE — the 3 s "may cause drift" dwell (4.9.0: previously unmapped)
   56: 'restartConfirm', // RESTART_PAGE
   57: 'frConfirm', // FACTORY_RESET_PAGE (confirm 1)
   571: 'frConfirm2', // FACTORY_RESET_CONFIRM2_PAGE (confirm 2)
+  572: 'frWarn', // FACTORY_RESET_WARN_PAGE — the 2 s "erase all custom settings" dwell (4.9.0: previously unmapped)
   58: 'info', // INFO_MENU
   59: 'accel', // ACCEL_MENU
   60: 'restrictions', // RESTRICTIONS_MENU
@@ -102,6 +104,11 @@ const FW_PAGE_TO_MIRROR = {
   62: 'btHosts', // BT_HOSTS_MENU (4.8.0+, upstream #16)
   621: 'btSwitchConfirm', // BT_SWITCH_CONFIRM_PAGE
   622: 'btForgetList', // BT_FORGET_LIST_PAGE
+  623: 'btSwitching', // BT_SWITCHING_PAGE — the 2 s switch dwell (4.9.0: previously unmapped)
+  624: 'btNote', // BT_NOTE_PAGE — every BT refusal/pairing note (4.9.0: previously unmapped)
+  11: 'exiting', // EXITING_PAGE — the ~500 ms exit dwell (4.9.0: previously unmapped)
+  33: 'changingMode', // CHANGING_MODE_PAGE — the mode-change dwell, then a restart (4.9.0: previously unmapped)
+  34: 'holdNote', // HOLD_CONFIRM_NOTE_PAGE (4.8.3) — "Too short: HOLD the row to confirm" (4.9.0: previously unmapped)
 };
 
 // Device pages that advance THEMSELVES after a fixed dwell (scheduled
@@ -112,7 +119,9 @@ const FW_PAGE_TO_MIRROR = {
 const FW_TRANSIENT_PAGE_MS = {
   32: 2000 + 600, // modeLockedPage → modeMenu (finishModeLocked)
   21: 2500 + 700, // centerResetPage → centerResetCompletePage → main menu
-  55: 3000 + 600, // fullCalibrationPage → fullCalibrationConfirmPage
+  55: 3000 + 600, // fullCalibrationPage is the RUN page (~26 s of prompted corner captures); each poll re-arms while the page stays 55, and the run ends at returnToMenu → main menu
+  552: 3000 + 600, // fullCalibWarnPage → fullCalibrationConfirmPage (screenFullCalibConfirmTransitionDone)
+  34: 2000 + 600, // holdConfirmNotePage → the saved confirm page (finishHoldConfirmNote, 4.8.3)
   11: 500 + 600, // exitingPage → menu closes (screenExitTransitionDone) — the next CH,0:0 answers active=0
   33: 2000 + 600, // changingModePage → softwareReset (the poll fails while the port re-enumerates; reconnect re-syncs)
   623: 2000 + 600, // btSwitchingPage → btHostsMenu (finishBtSwitch, upstream #16)
@@ -409,9 +418,7 @@ const SCREENS = {
       // 4.8.0+ (upstream #16): the Bluetooth host page. The mirror shows a
       // read-only note — enumerating bonds from here would race the device's
       // own list rendering; the Bluetooth card is the full surface.
-      ...(deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE)
-        ? [{ label: 'Bluetooth', select: () => go('btHosts') }]
-        : []),
+      ...(deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE) ? [{ label: 'Bluetooth', select: () => go('btHosts') }] : []),
       { label: '... Back', select: () => go('main') },
     ],
   }),
@@ -684,6 +691,43 @@ const SCREENS = {
     items: [],
     note: 'Incorrect full calibration may cause drift. The confirm page follows…',
   }),
+  // (4.9.0) the calibration RUN page (firmware 55) — the prompts the device
+  // shows while the corners are captured; the warning dwell (552) follows.
+  fullCalibRunning: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'Calibration running — follow the prompts on the Hub screen. Do not move the joystick unless prompted.',
+  }),
+  frWarn: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'This will erase all custom settings. The confirm page follows…',
+  }),
+  btSwitching: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'Switching to the selected host — the Hub returns to the host list in a moment.',
+  }),
+  btNote: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'The Hub is showing a Bluetooth notice. It returns to the host list in a moment.',
+  }),
+  exiting: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'Exiting the menu…',
+  }),
+  changingMode: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'Changing mode — the device restarts. Reconnect to continue.',
+  }),
+  holdNote: () => ({
+    header: 'Running on device',
+    items: [],
+    note: 'Too short: HOLD the row to confirm. Returning to the page in a moment.',
+  }),
   safeModeOptions: () => ({
     header: 'Safe mode',
     items: [],
@@ -807,8 +851,27 @@ function applyMenuState(value) {
   closeGraceUntil = 0;
   const screenId = FW_PAGE_TO_MIRROR[page];
   if (screenId === undefined) {
-    // An unmapped page (future firmware, or a page this mirror predates):
-    // say so honestly instead of guessing wrong.
+    // An unmapped page (future firmware, or a page this mirror predates).
+    // (4.9.0) if the device advances it on its own schedule, show a
+    // following-note and poll at the dwell — the old early-return sat BEFORE
+    // the transient lookup, which made the whole FW_TRANSIENT_PAGE_MS map
+    // unreachable dead code for anything not already in the page map. Only
+    // a page with no mapping AND no dwell gets the honest "does not render"
+    // note.
+    const unmappedDwell = FW_TRANSIENT_PAGE_MS[page];
+    if (unmappedDwell) {
+      // No closeGrace guard here on purpose: the grace is cleared above for
+      // every reachable active page (4.9.0 round-2 review — a guard here
+      // tested a value just zeroed, i.e. tautological dead code).
+      noteText = 'The Hub is showing a transitional page. Following along…';
+      go('busyScreen');
+      syncTimer = setTimeout(() => {
+        syncTimer = 0;
+        syncMenuFromDevice();
+      }, unmappedDwell);
+      return;
+    }
+    // Say so honestly instead of guessing wrong.
     noteText = 'The Hub is showing a page this remote does not render. Select Open to resync.';
     go('busyScreen');
     return;
