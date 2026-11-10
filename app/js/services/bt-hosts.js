@@ -124,7 +124,13 @@ export function applyBluetoothPush(cmd, value) {
 
 /** Fetch the full host table from the firmware. Returns the rows in
  * enumeration order, or [] when the endpoint is unavailable (firmware <
- * 4.8.0) or the port is gone. */
+ * 4.8.0) or the port is gone. 4.9.1: the rebuild is COMMIT-ATOMIC — the old
+ * shape cleared the rows and set the count BEFORE the row reads, so one
+ * failed row read (a forget shrinking the bond set mid-load) left a
+ * count-without-rows state the poller would not repair (its lastCount now
+ * equals the stale count, so no refetch until the count changed AGAIN), and
+ * the final applyHostCount could also clobber a fresher MANUAL BT,4 push
+ * that landed while the rows were being read. */
 export async function loadBluetoothHostTable() {
   if (!serialSession.port || !deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE)) return [];
   try {
@@ -132,18 +138,39 @@ export async function loadBluetoothHostTable() {
     const countResp = await sendCommand('BT,0:0');
     const count = Number(countResp.value);
     if (!Number.isInteger(count) || count < 0) return [];
-    btHostTable.rows = {};
-    btHostTable.count = count;
+    // The count read's own line dispatch has applied the count by now
+    // (device.js feeds every line through the push handlers) — snapshot it
+    // HERE: a MANUAL BT,4 push landing during the ROW loop is what changes
+    // it, and that is the race the commit guard below exists for.
+    const countAfterRead = btHostTable.count;
+    // Build the snapshot in scratch; the live table stays intact until every
+    // row has landed.
+    const scratchRows = {};
     for (let i = 1; i <= count; i++) {
       const p = await sendCommand(`BT,0:${i}`);
-      applyHostRow(p.value);
+      const row = parseHostRow(p.value);
+      if (!row) {
+        noisyLineLog('BT,0 row parse failed: ' + p.value);
+        continue;
+      }
+      scratchRows[row.i] = row;
     }
+    if (btHostTable.count !== countAfterRead) {
+      // A MANUAL BT,4/BT,5 push landed mid-load (a physical forget/pair on
+      // the Hub): the push owns fresher state — do not clobber it with this
+      // polled snapshot. The poller's count-change check refetches.
+      return [];
+    }
+    btHostTable.rows = scratchRows;
     applyHostCount(String(count));
+    renderHostList(); // applyHostCount only re-renders on a count CHANGE; the refreshed rows must render either way
     return Object.keys(btHostTable.rows)
       .map(Number)
       .sort((a, b) => a - b)
       .map((i) => btHostTable.rows[i]);
   } catch (e) {
+    // The previous table stands (stale but CONSISTENT — count matches rows);
+    // the poller heals when the device count next differs.
     noisyLineLog('BT host table load failed: ' + e.message);
     return [];
   }

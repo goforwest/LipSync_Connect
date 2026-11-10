@@ -203,3 +203,38 @@ test('a pre-4.8.0 device keeps the mirror empty and the card surface hidden', as
   assert.deepEqual(await bt.loadBluetoothHostTable(), []);
   assert.equal(bt.btHostTable.count, 0);
 });
+
+test('4.9.1: a failed row read leaves the PREVIOUS table intact (commit-atomic load)', async () => {
+  identify('4.8.0');
+  bt.resetBluetoothHostsUi();
+  // Load a healthy 2-host table first.
+  const good = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice(
+    firmware48([
+      ['AABBCCDDEEFF', 1],
+      ['112233445566', 0],
+    ]),
+  );
+  await bt.loadBluetoothHostTable();
+  assert.equal(bt.btHostTable.count, 2);
+  assert.equal(bt.btHostTable.rows[2].mac, '112233445566'); // MAC-as-name: parseHostRow records it as mac
+  good.detach();
+  // Now a row read FAILS mid-load (a forget shrank the bond set between the
+  // count read and BT,0:2). The old shape had already committed
+  // count-without-rows and the poller would not repair it; the load must
+  // leave the previous CONSISTENT table standing.
+  const flaky = createDeviceSimulator({ handleLine: app.handleLine }).attachDevice((text) => {
+    if (text === 'BT,0:2') return [{ delay: 2, line: 'FAIL,3:BT,0' }];
+    return firmware48([
+      ['AABBCCDDEEFF', 1],
+      ['112233445566', 0],
+    ])(text);
+  });
+  try {
+    const loaded = await bt.loadBluetoothHostTable();
+    assert.equal(loaded.length, 0, 'the failed load reports no rows');
+    assert.equal(bt.btHostTable.count, 2, 'the previous count stands');
+    assert.equal(bt.btHostTable.rows[2].mac, '112233445566', 'the previous row stands');
+  } finally {
+    flaky.detach();
+  }
+});

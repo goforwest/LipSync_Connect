@@ -41,6 +41,11 @@ const seedSettings = () => {
     w1Val: '600',
     w2Val: '1000',
     w3Val: '2500',
+    // 4.9.1: OM/CM are core endpoints the restore promises to write back —
+    // a live device load always populates them, so the snapshot seed must
+    // too (a failed OM/CM load legitimately FAILS the snapshot now).
+    opmode: 'Mouse',
+    commode: 'USB',
   };
   for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
 };

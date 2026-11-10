@@ -561,8 +561,15 @@ export function captureSettingsSnapshot() {
     }
     snapshot[ep] = value;
   }
+  // 4.9.1: OM/CM are CORE endpoints (every firmware answers them) — a null
+  // here means the read failed to load, and the restore promises to write
+  // the mode back. The old silent-null shape restored "settings" with the
+  // device left in the NEW firmware's default mode while the panel claimed
+  // success (a Gamepad/BT user silently reverted to Mouse USB).
   snapshot.OM = labelToValue(OP_MODES, ($('opmode')?.textContent || '').trim());
+  if (snapshot.OM === null) missing.push('Operating mode');
   snapshot.CM = labelToValue(COM_MODES, ($('commode')?.textContent || '').trim());
+  if (snapshot.CM === null) missing.push('Communication mode');
   snapshot.CA = [$('neutralVal'), $('corner1'), $('corner2'), $('corner3'), $('corner4')]
     .map((el) => (el?.textContent || '').trim())
     .join(',');
@@ -2489,7 +2496,17 @@ async function finishPendingUpdate(pending) {
         if (wantedCm && wantedCm !== currentCm) commands.push('CM,1:' + wantedCm);
         if (wantedOm === '2') commands.reverse();
         for (const command of commands) await sendCommand(command, CMD_MODE_TIMEOUT);
-        await sendCommand('SR,1:1', CMD_RESET_TIMEOUT);
+        // 4.9.1: the final SR is best-effort on this path — on legacy firmware
+        // an ACTUAL mode change acks and then the setter's own softwareReset()
+        // reboots the device, so the SR's handshake times out (~8 s) against a
+        // departing port and the old shape turned the SUCCESS into
+        // "the operating mode could not be restored" + a dead-session recovery
+        // chase. The mode DID apply; tolerate the reset race and move on.
+        try {
+          await sendCommand('SR,1:1', CMD_RESET_TIMEOUT);
+        } catch {
+          log('The device restarted itself while applying the mode (legacy flow) — the mode is set.', 'log-info');
+        }
       }
       log('Operating mode restored — the device reboots to apply it. Reconnect once more.', 'log-info');
       // Keep the wizard (and its snapshot for the backup button) across the

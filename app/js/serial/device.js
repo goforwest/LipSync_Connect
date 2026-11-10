@@ -168,7 +168,10 @@ export function applyDeviceResponse(line) {
       plotRawXY(p[0], p[1]);
     },
     SR: () => log('Device acknowledged restart (SR). Restart in progress…', 'log-info'),
-    SE: () => log('Device acknowledged settings commit (SE).', 'log-info'),
+    // 4.9.1: the RS ack used to fall into the unknown-endpoint branch — every
+    // successful "Restore default settings" logged a firmware-mismatch-style
+    // warning naming a healthy operation as a protocol gap.
+    RS: () => log('Device acknowledged settings reset (RS). Defaults restored…', 'log-info'),
     // BH answers a 13+ value array (the app's health check parses the first
     // six; the tail is the HID telemetry a bench reads raw). Acknowledge the
     // response so the command transcript does not log it as unrecognized

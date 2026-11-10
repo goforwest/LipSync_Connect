@@ -41,6 +41,7 @@
 import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
+import { serialSession } from '../serial/session.js'; // 4.9.1: the sync-retry must stop against a dead port
 import { modeState } from '../state/modes.js';
 import {
   WINDOW_SETTINGS,
@@ -60,6 +61,7 @@ let timingWindowSel = 0; // which window the Timing adjust screen edits (0/1/2 =
 let syncTimer = 0; // pending follow-up CH,0:0 poll (transient device pages)
 let closeGraceUntil = 0; // ms-timestamp: an exit is in flight; don't reopen the mirror on the transitional state
 let syncFailureLogged = false; // one log line per session is enough for a failing sync
+let syncRetryTimer = 0; // 4.9.1: the bounded single retry for a failed sync poll (kept alive only while the session is)
 
 // The firmware version whose CH,0:0 menu-state read exists. The endpoint is
 // NEVER sent to older firmware (it would FAIL and log noise); those devices
@@ -900,21 +902,34 @@ function applyMenuState(value) {
 // syncMenuFromDevice(): re-read the live menu state and reconcile. Fired
 // after every press (and after transient dwells); failures are swallowed —
 // the optimistic model stands, and the next press retries the sync.
+// 4.9.1: a failure also schedules ONE bounded retry (2 s) — a single timed-out
+// CH,0:0 used to kill a transient page's whole dwell-poll chain (the ~26 s
+// calibration run re-arms every 3.6 s; one timeout froze the mirror on the
+// running page until the next physical press).
 function syncMenuFromDevice() {
   // Never sent to older firmware (the gate reads [4, 5, 1] tuple-typed).
   if (!deviceFirmwareAtLeast(MENU_STATE_MIN_FIRMWARE[0], MENU_STATE_MIN_FIRMWARE[1], MENU_STATE_MIN_FIRMWARE[2]))
     return;
   sendCommand('CH,0:0')
     .then((resp) => {
-      applyMenuState(resp?.value);
       syncFailureLogged = false;
+      syncRetryTimer = 0;
+      applyMenuState(resp?.value);
     })
     .catch((e) => {
       // The mirror keeps its optimistic state; one log line per session
-      // notes the device stopped answering the sync read.
+      // notes the device stopped answering the sync read. A session that is
+      // actually gone stops here — no retry churn against a dead port.
+      if (!serialSession.port) return;
       if (!syncFailureLogged) {
         syncFailureLogged = true;
         log('Hub menu state read failed — the mirror may be out of sync until the next press. ' + e.message, 'log-err');
+      }
+      if (!syncRetryTimer) {
+        syncRetryTimer = setTimeout(() => {
+          syncRetryTimer = 0;
+          syncMenuFromDevice();
+        }, 2000);
       }
     });
 }
@@ -993,6 +1008,8 @@ export function resetHubRemote() {
   closeMirror();
   clearTimeout(syncTimer);
   syncTimer = 0;
+  clearTimeout(syncRetryTimer);
+  syncRetryTimer = 0;
   closeGraceUntil = 0;
   syncFailureLogged = false;
   const err = $('hubRemoteError');
@@ -1091,9 +1108,18 @@ export function bindHubRemote(guard) {
       await press('close', '4');
       closeMirror();
       closeGraceUntil = Date.now() + 1500; // the device's "Exiting" page takes ~500 ms to close
-      // No sync poll here: the device's deactivateMenu() is unconditional,
-      // and re-reading inside its exit dwell would briefly reopen the
-      // mirror on the transitional EXIT_MENU state.
+      // No sync poll INSIDE the grace (re-reading during the exit dwell would
+      // briefly reopen the mirror on the transitional EXIT_MENU state) — but
+      // the old "the device's deactivateMenu() is unconditional" claim was
+      // false: closeMenu() no-ops while a scheduled transition or dwell owns
+      // the display, and the firmware still acks SUCCESS. A dropped close
+      // left the Hub menu open and navigable while the mirror showed closed,
+      // with no CH,5 push until the next redraw. 4.9.1: verify after the
+      // grace lapses — a genuinely closed menu answers active=0 (the mirror
+      // stays closed) and a dropped one reopens the mirror on the real page.
+      setTimeout(() => {
+        if (Date.now() >= closeGraceUntil) syncMenuFromDevice();
+      }, 1700);
     }),
   );
 }

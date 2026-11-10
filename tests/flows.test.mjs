@@ -384,6 +384,34 @@ test('mid-calibration disconnect clears corner/dot state and leaves a clean retr
   }
 });
 
+test('a mid-calibration abort fails fast on the terminal FAIL,3:CA,1 line (4.9.1)', async () => {
+  // The firmware's abortJoystickCalibration emits ERROR + FAIL,3:CA,1:1 as
+  // the TERMINAL line for every abort. A failure at corner 2 used to match
+  // no waiter — the app sat at "Step 2 of 6" for the full 45 s while the
+  // user kept pushing a corner the device had already abandoned. The
+  // corner-2..4 waiters now fail fast on it.
+  const { sent, detach } = launch((text) => {
+    if (text === 'SETTINGS') return [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }];
+    if (text === 'CA,1:1') return [{ delay: 5, line: 'SUCCESS,0:CA,1:-12.00|12.00' }];
+    return [];
+  });
+  app.setConnectedUI(true);
+  click('btnCalibrate');
+  await sleep(60); // corner-1 capture line lands; corner-2 waiter registers
+  // The device aborts mid-corner-2 (a persistence failure): the terminal
+  // FAIL line + the ERROR narration. NO corner-2 SUCCESS ever arrives.
+  app.handleLine('ERROR: calibration aborted: corner persistence failed');
+  app.handleLine('FAIL,3:CA,1:1');
+  await sleep(30);
+  detach();
+  assert.deepEqual(sent, ['SETTINGS', 'CA,1:1'], 'no read-back was sent after the abort');
+  assert.match(
+    doc.getElementById('calStatus').textContent,
+    /Calibration did not complete.*aborted by the device/,
+    'the flow failed fast with the abort reason, not a 45 s timeout',
+  );
+});
+
 // ---- Dead-link diagnosis: open port, zero answers -----------------------
 
 const { getLogHistory } = await import('../app/js/services/log.js');

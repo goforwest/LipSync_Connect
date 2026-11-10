@@ -107,10 +107,23 @@ export function bindCalibration(guard) {
           if (corner === 1) {
             await startCal; // resolves on the async CA,1 capture line
           } else {
-            await waitLine((l) => {
-              const r = parseResponse(l);
-              return r && r.ok && r.cmd === 'CA,' + corner;
+            // 4.9.1: the abort contract is fail-fast, not 45 s of holding the
+            // pose. The firmware's abortJoystickCalibration emits
+            // FAIL,3:CA,1:1 as its TERMINAL line for EVERY abort (corner
+            // persistence failure, timer refusal, …) plus the ERROR narration
+            // line; only the CA,1 waiter (via sendCommand) matched it — a
+            // failure at corners 2-4 matched nothing, and the app sat at
+            // "Step N of 6" for the full CMD_CALIBRATE_TIMEOUT with the user
+            // still pushing the corner the device had already abandoned.
+            const abortLine = await waitLine((l) => {
+              const p = parseResponse(l);
+              return p && ((p.ok && p.cmd === 'CA,' + corner) || (!p.ok && p.cmd === 'CA,1'));
             }, CMD_CALIBRATE_TIMEOUT);
+            // waitLine resolves with the raw LINE — parse it before judging.
+            const abortParsed = parseResponse(abortLine);
+            if (!abortParsed || !abortParsed.ok) {
+              throw new Error('Calibration aborted by the device — see the log for the reason.');
+            }
           }
           cornerState(corner, 'captured');
           setCalStep(corner, 'done');
@@ -125,10 +138,18 @@ export function bindCalibration(guard) {
         // Step 5 (re-center) is still running on the device here; advance the
         // strip to step 6 only once the IN,1 line confirms re-centering ended,
         // so the strip never runs ahead of what the device is doing.
-        await waitLine((l) => {
+        // 4.9.1: the abort terminal line (FAIL,3:CA,1:1) is matched here too —
+        // an abort during the re-center step used to strand this waiter for
+        // the full timeout.
+        const recenterLine = await waitLine((l) => {
           const r = parseResponse(l);
-          return r && r.ok && r.cmd === 'IN,1';
+          return r && ((r.ok && r.cmd === 'IN,1') || (!r.ok && r.cmd === 'CA,1'));
         }, CMD_CALIBRATE_TIMEOUT);
+        // waitLine resolves with the raw LINE — parse it before judging.
+        const recenter = parseResponse(recenterLine);
+        if (!recenter || !recenter.ok) {
+          throw new Error('Calibration aborted by the device — see the log for the reason.');
+        }
         setCalStep(6, 'active');
         $('calStatus').textContent = 'Step 6 of 6: hold the mouthpiece still — verifying stored calibration\u2026';
         const check = await sendCommand('CA,0:0');

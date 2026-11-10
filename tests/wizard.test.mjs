@@ -89,6 +89,10 @@ const seedLoadedSettings = () => {
     w1Val: '600',
     w2Val: '1000',
     w3Val: '2500',
+    // 4.9.1: OM/CM are core endpoints the snapshot requires (a live load
+    // always populates them; a failed one fails the snapshot by design).
+    opmode: 'Mouse',
+    commode: 'USB',
   };
   for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
 };

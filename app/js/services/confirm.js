@@ -76,6 +76,11 @@ const ENDPOINTS = (() => {
     t[cfg.endpoint] = { label: VALUE_LABELS[cfg.valueId], kind: 'int', valueId: cfg.valueId };
   t.ST = { label: VALUE_LABELS.sipVal, kind: 'hpa', valueId: 'sipVal' };
   t.PT = { label: VALUE_LABELS.puffVal, kind: 'hpa', valueId: 'puffVal' };
+  // 4.9.1: the hard band's thresholds are hPa floats exactly like ST/PT —
+  // the old int-typing made the chip show the padded echo ("10.25 → 10.250")
+  // and the undo wire the raw readout text.
+  t.HS = { label: VALUE_LABELS.hardSipVal, kind: 'hpa', valueId: 'hardSipVal' };
+  t.HP = { label: VALUE_LABELS.hardPuffVal, kind: 'hpa', valueId: 'hardPuffVal' };
   t.IZ = { label: VALUE_LABELS.innerDeadzoneVal, kind: 'float', valueId: 'innerDeadzoneVal' };
   t.OZ = { label: VALUE_LABELS.outerDeadzoneVal, kind: 'float', valueId: 'outerDeadzoneVal' };
   t.SM = {
