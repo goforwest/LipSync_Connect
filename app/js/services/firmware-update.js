@@ -704,12 +704,28 @@ export function setRestoreSettleForTests(ms) {
   restoreSettleMs = ms;
 }
 
+// Whole-restore-burst serialization (4.8.7 review): the wizard's post-flash
+// restore and a profile Apply are two bursts over the same endpoints. Run
+// concurrently they interleave through the shared command queue
+// (last-writer-per-endpoint wins), so the "settings restored" report could
+// describe a state the other burst immediately overwrote. Chaining makes a
+// queued burst run AFTER the running one, in order; the chain survives
+// failures so one refused restore never wedges the next.
+let restoreChain = /** @type {Promise<any>} */ (Promise.resolve());
+
 /**
  * Re-applies a snapshot's writable settings over the serial API. Float
  * endpoints are normalized through fmtApiFloat so every write lands on a
  * line length the firmware validator accepts. Returns the failures.
+ * Serialized against other restores (see restoreChain above).
  */
 export async function restoreSettingsSnapshot(snapshot) {
+  const run = /** @type {Promise<any[]>} */ (restoreChain.then(() => restoreSettingsSnapshotInner(snapshot)));
+  restoreChain = /** @type {Promise<any>} */ (run.catch(() => {}));
+  return run;
+}
+
+async function restoreSettingsSnapshotInner(snapshot) {
   const failures = [];
   // The restore writes what the CONNECTED device can hold, not everything
   // the snapshot carries: a snapshot taken on newer firmware (the natural
@@ -2306,18 +2322,20 @@ export async function flashLocalFile(file) {
  */
 export async function afterDeviceLoad() {
   clearBootloaderStranded();
+  // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): load the
+  // paired-host table and start keeping it in sync with the device. Older
+  // devices simply skip it — nothing is required for the rest of the page to
+  // work. Bound BEFORE the pending-update branch (4.8.7 review): the
+  // finishPendingUpdate early-return used to skip both calls, leaving the BT
+  // card hidden for the entire first post-update session.
+  const { bindBluetoothHosts, startBtHostsPoller } = await import('./bt-hosts.js');
+  bindBluetoothHosts();
+  startBtHostsPoller();
   const pending = readPending();
   if (pending?.installed) {
     await finishPendingUpdate(pending);
     return;
   }
-  // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): load the
-  // paired-host table and start keeping it in sync with the device. Older
-  // devices simply skip it — nothing is required for the rest of the page to
-  // work.
-  const { bindBluetoothHosts, startBtHostsPoller } = await import('./bt-hosts.js');
-  bindBluetoothHosts();
-  startBtHostsPoller();
   // The page may have died mid-flash (reload, crash, tab close): the
   // bootloader finishes the update on its own, so a device already running
   // the target version with an unmarked pending update is a completed

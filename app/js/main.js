@@ -35,7 +35,14 @@ import { readCalibration, setDeadzone, setSimpleSetting, requireNumber, step } f
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
 import { showNotification } from './ui/notification.js';
-import { openSectionById, openGroupById, getOpenSection, getNavigationTarget, onSectionChange } from './ui/sections.js';
+import {
+  openSectionById,
+  openGroupById,
+  closeCurrentSection,
+  getOpenSection,
+  getNavigationTarget,
+  onSectionChange,
+} from './ui/sections.js';
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
@@ -492,6 +499,14 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   document.querySelectorAll('[data-open-section]').forEach((/** @type {any} */ btn) => {
     btn.addEventListener('click', () => openSectionById(btn.dataset.openSection));
+  });
+
+  // Card "×" close buttons (4.8.7 review): the sixteen .card-close buttons
+  // in index.html had no handler — clicking "×" did nothing. Bind them to
+  // the nav's own close path so the wizard mid-flight refusal and the URL
+  // sync behave identically.
+  document.querySelectorAll('.card-close').forEach((/** @type {any} */ btn) => {
+    btn.addEventListener('click', () => closeCurrentSection());
   });
 
   // Single Escape handler

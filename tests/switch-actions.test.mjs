@@ -132,6 +132,57 @@ test('a 4.5.0 device loads the six switch mappings into the selects', async () =
   testHooks.detach();
 });
 
+test('gamepad switch selects omit the firmware-forbidden Drag/Scroll cells (4.8.7 review)', () => {
+  // The mouse column offers the full palette…
+  const mouseValues = byId('swSA0').querySelectorAll('option').map((o) => o.value);
+  assert.ok(mouseValues.includes('4'), 'mouse palette keeps Drag');
+  assert.ok(mouseValues.includes('5'), 'mouse palette keeps Scroll');
+  // …the gamepad column omits exactly 4 and 5: the firmware's gamepad remap
+  // forbids those cells (CONF_SWITCH_REMAP_GAMEPAD_FORBIDDEN) and answers
+  // FAIL,3 — offering them was a guaranteed-rejected write.
+  for (const prefix of ['swGA', 'swGB', 'swGC']) {
+    for (let i = 0; i < 3; i++) {
+      const values = byId(prefix + i)
+        .querySelectorAll('option')
+        .map((o) => o.value);
+      assert.ok(!values.includes('4'), prefix + i + ' must omit Drag');
+      assert.ok(!values.includes('5'), prefix + i + ' must omit Scroll');
+      assert.ok(values.includes('6') && values.includes('19'), prefix + i + ' keeps gamepad actions');
+    }
+  }
+});
+
+test('a gamepad cell that somehow carries Drag shows it honestly instead of blanking (4.8.7 review)', () => {
+  // No living firmware can store 4/5 in a gamepad cell (the setter refuses),
+  // but a foreign snapshot could surface one — the select must show it, not
+  // fall to an unmatched value.
+  applySwitchActionValue('GA', '4,8,19');
+  const sel = byId('swGA0');
+  assert.equal(sel.value, '4');
+  const opt = sel.querySelectorAll('option').find((o) => o.value === '4');
+  assert.ok(opt, 'the forbidden value gets a display option');
+  assert.equal(opt.textContent, 'Drag');
+});
+
+test('two restore bursts never interleave — the second starts only after the first (4.8.7 review)', async () => {
+  // The wizard's post-flash restore and a profile Apply are two bursts over
+  // the same endpoints; run concurrently through the shared queue they used
+  // to interleave (last-writer-per-endpoint wins), so the report could
+  // describe a state the other burst overwrote. The restore chain must
+  // serialize: every write of burst 1 precedes every write of burst 2.
+  resetWireNewlineFraming();
+  const sent = launchDevice({});
+  const first = restoreSettingsSnapshot({ SS: '6', SL: '4' });
+  const second = restoreSettingsSnapshot({ SS: '7', SL: '8' });
+  const [f1, f2] = await Promise.all([first, second]);
+  assert.deepEqual(f1, []);
+  assert.deepEqual(f2, []);
+  const writes = sent.filter((l) => /^(?:SS|SL),1:/.test(l));
+  assert.deepEqual(writes, ['SS,1:6', 'SL,1:4', 'SS,1:7', 'SL,1:8'], 'bursts run whole, in arrival order');
+  await app.disconnect({ quiet: true });
+  testHooks.detach();
+});
+
 test('older firmware never sees the switch endpoints — the card says why', async () => {
   resetWireNewlineFraming();
   resetSwitchActionsUi();

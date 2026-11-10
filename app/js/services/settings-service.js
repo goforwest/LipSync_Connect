@@ -15,6 +15,7 @@ import {
   SWITCH_ACTIONS_MIN_FIRMWARE,
   SWITCH_ACTION_OPTIONS,
   SWITCH_ACTION_PACK_BASE,
+  GAMEPAD_FORBIDDEN_ACTIONS,
   HARD_BAND_MIN_FIRMWARE,
   HARD_ACTION_SETTINGS,
   HARD_MARGIN_HPA,
@@ -270,10 +271,14 @@ function switchSettingByEndpoint(endpoint) {
   return SWITCH_SETTINGS.find((s) => s.endpoint === endpoint) ?? null;
 }
 
-/** Fills one window select's options from the shared action palette. */
-function populateSwitchSelect(sel) {
+/** Fills one window select's options from the shared action palette.
+ * Gamepad-column selects (4.8.7 review) omit GAMEPAD_FORBIDDEN_ACTIONS:
+ * the firmware's gamepad remap forbids exactly those cells and answers
+ * FAIL,3 — offering them was a guaranteed-rejected write. */
+function populateSwitchSelect(sel, gamepad = false) {
   if (!sel || sel.options?.length) return;
   for (const [value, label] of Object.entries(SWITCH_ACTION_OPTIONS)) {
+    if (gamepad && GAMEPAD_FORBIDDEN_ACTIONS.has(Number(value))) continue;
     const opt = document.createElement('option');
     opt.value = value;
     opt.textContent = label;
@@ -284,7 +289,7 @@ function populateSwitchSelect(sel) {
 /** Populates every switch-action select (called once at startup wiring). */
 export function populateSwitchActionSelects() {
   for (const s of SWITCH_SETTINGS) {
-    for (let i = 0; i < s.windowLabels.length; i++) populateSwitchSelect($(s.selectPrefix + i));
+    for (let i = 0; i < s.windowLabels.length; i++) populateSwitchSelect($(s.selectPrefix + i), s.mode === 'gamepad');
   }
 }
 
@@ -317,13 +322,18 @@ export function applySwitchActionValue(endpoint, value) {
   cells.forEach((c, i) => {
     const sel = $(s.selectPrefix + i);
     if (!sel) return;
-    populateSwitchSelect(sel);
-    if (!(String(c) in SWITCH_ACTION_OPTIONS)) {
-      // A future firmware action the palette doesn't know: show it honestly
-      // rather than silently blanking the mapping.
+    const gamepad = s.mode === 'gamepad';
+    populateSwitchSelect(sel, gamepad);
+    // Honest display for a value the populated palette omits: a future
+    // firmware action the palette doesn't know, OR (4.8.7 review) a
+    // gamepad-cell Drag/Scroll that no living firmware can store but a
+    // snapshot/downgrade could surface — show it rather than blanking the
+    // select by assigning a value with no matching option.
+    if (!(String(c) in SWITCH_ACTION_OPTIONS) || (gamepad && GAMEPAD_FORBIDDEN_ACTIONS.has(c))) {
+      const known = String(c) in SWITCH_ACTION_OPTIONS;
       const opt = document.createElement('option');
       opt.value = String(c);
-      opt.textContent = `Action #${c}`;
+      opt.textContent = known ? SWITCH_ACTION_OPTIONS[c] : `Action #${c}`;
       sel.appendChild(opt);
     }
     sel.value = String(c);

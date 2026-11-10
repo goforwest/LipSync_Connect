@@ -359,6 +359,12 @@ export const PRESS_THRESHOLD_LEVELS = [2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 22.0
 /** @type {[number, number, number]} */
 export const SWITCH_ACTIONS_MIN_FIRMWARE = [4, 5, 0];
 export const SWITCH_ACTION_PACK_BASE = 100000;
+
+// Gamepad-column switch remaps forbid Drag and Scroll (firmware
+// CONF_SWITCH_REMAP_GAMEPAD_FORBIDDEN = {4,5}: the gamepad HID has no drag
+// or scroll output — setSwitchAction answers FAIL,3 for them). The gamepad
+// selects omit these choices; the mouse-column palette keeps the full list.
+export const GAMEPAD_FORBIDDEN_ACTIONS = new Set([4, 5]);
 export const SWITCH_ACTION_OPTIONS = {
   0: 'Nothing',
   1: 'Left click',
