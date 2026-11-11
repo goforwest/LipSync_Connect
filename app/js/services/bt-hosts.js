@@ -30,6 +30,7 @@ import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
 import { log, noisyLineLog } from '../services/log.js';
 import { $ } from '../ui/dom.js';
+import { showConfirm } from '../ui/formatting.js';
 // Single source of truth for the gate (constants.js): hub-remote's mirror and
 // the firmware↔Connect protocol cross-check both read THIS copy — a second
 // local number here could drift and split the card's gate from the mirror's.
@@ -337,8 +338,14 @@ function renderHostList() {
     forget.className = 'btn-small';
     forget.textContent = 'Forget';
     forget.addEventListener('click', async () => {
-      const label = row.name || row.mac;
-      if (!confirm(`Forget ${label}? It is removed from the device and must pair again.`)) return;
+      if (
+        !(await showConfirm(
+          'Forget host',
+          'Forget this paired host? It is removed from the device and must pair again.',
+          { danger: true },
+        ))
+      )
+        return;
       forget.disabled = true;
       forget.textContent = 'Forgetting…';
       try {
@@ -395,7 +402,14 @@ function bindBluetoothControls() {
     forgetBtn.addEventListener('click', async () => {
       const n = btHostTable.count;
       if (n < 1) return;
-      if (!confirm(`Forget all ${n} paired host${n === 1 ? '' : 's'} on this device? Each must pair again.`)) return;
+      if (
+        !(await showConfirm(
+          'Forget all hosts',
+          `Forget all ${n} paired host${n === 1 ? '' : 's'} on this device? Each must pair again.`,
+          { danger: true },
+        ))
+      )
+        return;
       forgetBtn.disabled = true;
       forgetBtn.textContent = 'Forgetting…';
       try {
