@@ -40,7 +40,7 @@ npm test                # unit + integration tests (node)
 npm run test:e2e        # real-browser offline precache test (Playwright Chromium required:
                         # `npm --prefix dev exec playwright-core install chromium`)
 npm run test:browser-audit # real-browser audits against a firmware fake (same Chromium requirement):
-                        # 115 checks in 3 phases — connected-state flows (the whole app driven
+                        # 116 checks in 3 phases — connected-state flows (the whole app driven
                         #   end to end: load, steppers, thresholds, calibration, self-tests,
                         #   hub remote, profiles, the full firmware-update wizard),
                         #   viewport matrix (no horizontal scroll at phone/narrow/landscape

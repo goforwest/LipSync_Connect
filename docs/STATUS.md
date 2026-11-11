@@ -50,8 +50,8 @@ rewritten silently. Index and reading order: `docs/README.md`.
   links without blocking disconnected reading, prevents 4.5.8–4.6.3 from half-applying direct
   Gamepad↔Bluetooth transitions, scopes offline-cache deletion to this app,
   and keeps stale-while-revalidate work alive until its cache write settles.
-- Browser audit: 84/84 connected-state flows, 20/20 viewport/accessibility checks, and
-  11/11 first-run wizard checks pass on the reorganized interface.
+- Browser audit: 85/85 connected-state flows, 20/20 viewport/accessibility checks, and
+  11/11 first-run wizard checks pass (116 total) on the reorganized interface.
 - A dedicated firmware compatibility matrix (`tests/firmware-compat.test.mjs`)
   now pins the whole 4.1.0 ↔ 4.6.5 span in one place: the deviceFirmwareAtLeast
   tier map, the wire-framing generation switch, which endpoints the load may
@@ -83,8 +83,10 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 489/489 and offline E2E passes 2/2. CI now runs the
-  browser audit; the dev dependency audit is 0 vulnerabilities.
+- Integration tests pass 508/508 and offline E2E passes 2/2. CI now runs the
+  browser audit; the dev dependency audit is 0 vulnerabilities. The full CI job
+  is green on main as of 9f32869 (it had been stopping at the format check
+  since the 2026-11-10 UX commits).
 
 ## Firmware
 
