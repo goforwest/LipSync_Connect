@@ -3,6 +3,13 @@ import { $ } from './dom.js';
 
 let notifTimer = null;
 
+// Users who have requested reduced motion often rely on the toast to convey
+// an important message and may not be able to react within 8 seconds —
+// don't auto-dismiss for them. The × button is still available to close.
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+}
+
 export function showNotification(msg, isWarning = false) {
   clearTimeout(notifTimer);
   const el = $('notification');
@@ -26,7 +33,9 @@ export function showNotification(msg, isWarning = false) {
   };
   const armTimer = () => {
     clearTimeout(notifTimer);
-    notifTimer = setTimeout(dismiss, 8000);
+    if (!prefersReducedMotion()) {
+      notifTimer = setTimeout(dismiss, 8000);
+    }
   };
   // Reading or keyboard-navigating the toast pauses its 8 s countdown; the
   // timer restarts when the pointer/focus leaves, so it cannot vanish while

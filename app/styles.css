@@ -618,6 +618,12 @@ progress {
   content: 'No errors in this session.';
   color: var(--log-info);
 }
+/* Visible on-state for the "Errors only" filter so the toggle state is clear
+   at a glance (the filter itself applies the class to the log box). */
+#btnLogErrorsOnly[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--btn-text);
+}
 /* Empty-state hint so a first-run user sees the log is where activity lands. */
 #log:empty::before {
   content: 'No log activity yet — connect a LipSync and entries will appear here.';
@@ -2208,7 +2214,9 @@ button.ready-chip:hover:not(:disabled) {
 }
 @media (max-width: 700px) {
   .write-confirm {
-    bottom: 100px; /* above the mobile gear button's zone */
+    /* above the mobile gear button's zone; scaled so 150% zoom doesn't
+       push it into the gear button below. */
+    bottom: calc(100px / var(--ui-scale, 1));
     left: 16px;
     right: 16px;
     max-width: none;
@@ -2219,9 +2227,10 @@ button.ready-chip:hover:not(:disabled) {
 #notification {
   position: fixed;
   /* Sits above the floating gear button (56px + 24px offset + 16px gap):
-     anchored to the same corner, the gear covered the close button. */
-  bottom: 96px;
-  right: 24px;
+     anchored to the same corner, the gear covered the close button.
+     Divided by --ui-scale so body zoom doesn't push the toast into the gear. */
+  bottom: calc(96px / var(--ui-scale, 1));
+  right: calc(24px / var(--ui-scale, 1));
   z-index: 200;
   display: flex;
   align-items: center;
@@ -2371,6 +2380,10 @@ dialog p {
 }
 .skip-link:focus {
   top: 8px;
+  /* The link is invisible while off-screen; make it fully perceivable on focus
+     so keyboard users can actually use the skip link. */
+  opacity: 1;
+  visibility: visible;
 }
 main:focus {
   outline: none;

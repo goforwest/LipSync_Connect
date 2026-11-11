@@ -868,27 +868,35 @@ window.addEventListener('DOMContentLoaded', () => {
         if ($('sapError').textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max)))
           $('sapError').textContent = '';
       });
+      // On blur, re-validate against the allowed range and show it inline
+      // the moment the field loses focus — the user no longer has to
+      // remember to tap Set to learn their value is out of range.
+      $(w.inputId).addEventListener('blur', () => {
+        const v = Number($(w.inputId).value);
+        const errEl = $('sapError');
+        const unit = w.inputId === 'w1Input' || w.inputId === 'w2Input' || w.inputId === 'w3Input' ? 'ms' : '';
+        if (errEl.textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max))) {
+          errEl.textContent = `Expected ${w.min}–${w.max} ${unit}.`;
+        }
+      });
     });
-    $('sipInput').addEventListener('input', () => {
-      const v = Number($('sipInput').value);
-      if ($('sapError').textContent && (!Number.isFinite(v) || (v >= 2 && v <= 149.99))) $('sapError').textContent = '';
-      debouncedGaugeMarks();
-    });
-    $('puffInput').addEventListener('input', () => {
-      const v = Number($('puffInput').value);
-      if ($('sapError').textContent && (!Number.isFinite(v) || (v >= 2 && v <= 149.99))) $('sapError').textContent = '';
-      debouncedGaugeMarks();
-    });
-    $('innerDeadzone').addEventListener('input', () => {
-      const v = Number($('innerDeadzone').value);
-      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 0.99)))
-        $('formError').textContent = '';
-    });
-    $('outerDeadzone').addEventListener('input', () => {
-      const v = Number($('outerDeadzone').value);
-      if ($('formError').textContent && (!Number.isFinite(v) || (v >= 0.01 && v <= 0.99)))
-        $('formError').textContent = '';
-    });
+    const makeRangeBlur = (id, min, max, msg) => {
+      const input = $(id);
+      if (!input) return;
+      input.addEventListener('blur', () => {
+        const errEl = id.startsWith('hard') || id.startsWith('w') ? $('sapError') : $('formError');
+        const v = Number(input.value);
+        if (errEl.textContent && (!Number.isFinite(v) || (v >= min && v <= max))) {
+          errEl.textContent = msg;
+        }
+      });
+    };
+    makeRangeBlur('sipInput', 2, 149.99, 'Expected 2–149.99 hPa.');
+    makeRangeBlur('puffInput', 2, 149.99, 'Expected 2–149.99 hPa.');
+    makeRangeBlur('hardSipInput', 2, 149.99, 'Expected 2–149.99 hPa.');
+    makeRangeBlur('hardPuffInput', 2, 149.99, 'Expected 2–149.99 hPa.');
+    makeRangeBlur('innerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.');
+    makeRangeBlur('outerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.');
     $('btnReadCalibration').addEventListener('click', guard(readCalibration));
     $('btnSetInnerDeadzone').addEventListener(
       'click',
