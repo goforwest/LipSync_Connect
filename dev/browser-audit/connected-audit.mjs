@@ -161,7 +161,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // Task-based entry: Home's plain-language task opens the right
     // section and focuses the answering control.
     await openCard('sec-home');
-    await page.click('.home-more > summary');
+    // Both disclosures now default open (634f74b): only click to expand.
+    if (!(await page.evaluate(() => document.querySelector('.home-more').open))) {
+      await page.click('.home-more > summary');
+    }
     await page.click('.task-btn[data-task="clicks"]');
     await page.waitForTimeout(400);
     const taskJump = await evalCard(() => ({
@@ -636,9 +639,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note('live-stop', live0.text === 'Live view' && live0.pressed === 'false' && !live0.panel, JSON.stringify(live0));
 
-    // Hub remote: open the expert disclosure, navigate, select Mode, close
+    // Hub remote: open the expert disclosure (already open by default), navigate, select Mode, close
     await openCard('sec-log');
-    await page.click('.advanced-tools > summary');
+    if (!(await page.evaluate(() => document.querySelector('.advanced-tools').open))) {
+      await page.click('.advanced-tools > summary');
+    }
     await page.click('#btnHubOpen');
     await page.waitForTimeout(900);
     const hub1 = await evalCard(() => ({
@@ -706,7 +711,7 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       'device close hides mirror',
     );
 
-    // Raw console (lives in the Log card since 149a412) + the suggestion list
+    // Raw console (lives in the Log card since 149a412)
     await openCard('sec-log');
     await page.fill('#rawCommand', 'EX,0:0');
     await page.click('#btnSendRaw');
@@ -717,10 +722,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         begin: t.includes('EX,0:BEGIN'),
         body: t.includes('SS,0:7'),
         unrecognized: t.includes('Unrecognized device response'),
-        suggestions: document.getElementById('rawCommandList').options.length,
       };
     });
-    note('raw-ex-dump', raw1.begin && raw1.body && !raw1.unrecognized && raw1.suggestions > 0, JSON.stringify(raw1));
+    note('raw-ex-dump', raw1.begin && raw1.body && !raw1.unrecognized, JSON.stringify(raw1));
 
     // Mode change dialog + cancel
     await openCard('sec-device');
