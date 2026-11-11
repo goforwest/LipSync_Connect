@@ -63,7 +63,7 @@ test('health check reports a troubled I2C bus with specific findings', async () 
   assert.equal(doc.getElementById('hcBus').getAttribute('data-state'), 'warn');
   assert.equal(doc.getElementById('healthSummary').textContent, 'Needs attention');
   const details = doc.getElementById('healthDetails').textContent;
-  assert.match(details, /wedged 3 times since power-on/);
+  assert.match(details, /stalled 3 times since power-on/);
   assert.match(details, /last was 5s ago/);
   assert.match(details, /being held right now/);
   assert.match(details, /display stopped answering/);
@@ -88,7 +88,7 @@ test('older firmware reports the bus step as unavailable instead of failing', as
   await runDiagnostics();
   await sleep(30);
   assert.ok(!sent.includes('BH,0:0'), 'the BH endpoint is never asked of old firmware');
-  assert.equal(doc.getElementById('hcBus').textContent, 'I2C bus (needs a newer firmware)');
+  assert.equal(doc.getElementById('hcBus').textContent, 'Internal sensors (I2C) — needs a newer firmware');
   assert.equal(doc.getElementById('healthSummary').textContent, 'Passed');
   assert.match(doc.getElementById('healthDetails').textContent, /All 4 checks passed/);
   await app.disconnect({ quiet: true });
@@ -133,7 +133,7 @@ test('detected-but-degraded sensors warn in their own steps', async () => {
   assert.equal(doc.getElementById('hcJoystick').getAttribute('data-state'), 'warn');
   const details = doc.getElementById('healthDetails').textContent;
   assert.match(details, /sip\/puff is paused while they recover/);
-  assert.match(details, /poll backed off because the shared I2C bus is slow/);
+  assert.match(details, /backed off because the internal connections \(I2C\) are slow/);
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });

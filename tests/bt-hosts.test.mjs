@@ -110,7 +110,7 @@ test('switch validates the ack against the target row', async () => {
   try {
     const loaded = await bt.loadBluetoothHostTable();
     assert.equal(loaded.length, 2);
-    await assert.rejects(() => bt.switchBluetoothHost(2), /does not match target/);
+    await assert.rejects(() => bt.switchBluetoothHost(2), /confirmed switching to the wrong host/);
     assert.equal(bt.btHostTable.rows[2].active, 0); // no marker moved on a bad ack
   } finally {
     dev.detach();

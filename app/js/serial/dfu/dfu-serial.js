@@ -301,7 +301,14 @@ export async function flashSerialDfu(options) {
       if (ends >= 2) return ackFromResponse(rx);
       await sleep(10);
     }
-    throw new Error('Timed out waiting for the device to acknowledge a packet.');
+    // The probe retry below classifies failure shapes by this flag, not by
+    // message text: only a genuinely silent round (no bytes back at all)
+    // gets a second send. Tag it here so user-facing copy stays free.
+    const stalled = /** @type {Error & { ackTimeout?: boolean }} */ (
+      new Error('The device stopped responding during the update. Keep the cable connected and try again.')
+    );
+    stalled.ackTimeout = true;
+    throw stalled;
   };
 
   /**
@@ -365,7 +372,7 @@ export async function flashSerialDfu(options) {
       } catch (e) {
         probeError = e;
         throwIfAborted(); // a cancelled flash never spends its retry
-        if (!/Timed out waiting for the device to acknowledge/i.test(e?.message ?? '')) break;
+        if (!e?.ackTimeout) break;
       }
     }
     if (!probeSent) {

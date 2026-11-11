@@ -6,7 +6,7 @@ date every claim. Everything else in this folder is a dated log/ledger —
 accurate as of its date, superseded by later dated notes, never
 rewritten silently. Index and reading order: `docs/README.md`.
 
-**Last updated: 2026-11-03.**
+**Last updated: 2026-11-11.**
 
 ## App
 
@@ -15,6 +15,19 @@ rewritten silently. Index and reading order: `docs/README.md`.
   Adjust controls, Device, and Help & support. Home is the first-run/default
   surface; multi-page areas use a compact secondary row, and all original
   `sec-*` deep links remain stable.
+- Home's "More tasks" list and Help's "Advanced tools" disclosure now default
+  to open (634f74b), and a plain-language copy pass removed protocol jargon
+  from user-facing text: the browser-support banner and noscript note,
+  communication-mode hint, connect/update failure messages, the DFU timeout
+  message (its probe retry now keys off an `ackTimeout` flag instead of the
+  message text), Bluetooth naming (no BLE/advertised/HID), joystick and
+  pressure readouts (no "raw magnet"/Δ), the health grid's "Internal
+  sensors (I2C)" label and findings, the auto-restart test naming, and the
+  settings-dump button. Version-gate notes and exact-value disclosures are
+  unchanged; the unit/integration suites (508/508) pin the new strings.
+  `app/index.html` was also re-formatted to the project prettier config
+  (pre-existing drift from the 2026-11-10 UX commits had left CI's format
+  gate red).
 - Help & support now starts with seven symptom-based paths and direct links to
   the relevant adjustment or test. Health check and Test inputs remain normal
   pages; the Hub remote, detailed log, and raw commands sit behind one clearly

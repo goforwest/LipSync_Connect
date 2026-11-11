@@ -168,7 +168,7 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
           if (stored) {
             if (serialSession.port) await disconnect();
             log(
-              'The new mode is saved, but the automatic restart did not confirm. Unplug the LipSync and plug it back in (or wait about 30 seconds for its watchdog) to finish the change.',
+              'The new mode is saved, but the automatic restart did not confirm. Unplug the LipSync and plug it back in (or wait about 30 seconds for its auto-restart) to finish the change.',
               'log-err',
             );
             return;
@@ -247,7 +247,7 @@ export function bindModeSwitch(guard, disconnect, setCmdButtons) {
           if (stored) {
             if (serialSession.port) await disconnect();
             log(
-              'Bluetooth mode saved but the automatic restart did not confirm. Unplug the LipSync and plug it back in (or wait about 30 seconds for its watchdog) to finish the change.',
+              'Bluetooth mode saved but the automatic restart did not confirm. Unplug the LipSync and plug it back in (or wait about 30 seconds for its auto-restart) to finish the change.',
               'log-err',
             );
             return;

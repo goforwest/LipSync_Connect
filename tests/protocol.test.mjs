@@ -294,7 +294,7 @@ test('FAIL settings handshake rejects the command', async () => {
     if (text === 'SETTINGS') return [{ delay: 5, line: 'FAIL,0:SETTINGS' }];
     return [];
   });
-  await assert.rejects(app.sendCommand('SS,1:5', 300, 300), /rejected settings handshake/);
+  await assert.rejects(app.sendCommand('SS,1:5', 300, 300), /respond to its settings check/);
   dev.detach();
 });
 

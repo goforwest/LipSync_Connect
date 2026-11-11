@@ -288,7 +288,8 @@ async function readLoop() {
       // locked or already errored after a device-side disconnect, and that
       // rejection must go through recovery instead of becoming a silent
       // unhandled rejection while the header still says Connected.
-      if (!serialSession.port?.readable) throw new Error('Serial port is no longer readable.');
+      if (!serialSession.port?.readable)
+        throw new Error('The connection to the device was lost. Reconnect and connect again.');
       reader = serialSession.port.readable.getReader();
       serialSession.currentReader = reader;
       resetReadTimer(myGen);

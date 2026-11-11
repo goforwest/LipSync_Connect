@@ -197,7 +197,7 @@ export async function switchBluetoothHost(i) {
     throw e;
   }
   const ack = Number(r.value);
-  if (ack !== i) throw new Error('Switch ack ' + ack + ' does not match target ' + i);
+  if (ack !== i) throw new Error('The device confirmed switching to the wrong host — try again.');
   for (const row of Object.values(btHostTable.rows)) row.active = row.i === i ? 1 : 0;
   renderHostList();
   // The firmware pushes BT,5 on the connection transition; a manual refetch
@@ -223,7 +223,7 @@ export async function forgetBluetoothHost(i) {
     throw e;
   }
   const ack = Number(r.value);
-  if (ack !== i) throw new Error('Forget ack ' + ack + ' does not match target ' + i);
+  if (ack !== i) throw new Error('The device confirmed the wrong host to forget — try again.');
   // Forget renumbers every row at or above i: rebuild from the device (the
   // golden path) — the local touch below is only for the moment before the
   // refetch lands.
@@ -253,7 +253,7 @@ export async function pairNewBluetoothHost() {
     }
     throw e;
   }
-  if (Number(r.value) !== 1) throw new Error('The device did not confirm advertising');
+  if (Number(r.value) !== 1) throw new Error('The device did not confirm it is ready to pair — try again.');
   log('Pairing is on — open Bluetooth settings on the new host and select the LipSync', 'log-info');
   return r;
 }

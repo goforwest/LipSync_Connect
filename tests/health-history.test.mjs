@@ -39,7 +39,7 @@ test('runs render as a bounded, time-ordered trend of dots', () => {
   assert.match(d[1].cls, /health-dot--warn/);
   assert.match(d[1].title, /Neutral warn/); // the failing step is named in the hover
   assert.match(d[2].cls, /health-dot--err/);
-  assert.match(d[2].title, /fw 4\.5\.4/); // the version rode along
+  assert.match(d[2].title, /firmware 4\.5\.4/); // the version rode along
 });
 
 test('the history is bounded at 20 entries', () => {

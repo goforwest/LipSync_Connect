@@ -23,7 +23,7 @@ const HEALTH_STEPS = [
   { id: 'hcJoystick', label: 'Joystick response' },
   { id: 'hcNeutral', label: 'Neutral position' },
   { id: 'hcCalibration', label: 'Stored calibration' },
-  { id: 'hcBus', label: 'I2C bus' },
+  { id: 'hcBus', label: 'Internal sensors (I2C)' },
 ];
 
 /** True when the connected firmware is at least [major, minor, rev]. @param {number[]} version */
@@ -163,7 +163,7 @@ export async function runDiagnostics() {
         findings.push('Joystick returned incomplete readings.');
         setHealthStep('hcJoystick', 'err');
       } else if (bh && bh[4] === 2) {
-        findings.push('The joystick poll backed off because the shared I2C bus is slow.');
+        findings.push('The sensor check backed off because the internal connections (I2C) are slow.');
         setHealthStep('hcJoystick', 'warn');
       } else {
         setHealthStep('hcJoystick', 'ok');
@@ -197,16 +197,16 @@ export async function runDiagnostics() {
     // read-only endpoint. Older firmware reports the step as unavailable
     // instead of failing.
     if (!firmwareAtLeast(BUS_HEALTH_MIN_FIRMWARE)) {
-      setHealthStep('hcBus', 'idle', 'I2C bus (needs a newer firmware)');
+      setHealthStep('hcBus', 'idle', 'Internal sensors (I2C) — needs a newer firmware');
     } else {
-      setHealthStep('hcBus', 'running', 'Checking the I2C bus…');
-      setHealthStatus('Stored calibration validated. Checking the I2C bus…');
+      setHealthStep('hcBus', 'running', 'Checking the internal sensors…');
+      setHealthStatus('Stored calibration validated. Checking the internal sensors…');
       // Reuses the snapshot taken before the pressure step: the bus step
       // reports the bus-level facts (recoveries, held, display) — the
       // pressure/joystick detection and degraded verdicts are owned by
       // their own steps above, so each fact appears exactly once.
       if (!bh) {
-        findings.push('The I2C bus health reading was incomplete.');
+        findings.push('The internal-sensor health reading was incomplete.');
         setHealthStep('hcBus', 'err');
       } else {
         const [recoveries, busHealthy, display, , , ageSec] = bh;
@@ -215,14 +215,14 @@ export async function runDiagnostics() {
         const busFindings = [];
         if (recoveries > 0)
           busFindings.push(
-            `the shared I2C bus wedged ${recoveries} time${recoveries === 1 ? '' : 's'} since power-on` +
+            `the internal connections (I2C) stalled ${recoveries} time${recoveries === 1 ? '' : 's'} since power-on` +
               (ageSec >= 0 ? ` (last was ${ageSec}s ago)` : ''),
           );
         if (!busHealthy) busFindings.push('the bus is being held right now');
         if (display === 2) busFindings.push('the display stopped answering and is being re-probed');
         else if (!display) busFindings.push('the display was not detected');
         if (busFindings.length) {
-          findings.push('I2C bus: ' + busFindings.join('; ') + '.');
+          findings.push('Internal sensors: ' + busFindings.join('; ') + '.');
           setHealthStep('hcBus', 'warn');
         } else {
           setHealthStep('hcBus', 'ok');

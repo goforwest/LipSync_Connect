@@ -426,15 +426,16 @@
         </nav>
 
         <div id="unsupported" class="unsupported" hidden>
-          <strong>Browser not supported.</strong> LipSync Connect needs the Web
-          Serial or WebUSB API. Use Chrome/Edge on desktop, or Chrome with
-          USB-C/OTG on Android. iOS is not supported.
+          <strong>Browser not supported.</strong> This browser can't communicate
+          with USB devices. Use Chrome, Edge, or Opera on a computer, or Chrome
+          on Android with a USB-C (OTG) cable. iPhones and iPads aren't
+          supported.
         </div>
 
         <noscript
           ><div class="unsupported">
-            <strong>JavaScript required.</strong> Enable JavaScript for Web
-            Serial/WebUSB.
+            <strong>JavaScript required.</strong> LipSync Connect needs JavaScript
+            to talk to the device.
           </div></noscript
         >
 
@@ -701,8 +702,9 @@
                 <label>Communication mode</label
                 ><span class="value" id="commode">&mdash;</span>
                 <span class="hint row-hint"
-                  >Read-only. Bluetooth Mouse keeps USB serial for settings.
-                  Gamepad is USB only.</span
+                  >Follows the operating mode above. Bluetooth Mouse keeps the
+                  cable usable for settings; Gamepad mode only works over the
+                  cable.</span
                 >
               </div>
             </div>
@@ -926,7 +928,7 @@
                   <span
                     class="hint row-hint tuning-note"
                     id="accelNote"
-                    title="Reshapes the deflection-to-speed curve. 0 is linear; positive values move faster at gentle deflections; negative values trade speed for precision. Full deflection always keeps full speed."
+                    title="How the pointer reacts to small leans versus a full push. 0 is the same speed across the whole range; positive values move faster on gentle moves; negative values favor precision. A full push always gives full speed."
                   >
                     &minus;10 to 10, 0 = off
                   </span>
@@ -1011,7 +1013,7 @@
                   />
                 </svg>
                 <div class="cursor-preview-axis" aria-hidden="true">
-                  <span>Gentle</span><span>Full deflection</span>
+                  <span>Gentle</span><span>Full push</span>
                 </div>
               </div>
             </div>
@@ -1190,13 +1192,13 @@
                   <span class="value" title="Mouthpiece pressure"
                     >Mouth: <span id="pvMouth">&mdash;</span></span
                   >
-                  <span class="value" title="Ambient pressure"
+                  <span class="value" title="Air pressure at the sensors"
                     >Ambient: <span id="pvAmbient">&mdash;</span></span
                   >
                   <span
                     class="value"
-                    title="Pressure difference (sip/puff signal)"
-                    >&Delta;: <span id="pvDiff">&mdash;</span></span
+                    title="Mouth pressure minus air pressure (the sip/puff signal)"
+                    >Difference: <span id="pvDiff">&mdash;</span></span
                   >
                 </div>
               </div>
@@ -2352,18 +2354,20 @@
               </div>
             </details>
             <p class="hint">
-              Range 0.01&ndash;0.99 (the device cannot hold 1.0). Inner &lt;
-              outer. Rings update when set.
+              How far the joystick must move before the pointer responds.
+              Range 0.01&ndash;0.99 (the device cannot hold 1.0); the inner
+              deadzone must stay smaller than the outer one. The rings on the
+              plot update when a value is set.
             </p>
             <div class="error" id="formError" role="alert"></div>
             <div class="row reading-row">
               <label>Live joystick</label>
               <div class="reading-group">
-                <span class="value" title="Raw magnet reading"
-                  >Raw: <span id="joyRaw">&mdash;</span></span
+                <span class="value" title="Measured joystick sensor position"
+                  >Measured: <span id="joyRaw">&mdash;</span></span
                 >
-                <span class="value" title="Processed output"
-                  >Out: <span id="joyOut">&mdash;</span></span
+                <span class="value" title="After neutral, calibration, and deadzones"
+                  >Result: <span id="joyOut">&mdash;</span></span
                 >
               </div>
             </div>
@@ -2421,7 +2425,7 @@
             </div>
             <div class="row">
               <button type="button" class="cmd secondary" id="btnInit" disabled>
-                Reset neutral position (initialize)
+                Re-center joystick
               </button>
               <button type="button" class="cmd" id="btnCalibrate" disabled>
                 Start full calibration
@@ -2601,7 +2605,7 @@
             <div class="section-intro">
               <p class="section-summary">
                 Switch the LipSync to Bluetooth Mouse mode and pair it using the
-                advertised name.
+                name your computer will see.
               </p>
               <p class="section-recommendation">
                 <span class="recommend-label">Before switching</span> Keep USB
@@ -2614,7 +2618,7 @@
               aria-label="Bluetooth device information"
             >
               <div class="row">
-                <label>BLE device name</label
+                <label>Bluetooth name</label
                 ><span class="value" id="btName">&mdash;</span>
               </div>
               <div class="row">
@@ -2657,7 +2661,8 @@
                 device name shown above.
               </p>
               <p class="hint">
-                3. Select it to pair. The LipSync appears as a mouse (HID).
+                3. Select it to pair. The LipSync appears as a mouse to
+                your computer.
               </p>
               <p class="hint">
                 4. To return to USB mode, reconnect via USB, open this panel,
@@ -2753,7 +2758,7 @@
                   class="health-cell"
                   id="hcBus"
                   role="listitem"
-                  data-label="I2C bus"
+                  data-label="Internal sensors (I2C)"
                 ></div>
               </div>
             </div>
@@ -2780,11 +2785,11 @@
                   id="btnTestWatchdog"
                   disabled
                 >
-                  Test watchdog restart
+                  Test auto-restart
                 </button>
                 ><span
                   class="hint row-hint"
-                  title="LED and buzzer tests show live steps. The watchdog test deliberately restarts the device."
+                  title="LED and buzzer tests show live steps. The auto-restart test deliberately restarts the device."
                 >
                   LED and buzzer tests show progress below
                 </span>
@@ -2853,11 +2858,11 @@
                   </div>
                   <div class="plot-legend">
                     <span
-                      ><span class="chip chip--info"></span>Raw magnet position:
+                      ><span class="chip chip--info"></span>Measured position:
                       <span class="value" id="diagJoyRaw">&mdash;</span></span
                     >
                     <span
-                      ><span class="chip chip--accent"></span>Processed output:
+                      ><span class="chip chip--accent"></span>After processing:
                       <span class="value" id="diagJoyOut">&mdash;</span></span
                     >
                     <span
@@ -2880,10 +2885,10 @@
                 <div class="row">
                   <span class="value" title="Mouthpiece pressure"
                     >Mouth: <span id="diagPressMouth">&mdash;</span></span
-                  ><span class="value" title="Ambient pressure"
+                  ><span class="value" title="Air pressure at the sensors"
                     >Ambient: <span id="diagPressAmbient">&mdash;</span></span
-                  ><span class="value" title="Pressure difference"
-                    >&Delta;: <span id="diagPressDiff">&mdash;</span></span
+                  ><span class="value" title="Mouth pressure minus air pressure"
+                    >Difference: <span id="diagPressDiff">&mdash;</span></span
                   >
                 </div>
               </div>
@@ -3282,7 +3287,7 @@
                 <h3 id="problemBluetooth">Bluetooth will not connect</h3>
                 <p>
                   Keep USB connected, confirm Bluetooth Mouse mode and the
-                  advertised device name, then pair from the computer's
+                  device's Bluetooth name, then pair from the computer's
                   Bluetooth settings after the restart finishes.
                 </p>
                 <button
@@ -3490,7 +3495,7 @@
                     class="cmd secondary"
                     disabled
                   >
-                    Capture device dump
+                    Capture full settings list
                   </button>
                 </div>
                 <div

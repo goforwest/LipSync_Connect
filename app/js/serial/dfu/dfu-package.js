@@ -33,12 +33,13 @@ async function unzipInner(zipData) {
       break;
     }
   }
-  if (eocd < 0) throw new Error('Not a ZIP archive: end-of-central-directory not found.');
+  if (eocd < 0) throw new Error('This file is not a valid firmware package — it is not a ZIP archive.');
   const entryCount = view.getUint16(eocd + 10, true);
   let p = view.getUint32(eocd + 16, true);
   const files = new Map();
   for (let n = 0; n < entryCount; n++) {
-    if (view.getUint32(p, true) !== CDH_SIGNATURE) throw new Error(`Corrupt ZIP: bad central directory entry ${n}.`);
+    if (view.getUint32(p, true) !== CDH_SIGNATURE)
+      throw new Error(`The firmware package is corrupted (bad ZIP entry ${n}).`);
     const method = view.getUint16(p + 10, true);
     const compressedSize = view.getUint32(p + 20, true);
     const nameLen = view.getUint16(p + 28, true);
@@ -47,7 +48,7 @@ async function unzipInner(zipData) {
     const localOffset = view.getUint32(p + 42, true);
     const name = new TextDecoder().decode(bytes.slice(p + 46, p + 46 + nameLen));
     if (view.getUint32(localOffset, true) !== LFH_SIGNATURE)
-      throw new Error(`Corrupt ZIP: bad local header for ${name}.`);
+      throw new Error(`The firmware package is corrupted (bad entry ${name}).`);
     const lfNameLen = view.getUint16(localOffset + 26, true);
     const lfExtraLen = view.getUint16(localOffset + 28, true);
     const dataStart = localOffset + 30 + lfNameLen + lfExtraLen;
@@ -59,7 +60,7 @@ async function unzipInner(zipData) {
     } else if (method === 8) {
       files.set(name, await inflateRaw(raw));
     } else {
-      throw new Error(`Unsupported ZIP compression method ${method} for ${name}.`);
+      throw new Error(`The firmware package is compressed in an unsupported way (method ${method}).`);
     }
     p += 46 + nameLen + extraLen + commentLen;
   }

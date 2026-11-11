@@ -146,7 +146,7 @@ test('unzip inflates deflate entries', async () => {
 });
 
 test('unzip rejects non-zip data', async () => {
-  await assert.rejects(() => unzip(new Uint8Array([1, 2, 3]).buffer), /Not a ZIP archive/);
+  await assert.rejects(() => unzip(new Uint8Array([1, 2, 3]).buffer), /not a ZIP archive/i);
 });
 
 test('parseDfuPackage extracts and validates the application image', async () => {

@@ -86,15 +86,15 @@ export function bindDeviceOps(guard) {
     guard(async () => {
       if (
         !(await showConfirm(
-          'Test watchdog recovery',
-          '<strong>This deliberately makes the LipSync stop responding until its watchdog restarts it.</strong> The device will disconnect. Wait about 30 seconds, then reconnect and confirm it starts normally.',
+          'Test auto-restart',
+          '<strong>This deliberately makes the LipSync stop responding until its auto-restart kicks in.</strong> The device will disconnect. Wait about 30 seconds, then reconnect and confirm it starts normally.',
           { danger: true },
         ))
       )
         return;
       await sendCommand('RT,1:3', CMD_TEST_TIMEOUT);
-      log('Watchdog recovery test started. Reconnect after the device restarts.', 'log-info');
-      showNotification('Watchdog test started. Wait about 30 seconds, then reconnect.');
+      log('Auto-restart test started. Reconnect after the device restarts.', 'log-info');
+      showNotification('Auto-restart test started. Wait about 30 seconds, then reconnect.');
       if (serialSession.port) await disconnect();
     }),
   );
@@ -152,8 +152,8 @@ export function bindDeviceOps(guard) {
     'click',
     guard(async () => {
       await sendCommand('EX,0:0');
-      log('Raw device settings dump captured in the session log.', 'log-info');
-      showNotification('Device settings dump captured in the log.');
+      log('Full device settings list captured in the session log.', 'log-info');
+      showNotification('Full settings list captured in the log.');
     }),
   );
 

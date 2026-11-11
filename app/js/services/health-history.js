@@ -116,7 +116,7 @@ export function renderHealthHistory() {
       .filter(([, st]) => st !== 'ok' && st !== 'running')
       .map(([id, st]) => id.replace(/^hc/, '') + ' ' + st)
       .join(', ');
-    const detail = when + (stepNotes ? ' — ' + stepNotes : '') + (entry.version ? ' — fw ' + entry.version : '');
+    const detail = when + (stepNotes ? ' — ' + stepNotes : '') + (entry.version ? ' — firmware ' + entry.version : '');
     dot.title = detail;
     // A bare colored dot is invisible to keyboard and screen-reader users.
     // Expose each result as an image with the same text the sighted user gets

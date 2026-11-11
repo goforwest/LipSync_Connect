@@ -220,7 +220,9 @@ export function sendCommand(
         await new Promise((r) => setTimeout(r, 100));
         continue;
       }
-      throw new Error('Device rejected settings handshake.');
+      throw new Error(
+        "The device didn't respond to its settings check — unplug the cable, plug it back in, and connect again.",
+      );
     }
     // Between the handshake and the write lies the window where a cancelled
     // caller can still stop the device from ever seeing the command: after
