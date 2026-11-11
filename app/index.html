@@ -17,8 +17,18 @@
     <meta name="referrer" content="no-referrer" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="icon" href="./assets/icons/favicon.ico" sizes="any" />
-    <link rel="icon" href="./assets/icons/favicon-32x32.png" type="image/png" sizes="32x32" />
-    <link rel="icon" href="./assets/icons/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link
+      rel="icon"
+      href="./assets/icons/favicon-32x32.png"
+      type="image/png"
+      sizes="32x32"
+    />
+    <link
+      rel="icon"
+      href="./assets/icons/favicon-16x16.png"
+      type="image/png"
+      sizes="16x16"
+    />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.json" />
     <meta property="og:title" content="LipSync Connect" />
@@ -33,13 +43,32 @@
   <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <header id="appHeader">
-      <img src="./assets/mmc_logo.jpeg" alt="Makers Making Change logo" class="logo" />
+      <img
+        src="./assets/mmc_logo.jpeg"
+        alt="Makers Making Change logo"
+        class="logo"
+      />
       <h1><span>LipSync</span><span class="brand-connect"> Connect</span></h1>
-      <span class="status" id="status" role="status" aria-live="polite">Not connected</span>
-      <div id="connectStage" class="connect-stage" hidden aria-live="polite"></div>
+      <span class="status" id="status" role="status" aria-live="polite"
+        >Not connected</span
+      >
+      <div
+        id="connectStage"
+        class="connect-stage"
+        hidden
+        aria-live="polite"
+      ></div>
       <div class="header-actions">
         <button type="button" id="btnConnect" class="secondary">Connect</button>
-        <button type="button" id="btnDisconnect" class="secondary" disabled hidden>Disconnect</button>
+        <button
+          type="button"
+          id="btnDisconnect"
+          class="secondary"
+          disabled
+          hidden
+        >
+          Disconnect
+        </button>
         <button
           type="button"
           id="btnSettings"
@@ -49,13 +78,31 @@
           aria-label="Open appearance settings"
           title="Appearance settings"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
             <path
               d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.55-.22-1.05-.58-1.41-.36-.36-.58-.86-.58-1.41 0-1.1.9-2 2-2H16c3.31 0 6-2.69 6-6 0-4.42-4.48-8-10-8z"
             />
-            <circle cx="6.5" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+            <circle
+              cx="6.5"
+              cy="10.5"
+              r="1.5"
+              fill="currentColor"
+              stroke="none"
+            />
             <circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none" />
-            <circle cx="17" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+            <circle
+              cx="17"
+              cy="10.5"
+              r="1.5"
+              fill="currentColor"
+              stroke="none"
+            />
           </svg>
         </button>
       </div>
@@ -63,8 +110,15 @@
 
     <div id="connectionBanner" class="conn-banner" hidden role="alert">
       <span class="conn-banner-msg" id="connBannerMsg"></span>
-      <button type="button" id="btnConnBannerRetry" class="secondary">Retry</button>
-      <button type="button" id="btnConnBannerDismiss" class="secondary" aria-label="Dismiss error banner">
+      <button type="button" id="btnConnBannerRetry" class="secondary">
+        Retry
+      </button>
+      <button
+        type="button"
+        id="btnConnBannerDismiss"
+        class="secondary"
+        aria-label="Dismiss error banner"
+      >
         &times;
       </button>
     </div>
@@ -73,14 +127,21 @@
       <div class="guide-backdrop"></div>
       <div class="guide-card">
         <p id="guideTitle">
-          Look for the LipSync in the list &mdash; it should be something like <kbd>XIAO nRF52840 Sense</kbd>
+          Look for the LipSync in the list &mdash; it should be something like
+          <kbd>XIAO nRF52840 Sense</kbd>
         </p>
-        <button type="button" id="btnGuideDismiss" class="secondary">Dismiss</button>
+        <button type="button" id="btnGuideDismiss" class="secondary">
+          Dismiss
+        </button>
       </div>
     </div>
 
     <div class="app-shell">
-      <aside class="app-sidebar" id="appSidebar" aria-label="Application sections">
+      <aside
+        class="app-sidebar"
+        id="appSidebar"
+        aria-label="Application sections"
+      >
         <div class="section-menu-bar">
           <span class="section-menu-current" id="mobileSectionLabel">Home</span>
           <button
@@ -92,15 +153,29 @@
             aria-label="Sections — open menu"
           >
             <span class="section-menu-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <line x1="4" y1="7" x2="20" y2="7" />
                 <line x1="4" y1="12" x2="20" y2="12" />
                 <line x1="4" y1="17" x2="20" y2="17" />
               </svg>
             </span>
             <span id="navMoreLabel">Sections</span>
-            <span class="section-menu-chevron" id="navMoreArrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <span
+              class="section-menu-chevron"
+              id="navMoreArrow"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
                 <path d="m7 9 5 5 5-5" />
               </svg>
             </span>
@@ -117,7 +192,12 @@
               aria-expanded="true"
             >
               <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M3 11.5L12 4l9 7.5" />
                   <path d="M5.5 10v10h13V10" />
                   <path d="M9.5 20v-6h5v6" /></svg></span
@@ -132,13 +212,23 @@
               aria-expanded="false"
             >
               <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <line x1="4" y1="6" x2="20" y2="6" />
                   <circle cx="9" cy="6" r="2" fill="var(--panel)" />
                   <line x1="4" y1="12" x2="20" y2="12" />
                   <circle cx="15" cy="12" r="2" fill="var(--panel)" />
                   <line x1="4" y1="18" x2="20" y2="18" />
-                  <circle cx="11" cy="18" r="2" fill="var(--panel)" /></svg></span
+                  <circle
+                    cx="11"
+                    cy="18"
+                    r="2"
+                    fill="var(--panel)"
+                  /></svg></span
               ><span class="circle-label">Adjust controls</span>
             </button>
             <button
@@ -150,7 +240,12 @@
               aria-expanded="false"
             >
               <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <rect x="2" y="3" width="20" height="14" rx="2" />
                   <line x1="8" y1="21" x2="16" y2="21" />
                   <line x1="12" y1="17" x2="12" y2="21" /></svg></span
@@ -165,9 +260,16 @@
               aria-expanded="false"
             >
               <span class="circle-icon" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M4 13a8 8 0 0 1 16 0" />
-                  <path d="M4 13v4a2 2 0 0 0 2 2h2v-7H4zM20 13v4a2 2 0 0 1-2 2h-2v-7h4z" />
+                  <path
+                    d="M4 13v4a2 2 0 0 0 2 2h2v-7H4zM20 13v4a2 2 0 0 1-2 2h-2v-7h4z"
+                  />
                   <path d="M16 19c0 1.1-.9 2-2 2h-2" /></svg></span
               ><span class="circle-label">Help &amp; support</span>
             </button>
@@ -176,7 +278,12 @@
       </aside>
 
       <div class="app-workspace">
-        <nav class="section-subnav" id="sectionSubnav" aria-label="Pages in this section" hidden>
+        <nav
+          class="section-subnav"
+          id="sectionSubnav"
+          aria-label="Pages in this section"
+          hidden
+        >
           <span class="section-subnav-label" id="sectionSubnavLabel"></span>
           <div class="section-tabs">
             <button
@@ -319,48 +426,83 @@
         </nav>
 
         <div id="unsupported" class="unsupported" hidden>
-          <strong>Browser not supported.</strong> LipSync Connect needs the Web Serial or WebUSB API. Use Chrome/Edge on
-          desktop, or Chrome with USB-C/OTG on Android. iOS is not supported.
+          <strong>Browser not supported.</strong> LipSync Connect needs the Web
+          Serial or WebUSB API. Use Chrome/Edge on desktop, or Chrome with
+          USB-C/OTG on Android. iOS is not supported.
         </div>
 
         <noscript
           ><div class="unsupported">
-            <strong>JavaScript required.</strong> Enable JavaScript for Web Serial/WebUSB.
+            <strong>JavaScript required.</strong> Enable JavaScript for Web
+            Serial/WebUSB.
           </div></noscript
         >
 
         <main id="main-content" tabindex="-1" aria-label="Main content">
-          <section class="section-card" id="sec-home" data-state="disconnected" aria-label="Home">
+          <section
+            class="section-card"
+            id="sec-home"
+            data-state="disconnected"
+            aria-label="Home"
+          >
             <div class="card-head">
               <h2>Home</h2>
-              <button type="button" class="card-close" data-close="sec-home" aria-label="Close Home section">
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-home"
+                aria-label="Close Home section"
+              >
                 &times;
               </button>
             </div>
             <div class="home-hero" id="homeHero" data-state="disconnected">
               <div class="home-state-icon" aria-hidden="true"></div>
               <div class="home-state-copy">
-                <p class="home-state-title" id="homeStatusTitle">Connect your LipSync</p>
+                <p class="home-state-title" id="homeStatusTitle">
+                  Connect your LipSync
+                </p>
                 <p class="hint" id="homeStatusText">
-                  Connect the device by USB to load its settings, check its health, and make adjustments.
+                  Connect the device by USB to load its settings, check its
+                  health, and make adjustments.
                 </p>
               </div>
-              <button type="button" id="btnHomeConnect" disabled>Connect device</button>
+              <button type="button" id="btnHomeConnect" disabled>
+                Connect device
+              </button>
             </div>
-            <div id="readinessStrip" class="readiness-strip" hidden aria-label="Device readiness"></div>
+            <div
+              id="readinessStrip"
+              class="readiness-strip"
+              hidden
+              aria-label="Device readiness"
+            ></div>
 
             <div class="home-guide" id="wizardGroup">
               <div class="home-guide-copy">
                 <p class="diag-title">Guided setup</p>
                 <p class="hint">
-                  Follow one guided path through connection, calibration, sip &amp; puff thresholds, and a final health
-                  check. Anyone supporting the setup can use it.
+                  Follow one guided path through connection, calibration, sip
+                  &amp; puff thresholds, and a final health check. Anyone
+                  supporting the setup can use it.
                 </p>
               </div>
               <!-- Not a .cmd button on purpose: connecting is the wizard's first
                step, so this stays available before a device is connected. -->
-              <button type="button" id="btnStartWizard" class="secondary" disabled>Start guided setup</button>
-              <div id="wizardPanel" class="wizard-panel" hidden aria-label="Guided setup">
+              <button
+                type="button"
+                id="btnStartWizard"
+                class="secondary"
+                disabled
+              >
+                Start guided setup
+              </button>
+              <div
+                id="wizardPanel"
+                class="wizard-panel"
+                hidden
+                aria-label="Guided setup"
+              >
                 <ol class="wiz-steps" aria-hidden="true">
                   <li data-step="connect">Connect</li>
                   <li data-step="calibrate">Calibrate</li>
@@ -369,9 +511,18 @@
                 </ol>
                 <p id="wizStepText" class="wiz-step-text" role="status"></p>
                 <div class="row">
-                  <button type="button" id="wizAction" class="cmd secondary" hidden></button>
-                  <button type="button" id="wizNext" class="cmd" hidden>Next</button>
-                  <button type="button" id="wizCancel" class="secondary">Exit</button>
+                  <button
+                    type="button"
+                    id="wizAction"
+                    class="cmd secondary"
+                    hidden
+                  ></button>
+                  <button type="button" id="wizNext" class="cmd" hidden>
+                    Next
+                  </button>
+                  <button type="button" id="wizCancel" class="secondary">
+                    Exit
+                  </button>
                 </div>
               </div>
             </div>
@@ -379,18 +530,50 @@
             <div class="home-grid">
               <div class="home-panel">
                 <p class="diag-title">Quick actions</p>
-                <p class="hint">Jump directly to the controls used most often.</p>
+                <p class="hint">
+                  Jump directly to the controls used most often.
+                </p>
                 <div class="home-actions">
-                  <button type="button" class="home-action" data-open-section="sec-cursor">Adjust pointer</button>
-                  <button type="button" class="home-action" data-open-section="sec-sip">Practice sip &amp; puff</button>
-                  <button type="button" class="home-action" data-open-section="sec-restrictions">
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-cursor"
+                  >
+                    Adjust pointer
+                  </button>
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-sip"
+                  >
+                    Practice sip &amp; puff
+                  </button>
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-restrictions"
+                  >
                     Prevent accidental input
                   </button>
-                  <button type="button" class="home-action" data-open-section="sec-joystick">Calibrate joystick</button>
-                  <button type="button" class="home-action" data-open-section="sec-diagnostics">
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-joystick"
+                  >
+                    Calibrate joystick
+                  </button>
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-diagnostics"
+                  >
                     Run health check
                   </button>
-                  <button type="button" class="home-action" data-open-section="sec-profiles">
+                  <button
+                    type="button"
+                    class="home-action"
+                    data-open-section="sec-profiles"
+                  >
                     Profiles &amp; backup
                   </button>
                 </div>
@@ -399,9 +582,15 @@
                 <div class="home-panel-head">
                   <div>
                     <p class="diag-title">Device at a glance</p>
-                    <p class="hint">The essentials from the connected LipSync.</p>
+                    <p class="hint">
+                      The essentials from the connected LipSync.
+                    </p>
                   </div>
-                  <button type="button" class="home-jump secondary" data-open-section="sec-device">
+                  <button
+                    type="button"
+                    class="home-jump secondary"
+                    data-open-section="sec-device"
+                  >
                     Device details
                   </button>
                 </div>
@@ -420,7 +609,7 @@
                   </div>
                   <div>
                     <dt>Profile</dt>
-                    <dd id="homeProfile">Connect to check</dd>
+                    <dd id="homeProfile">&mdash;</dd>
                   </div>
                   <div>
                     <dt>Connection</dt>
@@ -432,18 +621,34 @@
 
             <details class="home-more">
               <summary>More tasks</summary>
-              <p class="hint">Choose a goal and the app will open the exact control you need.</p>
+              <p class="hint">
+                Choose a goal and the app will open the exact control you need.
+              </p>
               <div class="task-list">
-                <button type="button" class="task-btn" data-task="clicks">Make clicks easier or fix hold timing</button>
-                <button type="button" class="task-btn" data-task="accidents">Stop accidental inputs</button>
-                <button type="button" class="task-btn" data-task="switches">Change what the switch jacks do</button>
-                <button type="button" class="task-btn" data-task="profile">Use or save a person&rsquo;s profile</button>
-                <button type="button" class="task-btn" data-task="update">Update the firmware</button>
+                <button type="button" class="task-btn" data-task="clicks">
+                  Make clicks easier or fix hold timing
+                </button>
+                <button type="button" class="task-btn" data-task="accidents">
+                  Stop accidental inputs
+                </button>
+                <button type="button" class="task-btn" data-task="switches">
+                  Change what the switch jacks do
+                </button>
+                <button type="button" class="task-btn" data-task="profile">
+                  Use or save a person&rsquo;s profile
+                </button>
+                <button type="button" class="task-btn" data-task="update">
+                  Update the firmware
+                </button>
               </div>
             </details>
           </section>
 
-          <section class="section-card" id="sec-device" aria-label="Device overview and modes">
+          <section
+            class="section-card"
+            id="sec-device"
+            aria-label="Device overview and modes"
+          >
             <div class="card-head">
               <h2>Overview &amp; modes</h2>
               <button
@@ -456,45 +661,89 @@
               </button>
             </div>
             <div class="section-intro">
-              <p class="section-summary">Confirm the connected device and choose how it behaves.</p>
+              <p class="section-summary">
+                Confirm the connected device and choose how it behaves.
+              </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Refresh first if any value looks out of date.
+                <span class="recommend-label">Start here</span> Refresh first if
+                any value looks out of date.
               </p>
             </div>
             <div class="settings-list" aria-label="Device details and mode">
-              <div class="row"><label>Model</label><span class="value" id="model">&mdash;</span></div>
-              <div class="row"><label>Firmware version</label><span class="value" id="version">&mdash;</span></div>
-              <div class="row"><label>Device ID</label><span class="value" id="deviceId">&mdash;</span></div>
               <div class="row">
-                <label for="operatingMode">Operating mode</label><span class="value" id="opmode">&mdash;</span
-                ><select id="operatingMode">
-                  <option value="mouse">Mouse</option>
-                  <option value="mouse-bt" data-feature="bluetooth">Mouse (Bluetooth)</option>
-                  <option value="gamepad" data-feature="gamepad">Gamepad</option></select
-                ><button type="button" id="btnSetOperatingMode" disabled>Change mode</button>
+                <label>Model</label
+                ><span class="value" id="model">&mdash;</span>
               </div>
               <div class="row">
-                <label>Communication mode</label><span class="value" id="commode">&mdash;</span>
+                <label>Firmware version</label
+                ><span class="value" id="version">&mdash;</span>
+              </div>
+              <div class="row">
+                <label>Device ID</label
+                ><span class="value" id="deviceId">&mdash;</span>
+              </div>
+              <div class="row">
+                <label for="operatingMode">Operating mode</label
+                ><span class="value" id="opmode">&mdash;</span
+                ><select id="operatingMode">
+                  <option value="mouse">Mouse</option>
+                  <option value="mouse-bt" data-feature="bluetooth">
+                    Mouse — Bluetooth
+                  </option>
+                  <option value="gamepad" data-feature="gamepad">
+                    Gamepad
+                  </option></select
+                ><button type="button" id="btnSetOperatingMode" disabled>
+                  Change mode
+                </button>
+              </div>
+              <div class="row">
+                <label>Communication mode</label
+                ><span class="value" id="commode">&mdash;</span>
                 <span class="hint row-hint"
-                  >Read-only. Bluetooth Mouse keeps USB serial for settings. Gamepad is USB only.</span
+                  >Read-only. Bluetooth Mouse keeps USB serial for settings.
+                  Gamepad is USB only.</span
                 >
               </div>
             </div>
             <p class="hint" id="modeGuardHint" role="status"></p>
             <div class="row">
-              <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button
-              ><button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
+              <button
+                type="button"
+                class="cmd secondary"
+                id="btnRefreshAll"
+                disabled
+              >
+                Refresh all settings</button
+              ><button
+                type="button"
+                class="cmd secondary"
+                id="btnExportSettings"
+                disabled
+              >
+                Export settings
+              </button>
             </div>
             <div class="row" id="loadProgressRow" hidden>
-              <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
+              <progress
+                id="loadProgress"
+                value="0"
+                max="1"
+                aria-labelledby="loadProgressLabel"
+              ></progress
               ><span id="loadProgressLabel">Loading device settings…</span>
             </div>
             <p class="hint">
-              Full refresh takes a few seconds on current firmware (up to ~30 seconds on older devices).
+              Full refresh takes a few seconds on current firmware (up to ~30
+              seconds on older devices).
             </p>
           </section>
 
-          <section class="section-card" id="sec-profiles" aria-label="Profiles and backup">
+          <section
+            class="section-card"
+            id="sec-profiles"
+            aria-label="Profiles and backup"
+          >
             <div class="card-head">
               <h2>Profiles &amp; backup</h2>
               <button
@@ -508,11 +757,12 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Save tuned settings per person and apply them to shared or replacement devices.
+                Save tuned settings per person and apply them to shared or
+                replacement devices.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Before saving</span> Finish tuning the connected device so the profile
-                captures the intended setup.
+                <span class="recommend-label">Before saving</span> Finish tuning
+                the connected device so the profile captures the intended setup.
               </p>
             </div>
             <div class="profile-layout">
@@ -528,15 +778,32 @@
                     placeholder="A person&rsquo;s name &mdash; or leave blank to save by today&rsquo;s date"
                     aria-label="Name for a new settings profile"
                   />
-                  <button type="button" class="cmd secondary" id="btnSaveProfile" disabled>Save profile</button>
+                  <button
+                    type="button"
+                    class="cmd secondary"
+                    id="btnSaveProfile"
+                    disabled
+                  >
+                    Save profile
+                  </button>
                 </div>
-                <div id="profileNameChips" class="profile-chips" role="group" aria-label="Quick profile names"></div>
-                <p class="hint">Tap a suggested name to save without typing; a blank name uses today&rsquo;s date.</p>
+                <div
+                  id="profileNameChips"
+                  class="profile-chips"
+                  role="group"
+                  aria-label="Quick profile names"
+                ></div>
+                <p class="hint">
+                  Tap a suggested name to save without typing; a blank name uses
+                  today&rsquo;s date.
+                </p>
               </section>
               <section class="profile-pane" aria-labelledby="profileSavedTitle">
                 <div class="profile-pane-head">
                   <h3 id="profileSavedTitle">Saved profiles</h3>
-                  <button type="button" class="secondary" id="btnImportProfile">Import&hellip;</button>
+                  <button type="button" class="secondary" id="btnImportProfile">
+                    Import&hellip;
+                  </button>
                 </div>
                 <input
                   type="file"
@@ -545,20 +812,29 @@
                   hidden
                   aria-label="Profile file to import"
                 />
-                <div id="profileList" class="profile-list" aria-label="Saved profiles"></div>
+                <div
+                  id="profileList"
+                  class="profile-list"
+                  aria-label="Saved profiles"
+                ></div>
                 <p class="hint" id="profileEmpty">No saved profiles yet.</p>
               </section>
             </div>
             <details class="inline-help">
               <summary>What a profile includes</summary>
               <p class="hint">
-                Profiles include thresholds, speeds, timing, restrictions, and switch mappings. Calibration is excluded
-                because it belongs to the physical joystick.
+                Profiles include thresholds, speeds, timing, restrictions, and
+                switch mappings. Calibration is excluded because it belongs to
+                the physical joystick.
               </p>
             </details>
           </section>
 
-          <section class="section-card" id="sec-cursor" aria-label="Pointer movement">
+          <section
+            class="section-card"
+            id="sec-cursor"
+            aria-label="Pointer movement"
+          >
             <div class="card-head">
               <h2>Pointer movement</h2>
               <button
@@ -572,18 +848,23 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Tune everyday pointer movement, scrolling, and the response to gentle joystick input.
+                Tune everyday pointer movement, scrolling, and the response to
+                gentle joystick input.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Set speed first; add acceleration only after basic
-                movement feels comfortable.
+                <span class="recommend-label">Start here</span> Set speed first;
+                add acceleration only after basic movement feels comfortable.
               </p>
             </div>
             <div class="cursor-layout">
               <div class="cursor-controls settings-list">
                 <div class="row tuning-row">
                   <label>Cursor speed level</label>
-                  <div class="tuning-stepper" role="group" aria-label="Adjust cursor speed level">
+                  <div
+                    class="tuning-stepper"
+                    role="group"
+                    aria-label="Adjust cursor speed level"
+                  >
                     <button
                       type="button"
                       class="cmd secondary"
@@ -610,7 +891,11 @@
                 </div>
                 <div class="row tuning-row">
                   <label>Cursor acceleration</label>
-                  <div class="tuning-stepper" role="group" aria-label="Adjust cursor acceleration">
+                  <div
+                    class="tuning-stepper"
+                    role="group"
+                    aria-label="Adjust cursor acceleration"
+                  >
                     <button
                       type="button"
                       class="cmd secondary"
@@ -633,7 +918,11 @@
                       +
                     </button>
                   </div>
-                  <span class="meter meter--bipolar" id="accelMeter" aria-hidden="true"></span>
+                  <span
+                    class="meter meter--bipolar"
+                    id="accelMeter"
+                    aria-hidden="true"
+                  ></span>
                   <span
                     class="hint row-hint tuning-note"
                     id="accelNote"
@@ -644,7 +933,11 @@
                 </div>
                 <div class="row tuning-row">
                   <label>Scroll level</label>
-                  <div class="tuning-stepper" role="group" aria-label="Adjust scroll level">
+                  <div
+                    class="tuning-stepper"
+                    role="group"
+                    aria-label="Adjust scroll level"
+                  >
                     <button
                       type="button"
                       class="cmd secondary"
@@ -667,7 +960,11 @@
                       +
                     </button>
                   </div>
-                  <span class="meter" id="scrollMeter" aria-hidden="true"></span>
+                  <span
+                    class="meter"
+                    id="scrollMeter"
+                    aria-hidden="true"
+                  ></span>
                 </div>
               </div>
               <div
@@ -677,13 +974,41 @@
                 aria-label="Cursor response preview, waiting for acceleration setting"
               >
                 <p class="diag-title">Response preview</p>
-                <p class="hint" id="cursorResponseText">Load the device to preview its acceleration curve.</p>
-                <svg class="cursor-response-chart" viewBox="0 0 120 100" aria-hidden="true">
-                  <line class="cursor-chart-axis" x1="12" y1="88" x2="108" y2="88" />
-                  <line class="cursor-chart-axis" x1="12" y1="88" x2="12" y2="12" />
+                <p class="hint" id="cursorResponseText">
+                  Load the device to preview its acceleration curve.
+                </p>
+                <svg
+                  class="cursor-response-chart"
+                  viewBox="0 0 120 100"
+                  aria-hidden="true"
+                >
+                  <line
+                    class="cursor-chart-axis"
+                    x1="12"
+                    y1="88"
+                    x2="108"
+                    y2="88"
+                  />
+                  <line
+                    class="cursor-chart-axis"
+                    x1="12"
+                    y1="88"
+                    x2="12"
+                    y2="12"
+                  />
                   <path class="cursor-response-linear" d="M12 88 L108 12" />
-                  <path class="cursor-response-curve" id="cursorResponseCurve" d="M12 88 L108 12" />
-                  <circle class="cursor-response-dot" id="cursorResponseDot" cx="65" cy="46" r="4" />
+                  <path
+                    class="cursor-response-curve"
+                    id="cursorResponseCurve"
+                    d="M12 88 L108 12"
+                  />
+                  <circle
+                    class="cursor-response-dot"
+                    id="cursorResponseDot"
+                    cx="65"
+                    cy="46"
+                    r="4"
+                  />
                 </svg>
                 <div class="cursor-preview-axis" aria-hidden="true">
                   <span>Gentle</span><span>Full deflection</span>
@@ -695,24 +1020,34 @@
           <section class="section-card" id="sec-sip" aria-label="Sip and puff">
             <div class="card-head">
               <h2>Sip &amp; puff</h2>
-              <button type="button" class="card-close" data-close="sec-sip" aria-label="Close Sip and puff section">
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-sip"
+                aria-label="Close Sip and puff section"
+              >
                 &times;
               </button>
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Set reliable sip and puff triggers, then match hold lengths to the intended actions.
+                Set reliable sip and puff triggers, then match hold lengths to
+                the intended actions.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Use Live view and practice before changing either
-                threshold.
+                <span class="recommend-label">Start here</span> Use Live view
+                and practice before changing either threshold.
               </p>
             </div>
             <div class="diag-group">
               <p class="diag-title">Thresholds</p>
               <div class="row tuning-row tuning-row--extended">
                 <label>Sip threshold (2–149.99 hPa)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust sip threshold">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust sip threshold"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -734,7 +1069,9 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="sipVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >hPa</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -759,7 +1096,11 @@
               </div>
               <div class="row tuning-row tuning-row--extended">
                 <label>Puff threshold (2–149.99 hPa)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust puff threshold">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust puff threshold"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -781,7 +1122,9 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="puffVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >hPa</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -819,7 +1162,9 @@
                     aria-label="New sip threshold"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetSip" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetSip" disabled>
+                    Set
+                  </button>
                 </div>
                 <div class="row">
                   <label for="puffInput">Exact puff value (2–149.99 hPa)</label>
@@ -834,22 +1179,38 @@
                     aria-label="New puff threshold"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetPuff" disabled>
+                    Set
+                  </button>
                 </div>
               </details>
               <div class="row reading-row">
                 <label>Live pressure</label>
                 <div class="reading-group">
-                  <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
-                  <span class="value" title="Ambient pressure">Ambient: <span id="pvAmbient">&mdash;</span></span>
-                  <span class="value" title="Pressure difference (sip/puff signal)"
+                  <span class="value" title="Mouthpiece pressure"
+                    >Mouth: <span id="pvMouth">&mdash;</span></span
+                  >
+                  <span class="value" title="Ambient pressure"
+                    >Ambient: <span id="pvAmbient">&mdash;</span></span
+                  >
+                  <span
+                    class="value"
+                    title="Pressure difference (sip/puff signal)"
                     >&Delta;: <span id="pvDiff">&mdash;</span></span
                   >
                 </div>
               </div>
               <div class="row">
-                <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
-                <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
+                <button type="button" class="cmd" id="btnReadPressure" disabled>
+                  Read once
+                </button>
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnLivePressure"
+                  disabled
+                  aria-pressed="false"
+                >
                   Live view
                 </button>
               </div>
@@ -869,28 +1230,57 @@
                 <div class="mark peak" id="gaugePuffPeak" hidden></div>
               </div>
               <div class="gauge-scale">
-                <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
+                <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span
+                ><span id="gaugePuffLabel">+10 hPa</span>
               </div>
               <div class="row">
-                <span class="value" title="Largest sip and puff seen since Clear (practice peaks)"
-                  >Practice peaks: sip <span id="peakSipVal">&mdash;</span> hPa &middot; puff
-                  <span id="peakPuffVal">&mdash;</span> hPa</span
+                <span
+                  class="value"
+                  title="Largest sip and puff seen since Clear (practice peaks)"
+                  >Practice peaks: sip <span id="peakSipVal">&mdash;</span> hPa
+                  &middot; puff <span id="peakPuffVal">&mdash;</span> hPa</span
                 >
-                <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Clear peaks</button>
-                <button type="button" class="cmd" id="btnSuggestThresholds" hidden>Suggest thresholds</button>
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnClearPeaks"
+                  disabled
+                >
+                  Clear peaks
+                </button>
+                <button
+                  type="button"
+                  class="cmd"
+                  id="btnSuggestThresholds"
+                  hidden
+                >
+                  Suggest thresholds
+                </button>
               </div>
               <div class="notice" id="sapSuggestion" role="status" hidden>
                 <span id="sapSuggestionText"></span>
-                <button type="button" class="cmd" id="btnApplySuggested" hidden>Apply both</button>
-                <button type="button" class="secondary" id="btnDismissSuggestion" hidden>Dismiss</button>
+                <button type="button" class="cmd" id="btnApplySuggested" hidden>
+                  Apply both
+                </button>
+                <button
+                  type="button"
+                  class="secondary"
+                  id="btnDismissSuggestion"
+                  hidden
+                >
+                  Dismiss
+                </button>
               </div>
               <details class="inline-help">
                 <summary>How practice sets thresholds</summary>
                 <p class="hint">
-                  Red markers show trigger values; dashed markers pin the practice peaks. Use
-                  <strong>Live view</strong> and have the user sip and puff firmly a few times. Their measured maximum
-                  stays on the gauge, and <strong>Suggest thresholds</strong> turns it into trigger values at 65% of
-                  each peak: a deliberate hold crosses them, while breathing noise should not.
+                  Red markers show trigger values; dashed markers pin the
+                  practice peaks. Use
+                  <strong>Live view</strong> and have the user sip and puff
+                  firmly a few times. Their measured maximum stays on the gauge,
+                  and <strong>Suggest thresholds</strong> turns it into trigger
+                  values at 65% of each peak: a deliberate hold crosses them,
+                  while breathing noise should not.
                 </p>
               </details>
             </div>
@@ -925,7 +1315,9 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="hardSipVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >hPa</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -976,7 +1368,9 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="hardPuffVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >hPa</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -1002,7 +1396,9 @@
               <details class="exact-values">
                 <summary>Set exact hard threshold values&hellip;</summary>
                 <div class="row">
-                  <label for="hardSipInput">Exact hard sip value (2–149.99 hPa)</label>
+                  <label for="hardSipInput"
+                    >Exact hard sip value (2–149.99 hPa)</label
+                  >
                   <input
                     type="number"
                     id="hardSipInput"
@@ -1014,10 +1410,14 @@
                     aria-label="New hard sip threshold"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetHardSip" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetHardSip" disabled>
+                    Set
+                  </button>
                 </div>
                 <div class="row">
-                  <label for="hardPuffInput">Exact hard puff value (2–149.99 hPa)</label>
+                  <label for="hardPuffInput"
+                    >Exact hard puff value (2–149.99 hPa)</label
+                  >
                   <input
                     type="number"
                     id="hardPuffInput"
@@ -1029,24 +1429,41 @@
                     aria-label="New hard puff threshold"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetHardPuff" disabled>Set</button>
+                  <button
+                    type="button"
+                    class="cmd"
+                    id="btnSetHardPuff"
+                    disabled
+                  >
+                    Set
+                  </button>
                 </div>
               </details>
               <div class="row">
                 <label for="hardSipAction">Hard sip action</label>
-                <select id="hardSipAction" disabled aria-describedby="hardBandNote"></select>
+                <select
+                  id="hardSipAction"
+                  disabled
+                  aria-describedby="hardBandNote"
+                ></select>
               </div>
               <div class="row">
                 <label for="hardPuffAction">Hard puff action</label>
-                <select id="hardPuffAction" disabled aria-describedby="hardBandNote"></select>
+                <select
+                  id="hardPuffAction"
+                  disabled
+                  aria-describedby="hardBandNote"
+                ></select>
               </div>
               <details class="inline-help">
                 <summary>When to use the hard band</summary>
                 <p class="hint">
-                  For users who cannot hold a steady sip or puff for 1–3 seconds: a firm, brief sip or puff past the
-                  hard threshold fires its action the moment it is released — no hold length needed. The hard thresholds
-                  must stay at least 1 hPa above the regular ones, so a light sip or puff still uses the normal actions.
-                  Hard band settings need firmware 4.7.0+.
+                  For users who cannot hold a steady sip or puff for 1–3
+                  seconds: a firm, brief sip or puff past the hard threshold
+                  fires its action the moment it is released — no hold length
+                  needed. The hard thresholds must stay at least 1 hPa above the
+                  regular ones, so a light sip or puff still uses the normal
+                  actions. Hard band settings need firmware 4.7.0+.
                 </p>
               </details>
             </div>
@@ -1080,7 +1497,9 @@
                     &minus;50
                   </button>
                   <span class="value" id="w1Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >ms</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -1105,7 +1524,11 @@
               </div>
               <div class="row tuning-row tuning-row--extended">
                 <label>Long input window (400–6000 ms)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust long input window">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust long input window"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -1127,7 +1550,9 @@
                     &minus;50
                   </button>
                   <span class="value" id="w2Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >ms</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -1152,7 +1577,11 @@
               </div>
               <div class="row tuning-row tuning-row--extended">
                 <label>Max input window (1000–10000 ms)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust max input window">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust max input window"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -1174,7 +1603,9 @@
                     &minus;50
                   </button>
                   <span class="value" id="w3Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                  <span class="hint row-hint tuning-unit" aria-hidden="true"
+                    >ms</span
+                  >
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -1212,7 +1643,9 @@
                     aria-label="New short input window in milliseconds"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetWS" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetWS" disabled>
+                    Set
+                  </button>
                 </div>
                 <div class="row">
                   <label for="w2Input">Exact long window (400–6000 ms)</label>
@@ -1227,7 +1660,9 @@
                     aria-label="New long input window in milliseconds"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetWL" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetWL" disabled>
+                    Set
+                  </button>
                 </div>
                 <div class="row">
                   <label for="w3Input">Exact max window (1000–10000 ms)</label>
@@ -1242,13 +1677,16 @@
                     aria-label="New max input window in milliseconds"
                     aria-describedby="sapError"
                   />
-                  <button type="button" class="cmd" id="btnSetWM" disabled>Set</button>
+                  <button type="button" class="cmd" id="btnSetWM" disabled>
+                    Set
+                  </button>
                 </div>
               </details>
               <p class="hint">
-                How long a sip or puff must be held to trigger each action (short &rarr; click/drag, long &rarr;
-                scroll/menu, very long &rarr; more). Requires a recent firmware; the Hub menu offers the same settings
-                under Sip & Puff &rarr; Timing.
+                How long a sip or puff must be held to trigger each action
+                (short &rarr; click/drag, long &rarr; scroll/menu, very long
+                &rarr; more). Requires a recent firmware; the Hub menu offers
+                the same settings under Sip & Puff &rarr; Timing.
               </p>
               <div class="win-ladder-wrap">
                 <div
@@ -1260,7 +1698,13 @@
                 <div class="win-scale" id="winScale" aria-hidden="true"></div>
               </div>
               <div class="row">
-                <button type="button" class="cmd secondary" id="btnWatchHolds" disabled aria-pressed="false">
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnWatchHolds"
+                  disabled
+                  aria-pressed="false"
+                >
                   Watch holds
                 </button>
                 <span class="value" title="Device-measured hold duration"
@@ -1270,21 +1714,33 @@
               <details class="inline-help">
                 <summary>How to practice hold timing</summary>
                 <p class="hint">
-                  The timeline is to scale: green = short, yellow = long, red = very-long &mdash; the same colors the
-                  small light next to the USB-C port shows while you hold. <strong>Watch holds</strong> streams real
-                  sips and puffs: a live bar sweeps the timeline as the device measures each hold, filling one zone per
-                  window.
+                  The timeline is to scale: green = short, yellow = long, red =
+                  very-long &mdash; the same colors the small light next to the
+                  USB-C port shows while you hold.
+                  <strong>Watch holds</strong> streams real sips and puffs: a
+                  live bar sweeps the timeline as the device measures each hold,
+                  filling one zone per window.
                 </p>
               </details>
               <div class="row" id="practiceStatsRow" hidden>
                 <span class="value" id="practiceStatsText"></span>
-                <button type="button" class="secondary" id="btnCopyPracticeStats">Copy stats</button>
+                <button
+                  type="button"
+                  class="secondary"
+                  id="btnCopyPracticeStats"
+                >
+                  Copy stats
+                </button>
               </div>
             </div>
             <div class="error" id="sapError" role="alert"></div>
           </section>
 
-          <section class="section-card" id="sec-restrictions" aria-label="Input safeguards">
+          <section
+            class="section-card"
+            id="sec-restrictions"
+            aria-label="Input safeguards"
+          >
             <div class="card-head">
               <h2>Input safeguards</h2>
               <button
@@ -1298,58 +1754,91 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Add safeguards against accidental input without changing the user&rsquo;s tuned settings.
+                Add safeguards against accidental input without changing the
+                user&rsquo;s tuned settings.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Recommended</span> Enable one safeguard at a time and verify it before
-                adding another.
+                <span class="recommend-label">Recommended</span> Enable one
+                safeguard at a time and verify it before adding another.
               </p>
             </div>
             <p class="hint" id="restrictionsNote"></p>
             <div class="settings-list settings-list--checks">
               <div class="row check-row">
-                <input type="checkbox" id="cursorHold" disabled aria-describedby="restrictionsNote" />
+                <input
+                  type="checkbox"
+                  id="cursorHold"
+                  disabled
+                  aria-describedby="restrictionsNote"
+                />
                 <label for="cursorHold"
                   >Freeze cursor during sip & puff
-                  <span class="row-hint">The pointer holds still while a mouthpiece input is in progress</span></label
+                  <span class="row-hint"
+                    >The pointer holds still while a mouthpiece input is in
+                    progress</span
+                  ></label
                 >
               </div>
               <div class="row check-row">
-                <input type="checkbox" id="menuButtonsOnly" disabled aria-describedby="restrictionsNote" />
+                <input
+                  type="checkbox"
+                  id="menuButtonsOnly"
+                  disabled
+                  aria-describedby="restrictionsNote"
+                />
                 <label for="menuButtonsOnly"
                   >Menu: hub buttons only
                   <span class="row-hint"
-                    >Sip & puff and external switches can no longer open or navigate the menu</span
+                    >Sip & puff and external switches can no longer open or
+                    navigate the menu</span
                   ></label
                 >
               </div>
               <div class="row check-row">
-                <input type="checkbox" id="modeLock" disabled aria-describedby="restrictionsNote" />
+                <input
+                  type="checkbox"
+                  id="modeLock"
+                  disabled
+                  aria-describedby="restrictionsNote"
+                />
                 <label for="modeLock"
                   >Lock operating mode
                   <span class="row-hint"
-                    >The device refuses input-driven mode changes; LipSync Connect still can</span
+                    >The device refuses input-driven mode changes; LipSync
+                    Connect still can</span
                   ></label
                 >
               </div>
               <div class="row check-row">
-                <input type="checkbox" id="sapDisabled" disabled aria-describedby="restrictionsNote" />
+                <input
+                  type="checkbox"
+                  id="sapDisabled"
+                  disabled
+                  aria-describedby="restrictionsNote"
+                />
                 <label for="sapDisabled"
                   >Disable sip & puff
-                  <span class="row-hint">Mouthpiece inputs stop triggering actions entirely</span></label
+                  <span class="row-hint"
+                    >Mouthpiece inputs stop triggering actions entirely</span
+                  ></label
                 >
               </div>
             </div>
             <details class="inline-help">
               <summary>How safeguards combine</summary>
               <p class="hint">
-                Each restriction takes effect immediately. With sip & puff disabled and the menu locked to buttons, only
-                the Hub buttons or this app can change settings.
+                Each restriction takes effect immediately. With sip & puff
+                disabled and the menu locked to buttons, only the Hub buttons or
+                this app can change settings.
               </p>
             </details>
           </section>
 
-          <section class="section-card" id="sec-switches" aria-label="External switches">
+          <section
+            class="section-card"
+            id="sec-switches"
+            aria-label="External switches"
+          >
             <div class="card-head">
               <h2>External switches</h2>
               <button
@@ -1363,23 +1852,39 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Map each switch jack independently for Mouse and Gamepad modes, using a different action for each hold
-                length.
+                Map each switch jack independently for Mouse and Gamepad modes,
+                using a different action for each hold length.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Choose the mode tab first, then configure short, long,
-                and very-long holds.
+                <span class="recommend-label">Start here</span> Choose the mode
+                tab first, then configure short, long, and very-long holds.
               </p>
             </div>
             <p class="hint" id="switchActionsNote"></p>
             <div class="switch-jack" role="group" aria-label="Switch 1">
               <div class="switch-head">
                 <h3>Switch 1</h3>
-                <div class="switch-tabs" role="group" aria-label="Switch 1 mapping mode">
-                  <button type="button" class="switch-tab" data-jack="A" data-mode="mouse" aria-pressed="true">
+                <div
+                  class="switch-tabs"
+                  role="group"
+                  aria-label="Switch 1 mapping mode"
+                >
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="A"
+                    data-mode="mouse"
+                    aria-pressed="true"
+                  >
                     Mouse
                   </button>
-                  <button type="button" class="switch-tab" data-jack="A" data-mode="gamepad" aria-pressed="false">
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="A"
+                    data-mode="gamepad"
+                    aria-pressed="false"
+                  >
                     Gamepad
                   </button>
                 </div>
@@ -1387,32 +1892,68 @@
               <div class="switch-mode" data-jack="A" data-mode="mouse">
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swSA0">Short hold</label>
-                    <select id="swSA0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swSA0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swSA0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swSA1">Long hold</label>
-                    <select id="swSA1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swSA1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swSA1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swSA2">Very long hold</label>
-                    <select id="swSA2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swSA2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swSA2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
               <div class="switch-mode" data-jack="A" data-mode="gamepad" hidden>
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swGA0">Short hold</label>
-                    <select id="swGA0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swGA0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swGA0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swGA1">Long hold</label>
-                    <select id="swGA1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swGA1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swGA1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swGA2">Very long hold</label>
-                    <select id="swGA2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swGA2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swGA2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
@@ -1420,11 +1961,27 @@
             <div class="switch-jack" role="group" aria-label="Switch 2">
               <div class="switch-head">
                 <h3>Switch 2</h3>
-                <div class="switch-tabs" role="group" aria-label="Switch 2 mapping mode">
-                  <button type="button" class="switch-tab" data-jack="B" data-mode="mouse" aria-pressed="true">
+                <div
+                  class="switch-tabs"
+                  role="group"
+                  aria-label="Switch 2 mapping mode"
+                >
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="B"
+                    data-mode="mouse"
+                    aria-pressed="true"
+                  >
                     Mouse
                   </button>
-                  <button type="button" class="switch-tab" data-jack="B" data-mode="gamepad" aria-pressed="false">
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="B"
+                    data-mode="gamepad"
+                    aria-pressed="false"
+                  >
                     Gamepad
                   </button>
                 </div>
@@ -1432,32 +1989,68 @@
               <div class="switch-mode" data-jack="B" data-mode="mouse">
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swSB0">Short hold</label>
-                    <select id="swSB0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swSB0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swSB0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swSB1">Long hold</label>
-                    <select id="swSB1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swSB1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swSB1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swSB2">Very long hold</label>
-                    <select id="swSB2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swSB2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swSB2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
               <div class="switch-mode" data-jack="B" data-mode="gamepad" hidden>
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swGB0">Short hold</label>
-                    <select id="swGB0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swGB0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swGB0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swGB1">Long hold</label>
-                    <select id="swGB1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swGB1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swGB1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swGB2">Very long hold</label>
-                    <select id="swGB2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swGB2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swGB2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
@@ -1465,11 +2058,27 @@
             <div class="switch-jack" role="group" aria-label="Switch 3">
               <div class="switch-head">
                 <h3>Switch 3</h3>
-                <div class="switch-tabs" role="group" aria-label="Switch 3 mapping mode">
-                  <button type="button" class="switch-tab" data-jack="C" data-mode="mouse" aria-pressed="true">
+                <div
+                  class="switch-tabs"
+                  role="group"
+                  aria-label="Switch 3 mapping mode"
+                >
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="C"
+                    data-mode="mouse"
+                    aria-pressed="true"
+                  >
                     Mouse
                   </button>
-                  <button type="button" class="switch-tab" data-jack="C" data-mode="gamepad" aria-pressed="false">
+                  <button
+                    type="button"
+                    class="switch-tab"
+                    data-jack="C"
+                    data-mode="gamepad"
+                    aria-pressed="false"
+                  >
                     Gamepad
                   </button>
                 </div>
@@ -1477,38 +2086,79 @@
               <div class="switch-mode" data-jack="C" data-mode="mouse">
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swSC0">Short hold</label>
-                    <select id="swSC0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swSC0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swSC0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swSC1">Long hold</label>
-                    <select id="swSC1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swSC1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swSC1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swSC2">Very long hold</label>
-                    <select id="swSC2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swSC2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swSC2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
               <div class="switch-mode" data-jack="C" data-mode="gamepad" hidden>
                 <div class="switch-grid">
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--short" for="swGC0">Short hold</label>
-                    <select id="swGC0" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--short" for="swGC0"
+                      >Short hold</label
+                    >
+                    <select
+                      id="swGC0"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--long" for="swGC1">Long hold</label>
-                    <select id="swGC1" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--long" for="swGC1"
+                      >Long hold</label
+                    >
+                    <select
+                      id="swGC1"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                   <div class="switch-cell">
-                    <label class="hold-chip hold-chip--max" for="swGC2">Very long hold</label>
-                    <select id="swGC2" disabled aria-describedby="switchActionsNote"></select>
+                    <label class="hold-chip hold-chip--max" for="swGC2"
+                      >Very long hold</label
+                    >
+                    <select
+                      id="swGC2"
+                      disabled
+                      aria-describedby="switchActionsNote"
+                    ></select>
                   </div>
                 </div>
               </div>
             </div>
             <div class="row">
-              <button type="button" class="cmd secondary" id="btnResetSwitchActions" disabled>
+              <button
+                type="button"
+                class="cmd secondary"
+                id="btnResetSwitchActions"
+                disabled
+              >
                 Restore default switch mappings
               </button>
             </div>
@@ -1516,13 +2166,18 @@
             <details class="inline-help">
               <summary>Fixed and protected switch actions</summary>
               <p class="hint">
-                Menu navigation and the two-switch combination stay fixed. One switch can never reset the device; a
-                rejected selection reverts to the device&rsquo;s stored action.
+                Menu navigation and the two-switch combination stay fixed. One
+                switch can never reset the device; a rejected selection reverts
+                to the device&rsquo;s stored action.
               </p>
             </details>
           </section>
 
-          <section class="section-card" id="sec-joystick" aria-label="Joystick and calibration">
+          <section
+            class="section-card"
+            id="sec-joystick"
+            aria-label="Joystick and calibration"
+          >
             <div class="card-head">
               <h2>Joystick &amp; calibration</h2>
               <button
@@ -1536,17 +2191,23 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Inspect the joystick response, tune its deadzones, and recalibrate its physical range.
+                Inspect the joystick response, tune its deadzones, and
+                recalibrate its physical range.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Check Live view first; recalibrate only if movement is
-                uneven or cannot reach full range.
+                <span class="recommend-label">Start here</span> Check Live view
+                first; recalibrate only if movement is uneven or cannot reach
+                full range.
               </p>
             </div>
             <div class="settings-list" aria-label="Joystick deadzones">
               <div class="row tuning-row tuning-row--extended">
                 <label>Inner deadzone</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust inner deadzone">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust inner deadzone"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -1592,7 +2253,11 @@
               </div>
               <div class="row tuning-row tuning-row--extended">
                 <label>Outer deadzone</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust outer deadzone">
+                <div
+                  class="tuning-stepper tuning-stepper--extended"
+                  role="group"
+                  aria-label="Adjust outer deadzone"
+                >
                   <button
                     type="button"
                     class="cmd secondary step-coarse"
@@ -1640,7 +2305,9 @@
             <details class="exact-values">
               <summary>Set exact deadzone values&hellip;</summary>
               <div class="row">
-                <label for="innerDeadzone">Exact inner deadzone value (0.01&ndash;0.99)</label>
+                <label for="innerDeadzone"
+                  >Exact inner deadzone value (0.01&ndash;0.99)</label
+                >
                 <input
                   type="number"
                   id="innerDeadzone"
@@ -1651,10 +2318,19 @@
                   autocomplete="off"
                   aria-describedby="formError"
                 />
-                <button type="button" class="cmd" id="btnSetInnerDeadzone" disabled>Set</button>
+                <button
+                  type="button"
+                  class="cmd"
+                  id="btnSetInnerDeadzone"
+                  disabled
+                >
+                  Set
+                </button>
               </div>
               <div class="row">
-                <label for="outerDeadzone">Exact outer deadzone value (0.01&ndash;0.99)</label>
+                <label for="outerDeadzone"
+                  >Exact outer deadzone value (0.01&ndash;0.99)</label
+                >
                 <input
                   type="number"
                   id="outerDeadzone"
@@ -1665,23 +2341,43 @@
                   autocomplete="off"
                   aria-describedby="formError"
                 />
-                <button type="button" class="cmd" id="btnSetOuterDeadzone" disabled>Set</button>
+                <button
+                  type="button"
+                  class="cmd"
+                  id="btnSetOuterDeadzone"
+                  disabled
+                >
+                  Set
+                </button>
               </div>
             </details>
             <p class="hint">
-              Range 0.01&ndash;0.99 (the device cannot hold 1.0). Inner &lt; outer. Rings update when set.
+              Range 0.01&ndash;0.99 (the device cannot hold 1.0). Inner &lt;
+              outer. Rings update when set.
             </p>
             <div class="error" id="formError" role="alert"></div>
             <div class="row reading-row">
               <label>Live joystick</label>
               <div class="reading-group">
-                <span class="value" title="Raw magnet reading">Raw: <span id="joyRaw">&mdash;</span></span>
-                <span class="value" title="Processed output">Out: <span id="joyOut">&mdash;</span></span>
+                <span class="value" title="Raw magnet reading"
+                  >Raw: <span id="joyRaw">&mdash;</span></span
+                >
+                <span class="value" title="Processed output"
+                  >Out: <span id="joyOut">&mdash;</span></span
+                >
               </div>
             </div>
             <div class="row">
-              <button type="button" class="cmd" id="btnReadJoy" disabled>Read once</button>
-              <button type="button" class="cmd secondary" id="btnLiveJoy" disabled aria-pressed="false">
+              <button type="button" class="cmd" id="btnReadJoy" disabled>
+                Read once
+              </button>
+              <button
+                type="button"
+                class="cmd secondary"
+                id="btnLiveJoy"
+                disabled
+                aria-pressed="false"
+              >
                 Live view
               </button>
             </div>
@@ -1704,10 +2400,22 @@
                 <div class="dot raw" id="dotRaw" hidden></div>
               </div>
               <div class="plot-legend">
-                <span><span class="chip chip--info"></span>Raw joystick position</span>
-                <span><span class="chip chip--success"></span>Neutral (center) point</span>
-                <span><span class="chip chip--muted"></span>Calibration corners</span>
-                <span><span class="chip chip--accent"></span>Corner pending / captured</span>
+                <span
+                  ><span class="chip chip--info"></span>Raw joystick
+                  position</span
+                >
+                <span
+                  ><span class="chip chip--success"></span>Neutral (center)
+                  point</span
+                >
+                <span
+                  ><span class="chip chip--muted"></span>Calibration
+                  corners</span
+                >
+                <span
+                  ><span class="chip chip--accent"></span>Corner pending /
+                  captured</span
+                >
                 <span>Dashed rings = deadzones. Corner 1 = top-left.</span>
               </div>
             </div>
@@ -1715,9 +2423,16 @@
               <button type="button" class="cmd secondary" id="btnInit" disabled>
                 Reset neutral position (initialize)
               </button>
-              <button type="button" class="cmd" id="btnCalibrate" disabled>Start full calibration</button>
+              <button type="button" class="cmd" id="btnCalibrate" disabled>
+                Start full calibration
+              </button>
             </div>
-            <ol class="cal-steps" id="calSteps" hidden aria-label="Calibration steps">
+            <ol
+              class="cal-steps"
+              id="calSteps"
+              hidden
+              aria-label="Calibration steps"
+            >
               <li data-step="1">Push to corner 1 (top-left)</li>
               <li data-step="2">Push to corner 2 (top-right)</li>
               <li data-step="3">Push to corner 3 (bottom-right)</li>
@@ -1725,29 +2440,49 @@
               <li data-step="5">Hold still — re-center</li>
               <li data-step="6">Verify stored calibration</li>
             </ol>
-            <div class="progress" id="calStatus" role="status" aria-live="polite"></div>
+            <div
+              class="progress"
+              id="calStatus"
+              role="status"
+              aria-live="polite"
+            ></div>
             <p class="hint">
-              Captures 4 corners. Follow Hub display prompts; progress shown above. If a step fails, re-center and
-              retry.
+              Captures 4 corners. Follow Hub display prompts; progress shown
+              above. If a step fails, re-center and retry.
             </p>
             <details>
               <summary>Stored calibration values</summary>
               <div class="grid">
-                <span class="value">Neutral: <span id="neutralVal">&mdash;</span></span
-                ><span class="value">Corner 1: <span id="corner1">&mdash;</span></span
-                ><span class="value">Corner 2: <span id="corner2">&mdash;</span></span
-                ><span class="value">Corner 3: <span id="corner3">&mdash;</span></span
-                ><span class="value">Corner 4: <span id="corner4">&mdash;</span></span>
+                <span class="value"
+                  >Neutral: <span id="neutralVal">&mdash;</span></span
+                ><span class="value"
+                  >Corner 1: <span id="corner1">&mdash;</span></span
+                ><span class="value"
+                  >Corner 2: <span id="corner2">&mdash;</span></span
+                ><span class="value"
+                  >Corner 3: <span id="corner3">&mdash;</span></span
+                ><span class="value"
+                  >Corner 4: <span id="corner4">&mdash;</span></span
+                >
               </div>
               <div class="row">
-                <button type="button" class="cmd secondary" id="btnReadCalibration" disabled>
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnReadCalibration"
+                  disabled
+                >
                   Refresh calibration values
                 </button>
               </div>
             </details>
           </section>
 
-          <section class="section-card" id="sec-feedback" aria-label="Sound and lights">
+          <section
+            class="section-card"
+            id="sec-feedback"
+            aria-label="Sound and lights"
+          >
             <div class="card-head">
               <h2>Sound &amp; lights</h2>
               <button
@@ -1760,40 +2495,57 @@
               </button>
             </div>
             <div class="section-intro">
-              <p class="section-summary">Choose how the LipSync confirms input through sound and light.</p>
+              <p class="section-summary">
+                Choose how the LipSync confirms input through sound and light.
+              </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Recommended</span> Begin with Basic feedback and increase only if the user
-                needs stronger confirmation.
+                <span class="recommend-label">Recommended</span> Begin with
+                Basic feedback and increase only if the user needs stronger
+                confirmation.
               </p>
             </div>
-            <div class="settings-list" aria-label="Sound and light feedback settings">
+            <div
+              class="settings-list"
+              aria-label="Sound and light feedback settings"
+            >
               <div class="row">
-                <label for="soundMode">Sound feedback</label><span class="value" id="soundModeVal">&mdash;</span
+                <label for="soundMode">Sound feedback</label
+                ><span class="value" id="soundModeVal">&mdash;</span
                 ><select id="soundMode">
                   <option value="0">Off</option>
                   <option value="1">Basic</option>
                   <option value="2">All</option></select
-                ><button type="button" class="cmd" id="btnSetSound" disabled>Set</button>
+                ><button type="button" class="cmd" id="btnSetSound" disabled>
+                  Set
+                </button>
               </div>
               <div class="row">
-                <label for="lightMode">Light feedback</label><span class="value" id="lightModeVal">&mdash;</span
+                <label for="lightMode">Light feedback</label
+                ><span class="value" id="lightModeVal">&mdash;</span
                 ><select id="lightMode">
                   <option value="0">Off</option>
                   <option value="1">Basic</option>
                   <option value="2">All</option>
                   <option value="3">Input state</option></select
-                ><button type="button" class="cmd" id="btnSetLight" disabled>Set</button>
+                ><button type="button" class="cmd" id="btnSetLight" disabled>
+                  Set
+                </button>
               </div>
               <details class="inline-help">
                 <summary>What Input state feedback shows</summary>
                 <p class="hint">
-                  The three face LEDs fill as a hold moves through short, long, and very-long windows. The USB-C light
-                  uses matching green, yellow, and red states.
+                  The three face LEDs fill as a hold moves through short, long,
+                  and very-long windows. The USB-C light uses matching green,
+                  yellow, and red states.
                 </p>
               </details>
               <div class="row tuning-row">
                 <label>LED brightness</label>
-                <div class="tuning-stepper" role="group" aria-label="Adjust LED brightness">
+                <div
+                  class="tuning-stepper"
+                  role="group"
+                  aria-label="Adjust LED brightness"
+                >
                   <button
                     type="button"
                     class="cmd secondary"
@@ -1816,9 +2568,16 @@
                     +
                   </button>
                 </div>
-                <span class="meter" id="brightnessMeter" aria-hidden="true"></span>
+                <span
+                  class="meter"
+                  id="brightnessMeter"
+                  aria-hidden="true"
+                ></span>
               </div>
-              <p class="hint">0–10, applies immediately. Hub LEDs blink to preview each change.</p>
+              <p class="hint">
+                0–10, applies immediately. Hub LEDs blink to preview each
+                change.
+              </p>
             </div>
           </section>
 
@@ -1841,44 +2600,78 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Switch the LipSync to Bluetooth Mouse mode and pair it using the advertised name.
+                Switch the LipSync to Bluetooth Mouse mode and pair it using the
+                advertised name.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Before switching</span> Keep USB connected until the restart begins; it
-                remains available for future settings changes.
+                <span class="recommend-label">Before switching</span> Keep USB
+                connected until the restart begins; it remains available for
+                future settings changes.
               </p>
             </div>
-            <div class="settings-list" aria-label="Bluetooth device information">
-              <div class="row"><label>BLE device name</label><span class="value" id="btName">&mdash;</span></div>
-              <div class="row"><label>Status</label><span class="value" id="btStatus">&mdash;</span></div>
+            <div
+              class="settings-list"
+              aria-label="Bluetooth device information"
+            >
+              <div class="row">
+                <label>BLE device name</label
+                ><span class="value" id="btName">&mdash;</span>
+              </div>
+              <div class="row">
+                <label>Status</label
+                ><span class="value" id="btStatus">&mdash;</span>
+              </div>
             </div>
             <div class="row">
-              <button type="button" id="btnSwitchBt" disabled>Switch to Bluetooth</button>
+              <button type="button" id="btnSwitchBt" disabled>
+                Switch to Bluetooth
+              </button>
               <div class="row" id="btHostSummaryRow" hidden>
-                <label>Paired hosts</label><span class="value" id="btHostSummary">&mdash;</span>
+                <label>Paired hosts</label
+                ><span class="value" id="btHostSummary">&mdash;</span>
               </div>
-              <div id="btHostList" role="list" aria-label="Paired hosts" class="bt-host-list" hidden></div>
+              <div
+                id="btHostList"
+                role="list"
+                aria-label="Paired hosts"
+                class="bt-host-list"
+                hidden
+              ></div>
               <div class="bt-card-controls" id="btCardControls" hidden>
-                <button type="button" id="btPairNew" class="btn-secondary">Pair new…</button>
-                <button type="button" id="btForgetAll" class="btn-secondary">Forget all…</button>
+                <button type="button" id="btPairNew" class="btn-secondary">
+                  Pair new…
+                </button>
+                <button type="button" id="btForgetAll" class="btn-secondary">
+                  Forget all…
+                </button>
               </div>
             </div>
             <details>
               <summary>Pairing instructions</summary>
               <p class="hint">
-                1. Click <strong>Switch to Bluetooth</strong>. The device saves the setting, restarts, and begins
-                advertising.
+                1. Click <strong>Switch to Bluetooth</strong>. The device saves
+                the setting, restarts, and begins advertising.
               </p>
-              <p class="hint">2. On your computer, open Bluetooth settings and look for the device name shown above.</p>
-              <p class="hint">3. Select it to pair. The LipSync appears as a mouse (HID).</p>
               <p class="hint">
-                4. To return to USB mode, reconnect via USB, open this panel, and select a USB mode from the operating
-                mode dropdown in Overview &amp; modes.
+                2. On your computer, open Bluetooth settings and look for the
+                device name shown above.
+              </p>
+              <p class="hint">
+                3. Select it to pair. The LipSync appears as a mouse (HID).
+              </p>
+              <p class="hint">
+                4. To return to USB mode, reconnect via USB, open this panel,
+                and select a USB mode from the operating mode dropdown in
+                Overview &amp; modes.
               </p>
             </details>
           </section>
 
-          <section class="section-card" id="sec-diagnostics" aria-label="Health check and self-tests">
+          <section
+            class="section-card"
+            id="sec-diagnostics"
+            aria-label="Health check and self-tests"
+          >
             <div class="card-head">
               <h2>Health check &amp; self-tests</h2>
               <button
@@ -1892,35 +2685,103 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Verify sensor response, calibration, and hardware feedback before handing off the device.
+                Verify sensor response, calibration, and hardware feedback
+                before handing off the device.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Run the health check first; use individual self-tests
-                only when troubleshooting.
+                <span class="recommend-label">Start here</span> Run the health
+                check first; use individual self-tests only when
+                troubleshooting.
               </p>
             </div>
             <div class="diag-group">
               <p class="diag-title">Health check</p>
               <div class="row">
-                <button type="button" class="cmd" id="btnRunDiagnostics" disabled>Run health check</button
+                <button
+                  type="button"
+                  class="cmd"
+                  id="btnRunDiagnostics"
+                  disabled
+                >
+                  Run health check</button
                 ><span class="value" id="healthSummary">Not run</span>
               </div>
-              <div id="healthDetails" class="notice" role="status" aria-live="polite"></div>
-              <div class="health-history" id="healthHistory" hidden aria-label="Health check history"></div>
-              <div class="health-grid" id="healthGrid" hidden role="list" aria-label="Health check steps">
-                <div class="health-cell" id="hcPressure" role="listitem" data-label="Pressure sensors"></div>
-                <div class="health-cell" id="hcJoystick" role="listitem" data-label="Joystick response"></div>
-                <div class="health-cell" id="hcNeutral" role="listitem" data-label="Neutral position"></div>
-                <div class="health-cell" id="hcCalibration" role="listitem" data-label="Stored calibration"></div>
-                <div class="health-cell" id="hcBus" role="listitem" data-label="I2C bus"></div>
+              <div
+                id="healthDetails"
+                class="notice"
+                role="status"
+                aria-live="polite"
+              ></div>
+              <div
+                class="health-history"
+                id="healthHistory"
+                hidden
+                aria-label="Health check history"
+              ></div>
+              <div
+                class="health-grid"
+                id="healthGrid"
+                hidden
+                role="list"
+                aria-label="Health check steps"
+              >
+                <div
+                  class="health-cell"
+                  id="hcPressure"
+                  role="listitem"
+                  data-label="Pressure sensors"
+                ></div>
+                <div
+                  class="health-cell"
+                  id="hcJoystick"
+                  role="listitem"
+                  data-label="Joystick response"
+                ></div>
+                <div
+                  class="health-cell"
+                  id="hcNeutral"
+                  role="listitem"
+                  data-label="Neutral position"
+                ></div>
+                <div
+                  class="health-cell"
+                  id="hcCalibration"
+                  role="listitem"
+                  data-label="Stored calibration"
+                ></div>
+                <div
+                  class="health-cell"
+                  id="hcBus"
+                  role="listitem"
+                  data-label="I2C bus"
+                ></div>
               </div>
             </div>
             <div class="diag-group">
               <p class="diag-title">Self-tests</p>
               <div class="row">
-                <button type="button" class="cmd secondary" id="btnTestLeds" disabled>Test LEDs</button
-                ><button type="button" class="cmd secondary" id="btnTestBuzzer" disabled>Test buzzer</button
-                ><button type="button" class="cmd danger" id="btnTestWatchdog" disabled>Test watchdog restart</button>
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnTestLeds"
+                  disabled
+                >
+                  Test LEDs</button
+                ><button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnTestBuzzer"
+                  disabled
+                >
+                  Test buzzer</button
+                ><button
+                  type="button"
+                  class="cmd danger"
+                  id="btnTestWatchdog"
+                  disabled
+                >
+                  Test watchdog restart
+                </button>
                 ><span
                   class="hint row-hint"
                   title="LED and buzzer tests show live steps. The watchdog test deliberately restarts the device."
@@ -1931,7 +2792,11 @@
               <div id="selfTestPanel" class="selftest-panel" hidden>
                 <p class="selftest-title" id="selfTestTitle"></p>
                 <ol class="selftest-steps" id="selfTestSteps"></ol>
-                <div class="selftest-live sr-only" id="selfTestLive" aria-live="polite"></div>
+                <div
+                  class="selftest-live sr-only"
+                  id="selfTestLive"
+                  aria-live="polite"
+                ></div>
               </div>
             </div>
           </section>
@@ -1939,19 +2804,26 @@
           <section class="section-card" id="sec-tools" aria-label="Test inputs">
             <div class="card-head">
               <h2>Test inputs</h2>
-              <button type="button" class="card-close" data-close="sec-tools" aria-label="Close Test inputs section">
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-tools"
+                aria-label="Close Test inputs section"
+              >
                 &times;
               </button>
             </div>
             <div class="section-intro section-intro--single">
               <p class="section-summary">
-                See which joystick, mouthpiece, Hub-button, or external-switch inputs the LipSync is receiving.
+                See which joystick, mouthpiece, Hub-button, or external-switch
+                inputs the LipSync is receiving.
               </p>
             </div>
             <div class="diag-group">
               <p class="diag-title">Live input test</p>
               <div class="row">
-                <label for="debugMode">Live diagnostic output</label><span class="value" id="debugModeVal">Off</span
+                <label for="debugMode">Live diagnostic output</label
+                ><span class="value" id="debugModeVal">Off</span
                 ><select id="debugMode" disabled>
                   <option value="0">Off</option>
                   <option value="1">Joystick</option>
@@ -1959,9 +2831,13 @@
                   <option value="3">Hub buttons</option>
                   <option value="4">External switches</option>
                   <option value="5">Sip &amp; puff state</option></select
-                ><button type="button" class="cmd" id="btnSetDebug" disabled>Apply</button>
+                ><button type="button" class="cmd" id="btnSetDebug" disabled>
+                  Apply
+                </button>
               </div>
-              <p class="hint">Select a stream to view live sensor data in the panel below.</p>
+              <p class="hint">
+                Select a stream to view live sensor data in the panel below.
+              </p>
               <div id="diagJoy" hidden>
                 <div class="viz-wrap">
                   <div
@@ -1984,7 +2860,10 @@
                       ><span class="chip chip--accent"></span>Processed output:
                       <span class="value" id="diagJoyOut">&mdash;</span></span
                     >
-                    <span>Final processed value sent to the computer (after neutral, calibration, and deadzones).</span>
+                    <span
+                      >Final processed value sent to the computer (after
+                      neutral, calibration, and deadzones).</span
+                    >
                   </div>
                 </div>
               </div>
@@ -1999,7 +2878,8 @@
                   <div class="zero"></div>
                 </div>
                 <div class="row">
-                  <span class="value" title="Mouthpiece pressure">Mouth: <span id="diagPressMouth">&mdash;</span></span
+                  <span class="value" title="Mouthpiece pressure"
+                    >Mouth: <span id="diagPressMouth">&mdash;</span></span
                   ><span class="value" title="Ambient pressure"
                     >Ambient: <span id="diagPressAmbient">&mdash;</span></span
                   ><span class="value" title="Pressure difference"
@@ -2011,20 +2891,28 @@
                 <div class="row">
                   <span class="diag-key" id="diagBtn1">Next (S1)</span
                   ><span class="diag-key" id="diagBtn2">Select (S2)</span
-                  ><span class="value">Held: <span id="diagBtnTime">&mdash;</span></span>
+                  ><span class="value"
+                    >Held: <span id="diagBtnTime">&mdash;</span></span
+                  >
                 </div>
               </div>
               <div id="diagSwitches" hidden>
                 <div class="row">
-                  <span class="diag-key" id="diagSw1">Switch 1</span><span class="diag-key" id="diagSw2">Switch 2</span
+                  <span class="diag-key" id="diagSw1">Switch 1</span
+                  ><span class="diag-key" id="diagSw2">Switch 2</span
                   ><span class="diag-key" id="diagSw3">Switch 3</span
-                  ><span class="value">Held: <span id="diagSwTime">&mdash;</span></span>
+                  ><span class="value"
+                    >Held: <span id="diagSwTime">&mdash;</span></span
+                  >
                 </div>
               </div>
               <div id="diagSap" hidden>
                 <div class="row">
-                  <span class="diag-key" id="diagSip">SIP</span><span class="diag-key" id="diagPuff">PUFF</span
-                  ><span class="value">Held: <span id="diagSapTime">&mdash;</span></span>
+                  <span class="diag-key" id="diagSip">SIP</span
+                  ><span class="diag-key" id="diagPuff">PUFF</span
+                  ><span class="value"
+                    >Held: <span id="diagSapTime">&mdash;</span></span
+                  >
                 </div>
                 <div
                   class="win-ladder"
@@ -2032,12 +2920,20 @@
                   role="img"
                   aria-label="Input window timeline with live hold progress."
                 ></div>
-                <div class="win-scale" id="winScaleDiag" aria-hidden="true"></div>
+                <div
+                  class="win-scale"
+                  id="winScaleDiag"
+                  aria-hidden="true"
+                ></div>
               </div>
             </div>
           </section>
 
-          <section class="section-card" id="sec-maintenance" aria-label="Restart and reset">
+          <section
+            class="section-card"
+            id="sec-maintenance"
+            aria-label="Restart and reset"
+          >
             <div class="card-head">
               <h2>Restart &amp; reset</h2>
               <button
@@ -2051,36 +2947,62 @@
             </div>
             <div class="section-intro section-intro--single">
               <p class="section-summary">
-                Restart the device safely, or deliberately return every setting to its factory default.
+                Restart the device safely, or deliberately return every setting
+                to its factory default.
               </p>
             </div>
             <div class="maintenance-grid maintenance-grid--restart">
               <div class="maintenance-option">
                 <p class="diag-title">Restart device</p>
-                <p class="hint">Reboots the LipSync without changing its saved settings.</p>
-                <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Restart LipSync</button>
+                <p class="hint">
+                  Reboots the LipSync without changing its saved settings.
+                </p>
+                <button
+                  type="button"
+                  class="cmd secondary"
+                  id="btnSoftReset"
+                  disabled
+                >
+                  Restart LipSync
+                </button>
               </div>
             </div>
             <details class="danger-disclosure">
               <summary>Reset options</summary>
-              <p class="hint">These actions remove saved setup information. Review the difference before continuing.</p>
+              <p class="hint">
+                These actions remove saved setup information. Review the
+                difference before continuing.
+              </p>
               <div class="maintenance-grid">
                 <div class="maintenance-option maintenance-option--warning">
                   <p class="diag-title">Restore default settings</p>
                   <p class="hint">
-                    Replaces the saved setup, calibration, and mappings with defaults without formatting internal
-                    storage.
+                    Replaces the saved setup, calibration, and mappings with
+                    defaults without formatting internal storage.
                   </p>
-                  <button type="button" class="cmd secondary" id="btnResetSettings" disabled>
+                  <button
+                    type="button"
+                    class="cmd secondary"
+                    id="btnResetSettings"
+                    disabled
+                  >
                     Restore default settings
                   </button>
                 </div>
                 <div class="maintenance-option maintenance-option--danger">
                   <p class="diag-title">Factory erase</p>
                   <p class="hint">
-                    Formats internal storage and recreates the factory setup. Use only when support asks.
+                    Formats internal storage and recreates the factory setup.
+                    Use only when support asks.
                   </p>
-                  <button type="button" class="cmd danger" id="btnFactoryReset" disabled>Factory erase</button>
+                  <button
+                    type="button"
+                    class="cmd danger"
+                    id="btnFactoryReset"
+                    disabled
+                  >
+                    Factory erase
+                  </button>
                 </div>
               </div>
             </details>
@@ -2089,35 +3011,57 @@
           <section class="section-card" id="sec-firmware" aria-label="Updates">
             <div class="card-head">
               <h2>Updates</h2>
-              <button type="button" class="card-close" data-close="sec-firmware" aria-label="Close Updates section">
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-firmware"
+                aria-label="Close Updates section"
+              >
                 &times;
               </button>
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Check for official LipSync firmware and update while preserving personal settings.
+                Check for official LipSync firmware and update while preserving
+                personal settings.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Before updating</span> Keep the USB cable connected; the app creates a
-                settings backup before flashing.
+                <span class="recommend-label">Before updating</span> Keep the
+                USB cable connected; the app creates a settings backup before
+                flashing.
               </p>
             </div>
             <div class="fw-check-rows">
               <div class="row">
-                <label>Installed version</label><span class="value" id="fwCurrentVersion">&mdash;</span>
+                <label>Installed version</label
+                ><span class="value" id="fwCurrentVersion">&mdash;</span>
               </div>
               <div class="row">
-                <label>Latest available</label><span class="value" id="fwLatestVersion">&mdash;</span>
+                <label>Latest available</label
+                ><span class="value" id="fwLatestVersion">&mdash;</span>
               </div>
               <p id="fwUpdateStatus" role="status" class="fw-status"></p>
               <p>
-                <a id="fwNotesLink" hidden rel="noopener noreferrer" target="_blank"
-                  >What&#8217;s new in this release<span class="sr-only"> (opens in a new tab)</span></a
+                <a
+                  id="fwNotesLink"
+                  hidden
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  >What&#8217;s new in this release<span class="sr-only">
+                    (opens in a new tab)</span
+                  ></a
                 >
               </p>
             </div>
             <div class="row" id="fwActionsRow">
-              <button type="button" class="cmd secondary" id="btnCheckUpdate" disabled>Check for updates</button>
+              <button
+                type="button"
+                class="cmd secondary"
+                id="btnCheckUpdate"
+                disabled
+              >
+                Check for updates
+              </button>
               <button type="button" class="cmd" id="btnStartUpdate" hidden>
                 Update to <span id="fwTargetVersion"></span>
               </button>
@@ -2129,14 +3073,30 @@
              class="cmd": both must stay reachable while disconnected —
              which is exactly when a device is stuck in update mode. -->
             <div class="row">
-              <button type="button" class="cmd secondary" id="btnFlashLocalFile" disabled hidden>
+              <button
+                type="button"
+                class="cmd secondary"
+                id="btnFlashLocalFile"
+                disabled
+                hidden
+              >
                 Flash local file&hellip;
               </button>
-              <button type="button" class="secondary" id="btnRecoverDevice" hidden>
+              <button
+                type="button"
+                class="secondary"
+                id="btnRecoverDevice"
+                hidden
+              >
                 Recover a device stuck in update mode&hellip;
               </button>
             </div>
-            <div id="fwWizard" hidden tabindex="-1" aria-label="Firmware update wizard">
+            <div
+              id="fwWizard"
+              hidden
+              tabindex="-1"
+              aria-label="Firmware update wizard"
+            >
               <ol class="fw-steps" aria-hidden="true">
                 <li id="fwStepBackup">Prepare</li>
                 <li id="fwStepRestart">Restart device</li>
@@ -2145,120 +3105,234 @@
               </ol>
               <p id="fwWizardStep" role="status" class="fw-step"></p>
               <div class="row">
-                <progress id="fwProgress" value="0" max="100" aria-label="Firmware update progress"></progress
+                <progress
+                  id="fwProgress"
+                  value="0"
+                  max="100"
+                  aria-label="Firmware update progress"
+                ></progress
                 ><span id="fwPct" class="fw-pct"></span>
               </div>
               <div class="row">
-                <button type="button" id="btnFwContinue" hidden>Continue</button>
-                <button type="button" class="secondary" id="btnFwCancel" hidden>Cancel</button>
-                <button type="button" class="secondary" id="btnDownloadBackup" hidden>Download settings backup</button>
+                <button type="button" id="btnFwContinue" hidden>
+                  Continue
+                </button>
+                <button type="button" class="secondary" id="btnFwCancel" hidden>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="secondary"
+                  id="btnDownloadBackup"
+                  hidden
+                >
+                  Download settings backup
+                </button>
               </div>
               <p class="hint" id="fwWizardHint"></p>
             </div>
-            <input type="file" id="fwFileInput" accept=".zip,application/zip" hidden aria-label="Firmware file" />
+            <input
+              type="file"
+              id="fwFileInput"
+              accept=".zip,application/zip"
+              hidden
+              aria-label="Firmware file"
+            />
           </section>
 
-          <section class="section-card" id="sec-help" aria-label="Fix a problem">
+          <section
+            class="section-card"
+            id="sec-help"
+            aria-label="Fix a problem"
+          >
             <div class="card-head">
               <h2>Fix a problem</h2>
-              <button type="button" class="card-close" data-close="sec-help" aria-label="Close Fix a problem section">
+              <button
+                type="button"
+                class="card-close"
+                data-close="sec-help"
+                aria-label="Close Fix a problem section"
+              >
                 &times;
               </button>
             </div>
             <div class="section-intro section-intro--single">
               <p class="section-summary">
-                Choose what is happening. Each path gives a short first check and opens the control or test that can
-                help.
+                Choose what is happening. Each path gives a short first check
+                and opens the control or test that can help.
               </p>
             </div>
             <div class="support-start">
               <div>
                 <p class="diag-title">Not sure where to begin?</p>
-                <p class="hint">Run a health check, or create one report with device details and the session log.</p>
+                <p class="hint">
+                  Run a health check, or create one report with device details
+                  and the session log.
+                </p>
               </div>
               <div class="row">
-                <button type="button" class="secondary" data-open-section="sec-diagnostics">Run health check</button>
-                <button type="button" class="secondary" data-open-section="sec-log">Create support report</button>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-diagnostics"
+                >
+                  Run health check
+                </button>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-log"
+                >
+                  Create support report
+                </button>
               </div>
             </div>
             <div class="symptom-grid" aria-label="Common problems">
               <section class="symptom-card" aria-labelledby="problemConnect">
                 <h3 id="problemConnect">Cannot connect</h3>
                 <p>
-                  Use a USB data cable connected directly to the computer. Close serial-monitor apps, reconnect the
-                  cable, wait 10 seconds, then try again in Chrome, Edge, or Opera.
+                  Use a USB data cable connected directly to the computer. Close
+                  serial-monitor apps, reconnect the cable, wait 10 seconds,
+                  then try again in Chrome, Edge, or Opera.
                 </p>
-                <button type="button" class="secondary" data-open-section="sec-home">Go to connection</button>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-home"
+                >
+                  Go to connection
+                </button>
               </section>
               <section class="symptom-card" aria-labelledby="problemPointer">
                 <h3 id="problemPointer">Pointer is difficult to control</h3>
                 <p>
-                  Adjust speed before acceleration. If movement is uneven, inspect the live joystick view before
-                  recalibrating.
+                  Adjust speed before acceleration. If movement is uneven,
+                  inspect the live joystick view before recalibrating.
                 </p>
                 <div class="symptom-actions">
-                  <button type="button" class="secondary" data-open-section="sec-cursor">Adjust pointer</button>
-                  <button type="button" class="secondary" data-open-section="sec-joystick">Check joystick</button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    data-open-section="sec-cursor"
+                  >
+                    Adjust pointer
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    data-open-section="sec-joystick"
+                  >
+                    Check joystick
+                  </button>
                 </div>
               </section>
               <section class="symptom-card" aria-labelledby="problemSip">
                 <h3 id="problemSip">Sip or puff is missed</h3>
                 <p>
-                  Practice with Live view first. Compare the measured peaks with the thresholds, then adjust sensitivity
-                  or hold timing one step at a time.
+                  Practice with Live view first. Compare the measured peaks with
+                  the thresholds, then adjust sensitivity or hold timing one
+                  step at a time.
                 </p>
-                <button type="button" class="secondary" data-open-section="sec-sip">Practice sip &amp; puff</button>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-sip"
+                >
+                  Practice sip &amp; puff
+                </button>
               </section>
               <section class="symptom-card" aria-labelledby="problemAccidental">
                 <h3 id="problemAccidental">Accidental inputs occur</h3>
                 <p>
-                  Add one safeguard at a time. You can freeze the pointer during mouthpiece input, lock the mode, or
-                  disable an input method.
+                  Add one safeguard at a time. You can freeze the pointer during
+                  mouthpiece input, lock the mode, or disable an input method.
                 </p>
-                <button type="button" class="secondary" data-open-section="sec-restrictions">
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-restrictions"
+                >
                   Open input safeguards
                 </button>
               </section>
               <section class="symptom-card" aria-labelledby="problemSwitch">
                 <h3 id="problemSwitch">External switch is not working</h3>
                 <p>
-                  Test whether the press reaches the LipSync. If it does, review the action assigned to that jack and
-                  hold length.
+                  Test whether the press reaches the LipSync. If it does, review
+                  the action assigned to that jack and hold length.
                 </p>
                 <div class="symptom-actions">
-                  <button type="button" class="secondary" data-open-section="sec-tools">Test inputs</button>
-                  <button type="button" class="secondary" data-open-section="sec-switches">Check mappings</button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    data-open-section="sec-tools"
+                  >
+                    Test inputs
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    data-open-section="sec-switches"
+                  >
+                    Check mappings
+                  </button>
                 </div>
               </section>
               <section class="symptom-card" aria-labelledby="problemBluetooth">
                 <h3 id="problemBluetooth">Bluetooth will not connect</h3>
                 <p>
-                  Keep USB connected, confirm Bluetooth Mouse mode and the advertised device name, then pair from the
-                  computer's Bluetooth settings after the restart finishes.
+                  Keep USB connected, confirm Bluetooth Mouse mode and the
+                  advertised device name, then pair from the computer's
+                  Bluetooth settings after the restart finishes.
                 </p>
-                <button type="button" class="secondary" data-open-section="sec-bluetooth">
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-bluetooth"
+                >
                   Open Bluetooth &amp; connections
                 </button>
               </section>
-              <section class="symptom-card symptom-card--warning" aria-labelledby="problemUpdate">
+              <section
+                class="symptom-card symptom-card--warning"
+                aria-labelledby="problemUpdate"
+              >
                 <h3 id="problemUpdate">Update was interrupted</h3>
                 <p>
-                  Replug the LipSync. If it only appears as an update loader, use the recovery action in Updates. The
-                  recovery loader remains intact and the settings backup can be restored.
+                  Replug the LipSync. If it only appears as an update loader,
+                  use the recovery action in Updates. The recovery loader
+                  remains intact and the settings backup can be restored.
                 </p>
-                <button type="button" class="secondary" data-open-section="sec-firmware">Open update recovery</button>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-open-section="sec-firmware"
+                >
+                  Open update recovery
+                </button>
               </section>
             </div>
             <div class="help-escalation">
               <p class="diag-title">Still need help?</p>
               <p class="hint">
-                Create a support report after reproducing the problem. Device identifiers are removed before the report
-                is downloaded or shared.
+                Create a support report after reproducing the problem. Device
+                identifiers are removed before the report is downloaded or
+                shared.
               </p>
-              <button type="button" class="secondary" data-open-section="sec-log">Create support report</button>
+              <button
+                type="button"
+                class="secondary"
+                data-open-section="sec-log"
+              >
+                Create support report
+              </button>
             </div>
           </section>
-          <section class="section-card" id="sec-log" aria-label="Support report and advanced tools">
+          <section
+            class="section-card"
+            id="sec-log"
+            aria-label="Support report and advanced tools"
+          >
             <div class="card-head">
               <h2>Support report &amp; advanced tools</h2>
               <button
@@ -2272,16 +3346,18 @@
             </div>
             <div class="section-intro section-intro--single">
               <p class="section-summary">
-                Collect the information support needs in one privacy-conscious report. Expert device controls stay
-                available in the disclosure below.
+                Collect the information support needs in one privacy-conscious
+                report. Expert device controls stay available in the disclosure
+                below.
               </p>
             </div>
             <div class="support-report-panel">
               <div class="support-report-copy">
                 <p class="diag-title">Create support report</p>
                 <p class="hint">
-                  Includes app and device versions, the session log, and a full settings dump when a LipSync is
-                  connected. Device identifiers are removed automatically.
+                  Includes app and device versions, the session log, and a full
+                  settings dump when a LipSync is connected. Device identifiers
+                  are removed automatically.
                 </p>
                 <ul class="report-includes">
                   <li>Connection, model, firmware, and operating mode</li>
@@ -2290,32 +3366,69 @@
                 </ul>
               </div>
               <div class="support-report-actions">
-                <button type="button" id="btnDownloadSupportReport">Download support report</button>
-                <button type="button" id="btnShareSupportReport" class="secondary">Share support report</button>
+                <button type="button" id="btnDownloadSupportReport">
+                  Download support report
+                </button>
+                <button
+                  type="button"
+                  id="btnShareSupportReport"
+                  class="secondary"
+                >
+                  Share support report
+                </button>
               </div>
-              <p id="supportReportStatus" class="hint" role="status" aria-live="polite"></p>
+              <p
+                id="supportReportStatus"
+                class="hint"
+                role="status"
+                aria-live="polite"
+              ></p>
             </div>
 
             <details class="advanced-tools">
               <summary>Advanced tools</summary>
               <p class="hint">
-                These controls are intended for support and technical troubleshooting. Normal adjustments do not need
-                raw commands or the remote Hub menu.
+                These controls are intended for support and technical
+                troubleshooting. Normal adjustments do not need raw commands or
+                the remote Hub menu.
               </p>
               <div class="diag-group">
                 <p class="diag-title">Remote Hub menu</p>
                 <div class="row">
                   <span class="hint row-hint"
-                    >Open starts the on-device Hub menu and mirrors its screen below; Close stops it.</span
+                    >Open starts the on-device Hub menu and mirrors its screen
+                    below; Close stops it.</span
                   >
                 </div>
                 <div class="row hub-remote" id="hubRemote">
-                  <button type="button" class="cmd secondary" id="btnHubOpen" disabled>Open</button>
-                  <button type="button" class="cmd secondary" id="btnHubClose" disabled>Close</button>
+                  <button
+                    type="button"
+                    class="cmd secondary"
+                    id="btnHubOpen"
+                    disabled
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    class="cmd secondary"
+                    id="btnHubClose"
+                    disabled
+                  >
+                    Close
+                  </button>
                 </div>
                 <div id="hubScreenWrap" hidden>
-                  <div class="hub-screen" role="group" aria-label="Mirrored Hub screen">
-                    <p class="hub-screen-header" id="hubScreenHeader" aria-live="polite"></p>
+                  <div
+                    class="hub-screen"
+                    role="group"
+                    aria-label="Mirrored Hub screen"
+                  >
+                    <p
+                      class="hub-screen-header"
+                      id="hubScreenHeader"
+                      aria-live="polite"
+                    ></p>
                     <ol
                       class="hub-screen-items"
                       id="hubScreenItems"
@@ -2325,12 +3438,27 @@
                     <p class="hub-screen-note" id="hubScreenNote" hidden></p>
                   </div>
                   <div class="row">
-                    <button type="button" class="cmd secondary" id="btnHubNext" disabled>Next</button>
-                    <button type="button" class="cmd" id="btnHubSelect" disabled>Select</button>
+                    <button
+                      type="button"
+                      class="cmd secondary"
+                      id="btnHubNext"
+                      disabled
+                    >
+                      Next
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd"
+                      id="btnHubSelect"
+                      disabled
+                    >
+                      Select
+                    </button>
                   </div>
                   <p class="hint">
-                    The mirror follows the Next/Select presses you send. Physical button presses or the Hub inactivity
-                    timeout can make it drift; select Open again to resync.
+                    The mirror follows the Next/Select presses you send.
+                    Physical button presses or the Hub inactivity timeout can
+                    make it drift; select Open again to resync.
                   </p>
                 </div>
                 <div class="error" id="hubRemoteError" role="alert"></div>
@@ -2338,18 +3466,40 @@
 
               <div class="diag-group">
                 <p class="diag-title">Detailed command log</p>
-                <p class="hint">Review or export the individual commands and responses from this browser session.</p>
+                <p class="hint">
+                  Review or export the individual commands and responses from
+                  this browser session.
+                </p>
                 <div class="row">
-                  <button type="button" id="btnDownloadLog" class="secondary">Download detailed log</button
-                  ><button type="button" id="btnShareLog" class="secondary">Share detailed log</button
-                  ><button type="button" id="btnClearLog" class="secondary">Clear log</button
-                  ><button type="button" id="btnLogErrorsOnly" class="secondary" aria-pressed="false">
+                  <button type="button" id="btnDownloadLog" class="secondary">
+                    Download detailed log</button
+                  ><button type="button" id="btnShareLog" class="secondary">
+                    Share detailed log</button
+                  ><button type="button" id="btnClearLog" class="secondary">
+                    Clear log</button
+                  ><button
+                    type="button"
+                    id="btnLogErrorsOnly"
+                    class="secondary"
+                    aria-pressed="false"
+                  >
                     Errors only</button
-                  ><button type="button" id="btnCaptureSettingsDump" class="cmd secondary" disabled>
+                  ><button
+                    type="button"
+                    id="btnCaptureSettingsDump"
+                    class="cmd secondary"
+                    disabled
+                  >
                     Capture device dump
                   </button>
                 </div>
-                <div id="log" role="log" tabindex="0" aria-live="off" aria-label="Detailed command log"></div>
+                <div
+                  id="log"
+                  role="log"
+                  tabindex="0"
+                  aria-live="off"
+                  aria-label="Detailed command log"
+                ></div>
               </div>
 
               <div class="diag-group">
@@ -2361,31 +3511,25 @@
                     id="rawCommand"
                     placeholder="e.g. EX,0:0"
                     maxlength="11"
-                    list="rawCommandList"
                     autocomplete="off"
                     spellcheck="false"
                     aria-label="Raw serial command to send to the device"
-                  /><button type="button" class="cmd secondary" id="btnSendRaw" disabled>Send</button>
+                  /><button
+                    type="button"
+                    class="cmd secondary"
+                    id="btnSendRaw"
+                    disabled
+                  >
+                    Send
+                  </button>
                 </div>
-                <!-- Suggests the read-only commands every firmware answers; state-changing
-                 commands stay out on purpose (their dedicated buttons confirm first). -->
-                <datalist id="rawCommandList">
-                  <option value="EX,0:0">Full settings dump</option>
-                  <option value="PV,0:0">Read pressure</option>
-                  <option value="JV,0:0">Read joystick</option>
-                  <option value="IN,0:0">Neutral position</option>
-                  <option value="CA,0:0">Calibration values</option>
-                  <option value="VN,0:0">Firmware version</option>
-                  <option value="SS,0:0">Cursor speed</option>
-                  <option value="ST,0:0">Sip threshold</option>
-                  <option value="PT,0:0">Puff threshold</option>
-                  <option value="IZ,0:0">Inner deadzone</option>
-                  <option value="OZ,0:0">Outer deadzone</option>
-                  <option value="DM,0:0">Live diagnostic output</option>
-                </datalist>
                 <p class="hint">
-                  Send a raw serial command only when support asks. Commands that restart the device still ask for
-                  confirmation.
+                  Use the read-only commands here only when support asks:
+                  <strong>EX,0:0</strong> (settings dump),
+                  <strong>PV,0:0</strong> (read pressure),
+                  <strong>JV,0:0</strong> (read joystick),
+                  <strong>VN,0:0</strong> (firmware version). Commands that
+                  restart the device still ask for confirmation.
                 </p>
               </div>
             </details>
@@ -2398,8 +3542,13 @@
       <p>
         <small
           >Open Assistive Technology by
-          <a href="https://www.makersmakingchange.com/" target="_blank" rel="noopener"
-            >Makers Making Change<span class="sr-only"> (opens in a new tab)</span></a
+          <a
+            href="https://www.makersmakingchange.com/"
+            target="_blank"
+            rel="noopener"
+            >Makers Making Change<span class="sr-only">
+              (opens in a new tab)</span
+            ></a
           >, a program of
           <a href="https://www.neilsquire.ca/" target="_blank" rel="noopener"
             >Neil Squire<span class="sr-only"> (opens in a new tab)</span></a
@@ -2411,9 +3560,17 @@
     <div id="notification" role="alert" aria-live="assertive" hidden></div>
     <div id="writeConfirm" class="write-confirm" role="status" hidden>
       <span id="writeConfirmText"></span>
-      <button type="button" class="write-confirm-undo" id="btnWriteUndo" hidden>Undo</button>
+      <button type="button" class="write-confirm-undo" id="btnWriteUndo" hidden>
+        Undo
+      </button>
     </div>
-    <div id="srStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div
+      id="srStatus"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
 
     <div
       id="appearancePopup"
@@ -2439,67 +3596,148 @@
         <div class="popup-row">
           <span>Text size</span>
           <div class="scale-seg" role="group" aria-label="Text size">
-            <button type="button" class="scale-btn" data-scale="1" aria-pressed="true">100%</button>
-            <button type="button" class="scale-btn" data-scale="1.25" aria-pressed="false">125%</button>
-            <button type="button" class="scale-btn" data-scale="1.5" aria-pressed="false">150%</button>
+            <button
+              type="button"
+              class="scale-btn"
+              data-scale="1"
+              aria-pressed="true"
+            >
+              100%
+            </button>
+            <button
+              type="button"
+              class="scale-btn"
+              data-scale="1.25"
+              aria-pressed="false"
+            >
+              125%
+            </button>
+            <button
+              type="button"
+              class="scale-btn"
+              data-scale="1.5"
+              aria-pressed="false"
+            >
+              150%
+            </button>
           </div>
         </div>
         <details class="appearance-advanced">
           <summary>Advanced colors</summary>
           <p class="popup-note">
-            Custom combinations can affect contrast. The app warns when button text falls below AA.
+            Custom combinations can affect contrast. The app warns when button
+            text falls below AA.
           </p>
           <div class="popup-colors">
             <div class="pc-row">
               <label for="colorAccent">Action</label
-              ><input type="color" id="colorAccent" value="#0072CE" title="Primary action color" />
+              ><input
+                type="color"
+                id="colorAccent"
+                value="#0072CE"
+                title="Primary action color"
+              />
             </div>
             <div class="pc-row">
               <label for="colorAccent2">Hover</label
-              ><input type="color" id="colorAccent2" value="#005EA8" title="Primary action hover color" />
+              ><input
+                type="color"
+                id="colorAccent2"
+                value="#005EA8"
+                title="Primary action hover color"
+              />
             </div>
             <div class="pc-row">
               <label for="colorBg">Background</label
-              ><input type="color" id="colorBg" value="#f5f7f8" title="Page background" />
+              ><input
+                type="color"
+                id="colorBg"
+                value="#f5f7f8"
+                title="Page background"
+              />
             </div>
             <div class="pc-row">
               <label for="colorPanel">Panel</label
-              ><input type="color" id="colorPanel" value="#ffffff" title="Card background" />
+              ><input
+                type="color"
+                id="colorPanel"
+                value="#ffffff"
+                title="Card background"
+              />
             </div>
             <div class="pc-row">
-              <label for="colorText">Text</label><input type="color" id="colorText" value="#3a3f42" title="Body text" />
+              <label for="colorText">Text</label
+              ><input
+                type="color"
+                id="colorText"
+                value="#3a3f42"
+                title="Body text"
+              />
             </div>
             <div class="pc-row">
               <label for="colorMuted">Muted</label
-              ><input type="color" id="colorMuted" value="#45525e" title="Secondary text &amp; hints" />
+              ><input
+                type="color"
+                id="colorMuted"
+                value="#45525e"
+                title="Secondary text &amp; hints"
+              />
             </div>
             <div class="pc-row">
               <label for="colorBorder">Border</label
-              ><input type="color" id="colorBorder" value="#d7dde2" title="Borders &amp; dividers" />
+              ><input
+                type="color"
+                id="colorBorder"
+                value="#d7dde2"
+                title="Borders &amp; dividers"
+              />
             </div>
             <div class="pc-row">
               <label for="colorBtnText">Button text</label
-              ><input type="color" id="colorBtnText" value="#ffffff" title="Button label text" />
+              ><input
+                type="color"
+                id="colorBtnText"
+                value="#ffffff"
+                title="Button label text"
+              />
             </div>
             <div class="pc-row">
               <label for="colorSuccess">Success</label
-              ><input type="color" id="colorSuccess" value="#1e7d46" title="Connected / OK" />
+              ><input
+                type="color"
+                id="colorSuccess"
+                value="#1e7d46"
+                title="Connected / OK"
+              />
             </div>
             <div class="pc-row">
               <label for="colorInfo">Info</label
-              ><input type="color" id="colorInfo" value="#0072ce" title="Links &amp; info" />
+              ><input
+                type="color"
+                id="colorInfo"
+                value="#0072ce"
+                title="Links &amp; info"
+              />
             </div>
           </div>
         </details>
-        <button type="button" id="btnResetColors" class="secondary popup-reset">Reset to defaults</button>
+        <button type="button" id="btnResetColors" class="secondary popup-reset">
+          Reset to defaults
+        </button>
       </div>
     </div>
 
-    <dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+    <dialog
+      id="confirmDialog"
+      aria-labelledby="confirmTitle"
+      aria-describedby="confirmBody"
+    >
       <p id="confirmTitle"></p>
       <p id="confirmBody"></p>
       <div id="confirmActions">
-        <button type="button" id="confirmCancel" class="secondary">Cancel</button>
+        <button type="button" id="confirmCancel" class="secondary">
+          Cancel
+        </button>
         <button type="button" id="confirmOk">OK</button>
       </div>
     </dialog>
