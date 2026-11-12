@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
+import { modeState } from '../app/js/state/modes.js';
 
 const { document: doc, windowListeners } = installGatingDom();
 const app = await import('../app/js/main.js');
@@ -48,6 +49,10 @@ const seedSettings = () => {
     commode: 'USB',
   };
   for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
+  // (app fix 2026-11-12) OM/CM snapshot values now come from modeState — seed
+  // it alongside the DOM, the way a live load does.
+  modeState.currentOpMode = '1'; // Mouse
+  modeState.currentComMode = '1'; // USB
 };
 
 test('save captures the live snapshot, persists, and renders the list', () => {

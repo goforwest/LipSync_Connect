@@ -139,6 +139,7 @@ const app = await import('../app/js/main.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 const fw = await import('../app/js/services/firmware-update.js');
 const { resetWireNewlineFraming } = await import('../app/js/serial/commands.js');
+const { modeState } = await import('../app/js/state/modes.js');
 // The production post-close settle (2 s) exists for real macOS wedged opens;
 // the scenarios here don't need it — shrink it so the suite stays fast. The
 // settle itself is pinned by a dedicated test below.
@@ -217,6 +218,16 @@ function setLoadedValues(v = {}) {
     corner4: '13.00',
   };
   for (const [id, value] of Object.entries({ ...defaults, ...v })) byId(id).textContent = value;
+  // (app fix 2026-11-12) OM/CM snapshot values now come from modeState (the
+  // loaded wire values), not from reverse-parsing the display text — the
+  // fixture must seed both, the way a live load does. Labels map to wire
+  // values; raw wire values pass through.
+  const opWire = { Mouse: '1', Gamepad: '2', None: '0', Safe: '3' };
+  const comWire = { USB: '1', Bluetooth: '2', None: '0' };
+  const opv = { ...defaults, ...v }.opmode;
+  const cmv = { ...defaults, ...v }.commode;
+  modeState.currentOpMode = opWire[opv] ?? (opv == null ? null : String(opv));
+  modeState.currentComMode = comWire[cmv] ?? (cmv == null ? null : String(cmv));
 }
 
 async function flush() {
@@ -2020,6 +2031,11 @@ test('wizard: a port whose close is also stuck fails fast with honest guidance',
 
 test('wizard: a wedged open fails fast to reset guidance and recovers after a replug', async () => {
   sessionStoreSet('lipsync-fw-pending', null);
+  // (app fix 2026-11-12) The snapshot reads OM/CM from modeState, which a
+  // session close clears — seed a prior successful load (this test's wedge is
+  // about the PORT OPEN, and it previously passed only on DOM state leaked
+  // from earlier tests in this file).
+  setLoadedValues();
   seedFirmwareCache(
     {
       firmwareVersion: '4.2.0',
@@ -2114,6 +2130,10 @@ test('wizard: a wedged open fails fast to reset guidance and recovers after a re
     mode.replugBase = opens;
     const wedgeOpens = opens;
     serialSession.port = appPort;
+    // (app fix 2026-11-12) The disconnect above clears modeState (the 4.8.7
+    // session-close contract), so re-seed the loaded values the way a real
+    // reconnect's settings load would before the second attempt snapshots.
+    setLoadedValues();
     const secondDone = fw.startFirmwareUpdate();
     await flush();
     click('confirmOk');

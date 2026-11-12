@@ -22,6 +22,7 @@ import { downloadLogFile } from './log-export.js';
 import { fmtApiFloat } from '../utils/format.js';
 import { sendCommand, deviceFirmwareAtLeast } from '../serial/commands.js';
 import { serialSession } from '../serial/session.js';
+import { modeState } from '../state/modes.js';
 import { disconnect } from '../serial/connection.js';
 import { openPortBounded, closePortWithOutcome, isPortOpenWedged, markPortOpenWedged } from '../utils/port-open.js';
 import { sleep } from '../utils/timers.js';
@@ -566,10 +567,18 @@ export function captureSettingsSnapshot() {
   // the mode back. The old silent-null shape restored "settings" with the
   // device left in the NEW firmware's default mode while the panel claimed
   // success (a Gamepad/BT user silently reverted to Mouse USB).
-  snapshot.OM = labelToValue(OP_MODES, ($('opmode')?.textContent || '').trim());
-  if (snapshot.OM === null) missing.push('Operating mode');
-  snapshot.CM = labelToValue(COM_MODES, ($('commode')?.textContent || '').trim());
-  if (snapshot.CM === null) missing.push('Communication mode');
+  // (app fix 2026-11-12) OM/CM come from the LOADED WIRE VALUES (modeState —
+  // the single source of truth the OM/CM response renderers mutate), not from
+  // reverse-parsing display text. #opmode renders MODE_PRESETS labels, and in
+  // Bluetooth mode that label is "Mouse (Bluetooth)" — which the labelToValue
+  // exact-match against the plain OP_MODES map could never resolve, so EVERY
+  // BLE-mode flash aborted here with "Operating mode did not load" (first
+  // seen flashing 4.9.5 from the bench-left CM=2 state; the USB-mode label
+  // "Mouse" happens to match, which is why USB-mode flashes always worked).
+  snapshot.OM = modeState.currentOpMode != null ? String(modeState.currentOpMode) : null;
+  if (snapshot.OM === null || OP_MODES[snapshot.OM] === undefined) missing.push('Operating mode');
+  snapshot.CM = modeState.currentComMode != null ? String(modeState.currentComMode) : null;
+  if (snapshot.CM === null || COM_MODES[snapshot.CM] === undefined) missing.push('Communication mode');
   snapshot.CA = [$('neutralVal'), $('corner1'), $('corner2'), $('corner3'), $('corner4')]
     .map((el) => (el?.textContent || '').trim())
     .join(',');
@@ -2486,10 +2495,17 @@ async function finishPendingUpdate(pending) {
   const calibrationLost = pending.snapshot?.CA && cornersOf(currentCa) !== cornersOf(pending.snapshot.CA);
   // Restore operating/communication mode last: applying it reboots the device
   // once more, so it must not clobber the settings restore.
-  const wantedOm = pending.snapshot?.OM;
-  const wantedCm = pending.snapshot?.CM;
-  const currentOm = labelToValue(OP_MODES, ($('opmode')?.textContent || '').trim());
-  const currentCm = labelToValue(COM_MODES, ($('commode')?.textContent || '').trim());
+  // (app fix 2026-11-12) currentOm/currentCm read the LOADED WIRE VALUES from
+  // modeState — the display-text reverse-parse had the same preset-label hole
+  // as the snapshot (null in Bluetooth mode → the mode restore silently
+  // skipped). wanted* normalize to String so persisted pre-fix snapshots
+  // (labelToValue produced numbers) still match MODE_PRESETS' string om/cm —
+  // which also repairs the legacy path's `wantedOm === '2'` gamepad-order
+  // reversal for those old snapshots.
+  const wantedOm = pending.snapshot?.OM != null ? String(pending.snapshot.OM) : null;
+  const wantedCm = pending.snapshot?.CM != null ? String(pending.snapshot.CM) : null;
+  const currentOm = modeState.currentOpMode != null ? String(modeState.currentOpMode) : null;
+  const currentCm = modeState.currentComMode != null ? String(modeState.currentComMode) : null;
   const modeChanged =
     (wantedOm && currentOm && wantedOm !== currentOm) || (wantedCm && currentCm && wantedCm !== currentCm);
   writePending(null);

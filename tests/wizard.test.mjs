@@ -10,6 +10,7 @@ const { document: doc, windowListeners } = installGatingDom();
 await import('../app/js/main.js'); // DOMContentLoaded wiring first
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { startWizard, exitWizard, isWizardActive } = await import('../app/js/services/wizard.js');
+const { modeState } = await import('../app/js/state/modes.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -95,6 +96,10 @@ const seedLoadedSettings = () => {
     commode: 'USB',
   };
   for (const [id, v] of Object.entries(values)) doc.getElementById(id).textContent = v;
+  // (app fix 2026-11-12) OM/CM snapshot values now come from modeState — seed
+  // it alongside the DOM, the way a live load does.
+  modeState.currentOpMode = '1'; // Mouse
+  modeState.currentComMode = '1'; // USB
 };
 
 test('the done state offers a zero-typing profile save that lands and latches', async () => {
