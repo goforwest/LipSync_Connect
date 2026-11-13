@@ -1,6 +1,12 @@
 // Live diagnostic visualizations (DEBUG,<mode> streams): which panel is
 // visible, the per-mode renderers, and the rAF-batched live-stream paints.
-import { DIAG_PANELS, LIVE_STREAM_BUTTONS, LIVE_READ_BUTTONS, LIVE_STREAM_LABELS } from '../config/constants.js';
+import {
+  DIAG_PANELS,
+  DEBUG_MODES,
+  LIVE_STREAM_BUTTONS,
+  LIVE_READ_BUTTONS,
+  LIVE_STREAM_LABELS,
+} from '../config/constants.js';
 import { timers } from '../utils/timers.js';
 import { parsePoint } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
@@ -46,6 +52,34 @@ export function syncLiveButtons(mode) {
     const readBtn = $(LIVE_READ_BUTTONS[id]);
     if (readBtn) readBtn.disabled = on || !serialSession.port;
   });
+  updateLiveStreamNote(mode);
+}
+
+// The Sip & Puff card hosts two live visuals, but the device streams one
+// thing at a time — so a paused gauge (or timeline) looks broken unless the
+// card names the active stream. The note rides the same DM-echo sync the
+// live buttons use, names the stream that IS running, and tells the reader
+// which control swaps it. Hidden while nothing streams or no device is
+// connected; main.js's session reset hides it with the port.
+const LIVE_STREAM_NOTES = {
+  2: 'Live now: the pressure gauge. Watch holds below swaps the stream to the hold timeline.',
+  5: 'Live now: Watch holds — the hold timeline below. Live view above swaps the stream back to the pressure gauge.',
+};
+
+export function updateLiveStreamNote(mode) {
+  const el = $('liveStreamNote');
+  if (!el) return;
+  const name = DEBUG_MODES[mode];
+  const active = !!serialSession.port && String(mode) !== '0' && !!name;
+  if (!active) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+  el.hidden = false;
+  el.textContent =
+    LIVE_STREAM_NOTES[String(mode)] ??
+    `Live now: ${name} (streaming from another view). Live view above swaps the stream to the pressure gauge.`;
 }
 function setDiagKeys(prefix, count, mask) {
   for (let i = 1; i <= count; i++) {

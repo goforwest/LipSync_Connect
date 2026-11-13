@@ -867,12 +867,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     // again (de-flaked + readout-reset + exclusivity) in the phase-2 block
     // below; the ladder check above already pinned the timeline itself.
 
-    // Diagnostics ladder sweep: the DEBUG,5 sip&puff state stream drives the
-    // live hold fill (the fake cycles 2 s holds with 2 s gaps — poll until a
-    // hold paints).
+    // Diagnostics ladder sweep: the DEBUG,5 stream (picked directly — the
+    // select writes on change) drives the live hold fill (the fake cycles
+    // 2 s holds with 2 s gaps — poll until a hold paints).
     await openCard('sec-tools');
     await page.selectOption('#debugMode', '5');
-    await page.click('#btnSetDebug');
     let swept = false;
     let sweepDetail = null;
     for (let i = 0; i < 15 && !swept; i++) {
@@ -886,7 +885,6 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }
     note('window-ladder-sweep', swept, JSON.stringify(sweepDetail));
     await page.selectOption('#debugMode', '0');
-    await page.click('#btnSetDebug');
     await page.waitForTimeout(500);
 
     await openCard('sec-restrictions');
@@ -954,7 +952,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     await openCard('sec-sip');
     // Auto-live: the pressure stream is already running from the open —
-    // assert it directly instead of toggling.
+    // assert it directly instead of toggling. The card's live-stream note
+    // names the active stream (one device stream at a time).
     await page.waitForTimeout(700);
     const lp = await evalCard(() => ({
       pressed: document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
@@ -962,10 +961,18 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       mouth: document.getElementById('diagPressMouth').textContent,
       gaugeAria: document.getElementById('diagGauge').getAttribute('aria-label'),
       readOnce: document.getElementById('btnReadPressure').disabled,
+      note: document.getElementById('liveStreamNote').textContent,
+      noteShown: !document.getElementById('liveStreamNote').hidden,
     }));
     note(
       'live-pressure',
-      lp.pressed === 'true' && lp.panel && lp.mouth.includes('.') && lp.gaugeAria.includes('hPa') && lp.readOnce,
+      lp.pressed === 'true' &&
+        lp.panel &&
+        lp.mouth.includes('.') &&
+        lp.gaugeAria.includes('hPa') &&
+        lp.readOnce &&
+        lp.noteShown &&
+        /Live now: the pressure gauge/.test(lp.note),
       JSON.stringify(lp),
     );
     await page.click('#btnLivePressure');

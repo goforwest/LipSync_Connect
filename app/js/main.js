@@ -22,6 +22,7 @@ import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
 
 import { gaugeDelta, recalcGaugeRange, gaugeMarks, resetPracticePeaks, suggestThresholds } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
+import { updateLiveStreamNote } from './plotting/diag.js';
 
 import { setValue } from './ui/values.js';
 import { bindModeSwitch, updateModeDisplay } from './services/mode-switch.js';
@@ -177,9 +178,22 @@ const clearSessionUi = () => {
   resetBluetoothHostsUi();
   // The streaming select is only meaningful once the device's DM value has
   // loaded; disabling it is also the signal auto-live uses to refuse to send
-  // DM over a stream whose current state is still unknown.
+  // DM over a stream whose current state is still unknown. The feedback
+  // selects follow the same contract (enabled by their device answer,
+  // disabled with the session) now that they write on change.
   const dmSelect = $('debugMode');
   if (dmSelect) dmSelect.disabled = true;
+  const soundSelect = $('soundMode');
+  if (soundSelect) {
+    soundSelect.disabled = true;
+    delete soundSelect.dataset.applied;
+  }
+  const lightSelect = $('lightMode');
+  if (lightSelect) {
+    lightSelect.disabled = true;
+    delete lightSelect.dataset.applied;
+  }
+  updateLiveStreamNote(null); // the stream note dies with the session
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
@@ -707,16 +721,29 @@ window.addEventListener('DOMContentLoaded', () => {
     bindWizard(); // Home's guided setup flow
     bindModeSwitch(guard, disconnect, setCmdButtons);
     bindCalibration(guard);
-    $('btnSetDebug').addEventListener(
-      'click',
+    // The live-stream select writes on change (same contract as the feedback
+    // selects): the pick is the write, a rejected write reverts the select,
+    // and programmatic value sync (the renderer, auto-live) never fires
+    // change — so auto-live's own DM writes cannot re-enter here.
+    $('debugMode').addEventListener(
+      'change',
       guard(async () => {
-        const mode = $('debugMode').value;
-        await setSimpleSetting('DM', mode, 'debugModeVal', DEBUG_MODES);
-        log(`Live diagnostic output ${mode === '0' ? 'disabled' : 'set to ' + DEBUG_MODES[mode]}.`, 'log-info');
+        const sel = $('debugMode');
+        const next = sel.value;
+        const prev = sel.dataset.applied ?? '0';
+        try {
+          await setSimpleSetting('DM', next, 'debugModeVal', DEBUG_MODES);
+          sel.dataset.applied = next;
+          log(`Live diagnostic output ${next === '0' ? 'disabled' : 'set to ' + DEBUG_MODES[next]}.`, 'log-info');
+        } catch (e) {
+          sel.value = prev;
+          throw e;
+        }
       }),
     );
+
     // Self-test LED/buzzer buttons and soft/factory reset live in services/device-ops.js
-    // and are bound via bindDeviceOps(guard) below.
+    // and are bound via bindDeviceOps(guard) above.
 
     // Remote Hub menu (Open/Close + the mirrored Hub screen driven by
     // Next/Select) lives in services/hub-remote.js. Class "cmd" on the four
@@ -936,19 +963,44 @@ window.addEventListener('DOMContentLoaded', () => {
         { quiet: true },
       ),
     );
-    $('btnSetSound').addEventListener(
-      'click',
+    // Feedback and stream selects write on change (the same contract the
+    // switch-jack and hard-band selects use): the pick is the write, a
+    // rejected write reverts the select to the last device-confirmed value,
+    // and the selects are enabled only by their device answer (disabled with
+    // the session). The former Set/Apply buttons are gone — one less click
+    // and one consistent interaction for every settings select.
+    $('soundMode').addEventListener(
+      'change',
       guard(async () => {
-        await setSimpleSetting('SM', $('soundMode').value, 'soundModeVal', FEEDBACK_MODES);
+        const sel = $('soundMode');
+        const prev = sel.dataset.applied ?? '';
+        try {
+          await setSimpleSetting('SM', sel.value, 'soundModeVal', FEEDBACK_MODES);
+          sel.dataset.applied = sel.value;
+        } catch (e) {
+          if (prev) sel.value = prev;
+          throw e;
+        }
       }),
     );
-    $('btnSetLight').addEventListener(
-      'click',
+    $('lightMode').addEventListener(
+      'change',
       guard(async () => {
-        if ($('lightMode').value === '3' && !deviceFirmwareAtLeast(...INPUT_STATE_LIGHT_MIN_FIRMWARE)) {
+        const sel = $('lightMode');
+        if (sel.value === '3' && !deviceFirmwareAtLeast(...INPUT_STATE_LIGHT_MIN_FIRMWARE)) {
+          // Revert the pick before surfacing the refusal — the option is
+          // disabled on gated firmware, so this is defense in depth.
+          sel.value = sel.dataset.applied ?? '2';
           throw new Error(`Input-state light feedback needs firmware ${INPUT_STATE_LIGHT_MIN_FIRMWARE.join('.')}+.`);
         }
-        await setSimpleSetting('LM', $('lightMode').value, 'lightModeVal', FEEDBACK_MODES);
+        const prev = sel.dataset.applied ?? '';
+        try {
+          await setSimpleSetting('LM', sel.value, 'lightModeVal', FEEDBACK_MODES);
+          sel.dataset.applied = sel.value;
+        } catch (e) {
+          if (prev) sel.value = prev;
+          throw e;
+        }
       }),
     );
 

@@ -1408,6 +1408,28 @@ footer p {
   flex: 1 1 auto;
   min-width: 12rem;
 }
+/* The live-stream note: names the stream that is currently running (the
+   device sends one at a time), so the visual that is NOT streaming explains
+   itself. The dot reads as "live" without animating — calmer, and safe
+   under prefers-reduced-motion. */
+.live-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+.live-note::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
 .gauge-scale {
   display: flex;
   justify-content: space-between;

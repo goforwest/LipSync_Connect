@@ -127,11 +127,19 @@ export const ENDPOINT_RENDERERS = {
   },
   SM: (v) => {
     setValue('soundModeVal', FEEDBACK_MODES[v] ?? v);
-    $('soundMode').value = v;
+    const sel = $('soundMode');
+    // The select writes on change, so only a device answer may enable it —
+    // and data-applied is the revert-to value when a pick is refused.
+    sel.value = v;
+    sel.disabled = false;
+    sel.dataset.applied = String(v);
   },
   LM: (v) => {
     setValue('lightModeVal', FEEDBACK_MODES[v] ?? v);
-    $('lightMode').value = v;
+    const sel = $('lightMode');
+    sel.value = v;
+    sel.disabled = false;
+    sel.dataset.applied = String(v);
   },
   LL: (v) => {
     setValue('brightnessVal', v);
@@ -139,8 +147,10 @@ export const ENDPOINT_RENDERERS = {
   },
   DM: (v) => {
     setValue('debugModeVal', DEBUG_MODES[v] ?? v);
-    $('debugMode').value = v;
-    $('debugMode').disabled = false; // renderer runs only on a real device answer
+    const sel = $('debugMode');
+    sel.value = v;
+    sel.disabled = false; // renderer runs only on a real device answer
+    sel.dataset.applied = String(v); // the revert-to value for a refused pick
   },
   IN: (v) => {
     $('neutralVal').textContent = v ?? '?';

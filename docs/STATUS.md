@@ -10,6 +10,18 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Consistency pass (2026-11-13): the Sip & Puff card names the stream that
+  is running (#liveStreamNote, driven by the same DM-echo sync as the live
+  buttons and hidden with the session) — the device sends one live view at a
+  time, so a paused gauge or timeline now explains itself instead of looking
+  broken. The sound/light/stream selects write on change like every other
+  settings select (the Set/Apply buttons are gone): the pick is the write, a
+  refused write reverts the select to the last device-confirmed value, and a
+  select is enabled only by its device answer (disabled with the session) —
+  the same contract the switch-jack and hard-band selects already used. The
+  operating-mode control keeps its explicit Change-mode button on purpose: a
+  mode change restarts the device, and the button is the deliberate speed
+  bump. Suites 529/529, browser audit 116/116, offline E2E 2/2.
 - Quick-wins pass (2026-11-13): the exact-value blur validation actually
   works now — the old handler's inverted condition never fired for a fresh
   out-of-range value and re-scolded corrected ones, and its id-prefix routing

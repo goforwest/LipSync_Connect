@@ -716,6 +716,7 @@
                 threshold.
               </p>
             </div>
+            <p class="hint live-note" id="liveStreamNote" role="status" hidden></p>
             <div class="diag-group">
               <p class="diag-title">Thresholds</p>
               <div class="row tuning-row tuning-row--extended">
@@ -1790,20 +1791,20 @@
             <div class="settings-list" aria-label="Sound and light feedback settings">
               <div class="row">
                 <label for="soundMode">Sound feedback</label><span class="value" id="soundModeVal">&mdash;</span
-                ><select id="soundMode">
-                  <option value="0">Off</option>
-                  <option value="1">Basic</option>
-                  <option value="2">All</option></select
-                ><button type="button" class="cmd" id="btnSetSound" disabled>Set</button>
-              </div>
-              <div class="row">
-                <label for="lightMode">Light feedback</label><span class="value" id="lightModeVal">&mdash;</span
-                ><select id="lightMode">
+                ><select id="soundMode" disabled>
                   <option value="0">Off</option>
                   <option value="1">Basic</option>
                   <option value="2">All</option>
-                  <option value="3">Input state</option></select
-                ><button type="button" class="cmd" id="btnSetLight" disabled>Set</button>
+                </select>
+              </div>
+              <div class="row">
+                <label for="lightMode">Light feedback</label><span class="value" id="lightModeVal">&mdash;</span
+                ><select id="lightMode" disabled>
+                  <option value="0">Off</option>
+                  <option value="1">Basic</option>
+                  <option value="2">All</option>
+                  <option value="3">Input state</option>
+                </select>
               </div>
               <details class="inline-help">
                 <summary>What Input state feedback shows</summary>
@@ -1974,8 +1975,8 @@
                   <option value="2">Pressure</option>
                   <option value="3">Hub buttons</option>
                   <option value="4">External switches</option>
-                  <option value="5">Watch holds</option></select
-                ><button type="button" class="cmd" id="btnSetDebug" disabled>Apply</button>
+                  <option value="5">Watch holds</option>
+                </select>
               </div>
               <p class="hint">
                 Pick what to watch; the panel below shows it live. Each choice replaces the previous one.
