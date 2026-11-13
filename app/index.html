@@ -484,8 +484,7 @@
             </div>
             <p class="hint" id="modeGuardHint" role="status"></p>
             <div class="row">
-              <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button
-              ><button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
+              <button type="button" class="cmd secondary" id="btnRefreshAll" disabled>Refresh all settings</button>
             </div>
             <div class="row" id="loadProgressRow" hidden>
               <progress id="loadProgress" value="0" max="1" aria-labelledby="loadProgressLabel"></progress
@@ -510,7 +509,8 @@
             </div>
             <div class="section-intro">
               <p class="section-summary">
-                Save tuned settings per person and apply them to shared or replacement devices.
+                Save tuned settings per person, apply them to shared or replacement devices, and download the current
+                setup as a file.
               </p>
               <p class="section-recommendation">
                 <span class="recommend-label">Before saving</span> Finish tuning the connected device so the profile
@@ -550,6 +550,13 @@
                 <div id="profileList" class="profile-list" aria-label="Saved profiles"></div>
                 <p class="hint" id="profileEmpty">No saved profiles yet.</p>
               </section>
+            </div>
+            <div class="row" id="settingsFileRow">
+              <button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
+              <span class="hint row-hint"
+                >Download the current setup as a file &mdash; for a support ticket, or as a record before an update. The
+                device identifier is removed.</span
+              >
             </div>
             <details class="inline-help">
               <summary>What a profile includes</summary>
@@ -867,19 +874,18 @@
                 <div class="mark" id="gaugePuffMark"></div>
                 <div class="mark hard" id="gaugeHardSipMark" hidden></div>
                 <div class="mark hard" id="gaugeHardPuffMark" hidden></div>
-                <div class="mark peak" id="gaugeSipPeak" hidden></div>
-                <div class="mark peak" id="gaugePuffPeak" hidden></div>
               </div>
               <div class="gauge-scale">
                 <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
               </div>
-              <div class="row">
-                <span class="value" title="Largest sip and puff seen since Clear (practice peaks)"
-                  >Practice peaks: sip <span id="peakSipVal">&mdash;</span> hPa &middot; puff
-                  <span id="peakPuffVal">&mdash;</span> hPa</span
+              <p class="hint gauge-legend" id="gaugeLegend" hidden></p>
+              <div class="row practice-row">
+                <span class="value" id="practiceGuide"
+                  >Practice: with Live view running, sip and puff firmly a few times &mdash; your strongest becomes the
+                  starting point.</span
                 >
-                <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Clear peaks</button>
-                <button type="button" class="cmd" id="btnSuggestThresholds" hidden>Suggest thresholds</button>
+                <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Start over</button>
+                <button type="button" class="cmd" id="btnSuggestThresholds" disabled>Suggest thresholds</button>
               </div>
               <div class="notice" id="sapSuggestion" role="status" hidden>
                 <span id="sapSuggestionText"></span>
@@ -889,10 +895,12 @@
               <details class="inline-help">
                 <summary>How practice sets thresholds</summary>
                 <p class="hint">
-                  Red markers show trigger values; dashed markers pin the practice peaks. Use
-                  <strong>Live view</strong> and have the user sip and puff firmly a few times. Their measured maximum
-                  stays on the gauge, and <strong>Suggest thresholds</strong> turns it into trigger values at 65% of
-                  each peak: a deliberate hold crosses them, while breathing noise should not.
+                  Red marks show the trigger values. Use
+                  <strong>Live view</strong> and have the user sip and puff firmly a few times &mdash; the practice row
+                  tracks their strongest sip and puff, and <strong>Suggest thresholds</strong> (it unlocks once both are
+                  measured) turns them into trigger values at 65% of each peak: a deliberate hold crosses them, while
+                  breathing noise should not. <strong>Start over</strong> forgets the measurements so a new practice can
+                  begin. Dashed marks show the hard band triggers (firmware 4.7.0+).
                 </p>
               </details>
             </div>
@@ -1249,9 +1257,10 @@
               </details>
               <p class="hint">
                 How long a sip or puff must be held to trigger each action (short &rarr; click/drag, long &rarr;
-                scroll/menu, very long &rarr; more). Requires a recent firmware; the Hub menu offers the same settings
-                under Sip & Puff &rarr; Timing.
+                scroll/menu, very long &rarr; more). The Hub menu offers the same settings under Sip & Puff &rarr;
+                Timing.
               </p>
+              <p class="hint" id="windowsNote"></p>
               <div class="win-ladder-wrap">
                 <div
                   class="win-ladder"
@@ -1261,6 +1270,11 @@
                 ></div>
                 <div class="win-scale" id="winScale" aria-hidden="true"></div>
               </div>
+              <p class="hint">
+                The device sends one live view at a time:
+                <strong>Watch holds</strong> streams this timeline while the pressure gauge above pauses, and Live view
+                does the reverse. Opening this section starts the gauge automatically.
+              </p>
               <div class="row">
                 <button type="button" class="cmd secondary" id="btnWatchHolds" disabled aria-pressed="false">
                   Watch holds
@@ -1864,6 +1878,7 @@
                 <label>Paired hosts</label><span class="value" id="btHostSummary">&mdash;</span>
               </div>
               <div id="btHostList" role="list" aria-label="Paired hosts" class="bt-host-list" hidden></div>
+              <p class="hint" id="btHostsNote" hidden></p>
               <div class="bt-card-controls" id="btCardControls" hidden>
                 <button type="button" id="btPairNew" class="btn-secondary">Pair new…</button>
                 <button type="button" id="btForgetAll" class="btn-secondary">Forget all…</button>
@@ -1926,13 +1941,7 @@
               <div class="row">
                 <button type="button" class="cmd secondary" id="btnTestLeds" disabled>Test LEDs</button
                 ><button type="button" class="cmd secondary" id="btnTestBuzzer" disabled>Test buzzer</button
-                ><button type="button" class="cmd danger" id="btnTestWatchdog" disabled>Test auto-restart</button>
-                ><span
-                  class="hint row-hint"
-                  title="LED and buzzer tests show live steps. The auto-restart test deliberately restarts the device."
-                >
-                  LED and buzzer tests show progress below
-                </span>
+                ><span class="hint row-hint"> LED and buzzer tests show progress below </span>
               </div>
               <div id="selfTestPanel" class="selftest-panel" hidden>
                 <p class="selftest-title" id="selfTestTitle"></p>
@@ -1967,7 +1976,9 @@
                   <option value="5">Sip &amp; puff state</option></select
                 ><button type="button" class="cmd" id="btnSetDebug" disabled>Apply</button>
               </div>
-              <p class="hint">Select a stream to view live sensor data in the panel below.</p>
+              <p class="hint">
+                Pick what to watch; the panel below shows it live. Each choice replaces the previous one.
+              </p>
               <div id="diagJoy" hidden>
                 <div class="viz-wrap">
                   <div
@@ -2057,7 +2068,8 @@
             </div>
             <div class="section-intro section-intro--single">
               <p class="section-summary">
-                Restart the device safely, or deliberately return every setting to its factory default.
+                Restart the device, verify the safety restart that recovers a stuck one, or deliberately return every
+                setting to its factory default.
               </p>
             </div>
             <div class="maintenance-grid maintenance-grid--restart">
@@ -2065,6 +2077,15 @@
                 <p class="diag-title">Restart device</p>
                 <p class="hint">Reboots the LipSync without changing its saved settings.</p>
                 <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Restart LipSync</button>
+              </div>
+              <div class="maintenance-option">
+                <p class="diag-title">Test auto-restart</p>
+                <p class="hint">
+                  Deliberately makes the LipSync stop responding so its safety restart must kick in &mdash; use to
+                  confirm that a stuck device recovers on its own. The device restarts and disconnects; wait about 30
+                  seconds, then reconnect.
+                </p>
+                <button type="button" class="cmd danger" id="btnTestWatchdog" disabled>Test auto-restart</button>
               </div>
             </div>
             <details class="danger-disclosure">

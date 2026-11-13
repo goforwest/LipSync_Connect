@@ -23,6 +23,10 @@ const setHomeValue = (id, value) => {
   if (el) el.textContent = value;
 };
 
+// The LM=3 option's plain label (mirrors the markup and FEEDBACK_MODES[3]);
+// the version gate appends the firmware reason when the device predates it.
+const LIGHT_STATE_LABEL = 'Input state';
+
 export const ENDPOINT_RENDERERS = {
   MN: (v) => {
     const model = MODELS[v] ?? v;
@@ -39,13 +43,17 @@ export const ENDPOINT_RENDERERS = {
     noteDeviceVersion(v);
     // LM=3 was added with the 4.4.0 feedback tier. The bench downgrade log
     // showed the app still offering it on 4.1.0, producing a predictable
-    // FAIL,3. Hide/disable only that newer option; LM=0..2 remain available.
+    // FAIL,3. Keep the option visible but disabled with the reason (an option
+    // that silently vanishes hides a feature the next update unlocks — the
+    // same honesty the version-gate notes practice); LM=0..2 stay selectable.
     const lightSelect = $('lightMode');
     const stateOption = Array.from(lightSelect?.options ?? []).find((option) => option.value === '3');
     if (stateOption) {
       const supported = deviceFirmwareAtLeast(...INPUT_STATE_LIGHT_MIN_FIRMWARE);
       stateOption.disabled = !supported;
-      stateOption.hidden = !supported;
+      stateOption.textContent = supported
+        ? LIGHT_STATE_LABEL
+        : `${LIGHT_STATE_LABEL} (needs firmware ${INPUT_STATE_LIGHT_MIN_FIRMWARE.join('.')}+)`;
       if (!supported && lightSelect.value === '3') lightSelect.value = '2';
     }
   },

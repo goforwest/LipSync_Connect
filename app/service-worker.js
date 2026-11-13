@@ -1,7 +1,7 @@
-// v53 carries the four-area task navigation, symptom-based support paths, and
-// combined support report. Hard invalidate because markup, controller, and
-// responsive styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v53';
+// v54 carries the shared firmware-gate notes, the practice-row rework, and the
+// Restart & reset / Profiles regrouping. Hard invalidate because markup,
+// controller, and styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v54';
 const ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const ASSETS = [
   './js/ui/formatting.js',
   './js/ui/guard.js',
   './js/ui/sections.js',
+  './js/ui/firmware-gate.js',
   './js/services/mode-switch.js',
   './js/services/bt-hosts.js',
   './js/services/log.js',
@@ -93,9 +94,7 @@ self.addEventListener('activate', (e) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(
-          keys.filter((k) => k.startsWith('lipsync-connect-') && k !== CACHE).map((k) => caches.delete(k)),
-        ),
+        Promise.all(keys.filter((k) => k.startsWith('lipsync-connect-') && k !== CACHE).map((k) => caches.delete(k))),
       )
       .then(() => self.clients.claim()),
   );

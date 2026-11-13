@@ -50,7 +50,7 @@ const STEPS = [
     // device — "turn on Live view" would read as an instruction to press the
     // button, which toggles that auto-started stream OFF. Say what to check,
     // not what to press.
-    text: 'In the Sip & Puff card: with the live pressure view running (it starts on its own; the Live view button turns it on if it is not), have the user sip and puff firmly a few times, then press Suggest thresholds and Apply both. Use the steppers to fine-tune, then come back to this panel on Home and press Next.',
+    text: 'In the Sip & Puff card: with the live pressure view running (it starts on its own; the Live view button turns it on if it is not), have the user sip and puff firmly a few times — Suggest thresholds unlocks once both are measured. Press it, then Apply both, and fine-tune with the steppers. Then come back to this panel on Home and press Next.',
     actionLabel: 'Open the Sip & Puff card',
     action: () => {
       openSectionById('sec-sip');

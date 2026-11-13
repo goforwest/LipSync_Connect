@@ -22,11 +22,11 @@ import {
 } from '../config/constants.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
+import { showFirmwareGateNote } from '../ui/firmware-gate.js';
 import { setStatus, showConnectionError } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
-import { openSectionById, getSectionTrigger } from '../ui/sections.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
-import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
+import { updateMeter, recalcGaugeRange, syncPracticeControls } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
 import { updateReadiness } from './readiness.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
@@ -90,14 +90,16 @@ export function markRestrictionsUnavailable() {
     if (el) el.disabled = true;
   }
   const note = $('restrictionsNote');
-  if (note)
-    note.textContent = `Input safeguards need firmware ${RESTRICTIONS_MIN_FIRMWARE.join('.')}+ — open Updates to install a newer version.`;
+  if (note) showFirmwareGateNote(note, 'Input safeguards', RESTRICTIONS_MIN_FIRMWARE, ' to install it.', 'need');
 }
 
 /**
  * Firmware too old for the timing windows (pre-4.4.0): the readouts show the
- * not-applicable placeholder (never ERR — nothing failed), and the inputs
- * and Set buttons lock until a firmware that has the endpoints loads.
+ * not-applicable placeholder (never ERR — nothing failed), the inputs
+ * and Set buttons lock until a firmware that has the endpoints loads, and the
+ * note says why with the same Updates link every other gate uses (the ladder
+ * below still renders the compiled-in legacy windows, so the visual needs
+ * the honest "why is this not my device's values" answer beside it).
  */
 export function markWindowsUnavailable() {
   for (const w of WINDOW_SETTINGS) {
@@ -112,30 +114,14 @@ export function markWindowsUnavailable() {
     const btn = $('btnSet' + w.endpoint);
     if (btn) btn.disabled = true;
   }
+  const note = $('windowsNote');
+  if (note) showFirmwareGateNote(note, 'Hold timing', RESTRICTIONS_MIN_FIRMWARE);
 }
 
 // The acceleration hint's stock text, captured once so a later session on
 // firmware that HAS the setting can restore it instead of leaving the
 // "newer firmware" explanation behind.
 let accelNoteDefault = null;
-
-/** Replace the hint's stock text with the unlock reason, linking straight to Updates. */
-function showAccelerationUnavailableNote(note) {
-  note.textContent = 'Cursor acceleration needs newer firmware — open ';
-  const link = document.createElement('a');
-  link.href = '#sec-firmware';
-  link.className = 'inline-link';
-  link.textContent = 'Updates';
-  link.addEventListener('click', (event) => {
-    event.preventDefault();
-    openSectionById('sec-firmware');
-    const check = $('btnCheckUpdate');
-    const focusTarget = check && !check.disabled ? check : getSectionTrigger('sec-firmware');
-    focusTarget?.focus?.();
-  });
-  note.appendChild(link);
-  note.appendChild(document.createTextNode(' to install it.'));
-}
 
 /**
  * Firmware too old for acceleration writes (pre-4.3.0): the AV getter exists
@@ -154,7 +140,7 @@ export function markAccelerationUnavailable() {
     el.removeAttribute('aria-label');
     el.removeAttribute('title');
   }
-  if (note) showAccelerationUnavailableNote(note);
+  if (note) showFirmwareGateNote(note, 'Cursor acceleration', ACCELERATION_MIN_FIRMWARE);
   updateMeter('accelMeter', '—'); // clear segments/stale preview from a prior session
   updateStepButtons();
 }
@@ -221,6 +207,10 @@ export function applyTimingWindowValue(endpoint, value) {
   }
   const btn = $('btnSet' + w.endpoint);
   if (btn) btn.disabled = false;
+  const note = $('windowsNote');
+  // A loaded window proves the firmware has the endpoints: clear the gate
+  // note (textContent removal also drops the Updates link).
+  if (note) note.textContent = '';
   refreshWindowLadders();
 }
 
@@ -362,7 +352,7 @@ export function markSwitchActionsUnavailable() {
   if (btn) btn.disabled = true;
   const note = $('switchActionsNote');
   if (note)
-    note.textContent = `External switch actions need firmware ${SWITCH_ACTIONS_MIN_FIRMWARE.join('.')}+ — update the firmware to remap the switch jacks.`;
+    showFirmwareGateNote(note, 'External switch actions', SWITCH_ACTIONS_MIN_FIRMWARE, ' to remap the jacks.', 'need');
 }
 
 /** Disconnect/start-of-load reset: no stale mapping may survive into a new session. */
@@ -503,8 +493,7 @@ export function markHardBandUnavailable() {
     if (sel) sel.disabled = true;
   }
   const note = $('hardBandNote');
-  if (note)
-    note.textContent = `The hard sip/puff band needs firmware ${HARD_BAND_MIN_FIRMWARE.join('.')}+ — open the Updates section to install a newer version.`;
+  if (note) showFirmwareGateNote(note, 'The hard sip & puff band', HARD_BAND_MIN_FIRMWARE);
 }
 
 /** Disconnect/start-of-load reset: no stale hard-band value may survive into a new session. */
@@ -728,7 +717,9 @@ export async function loadDeviceInfo() {
       progLabel.textContent = `Loading ${i + 1} of ${tasks.length}…` + (remaining ? ` (~${remaining}s)` : '');
     try {
       const t0 = performance.now();
-      const r = await sendCommand(tasks[i][0], undefined, undefined, { signal: controller.signal });
+      const r = await sendCommand(tasks[i][0], undefined, undefined, {
+        signal: controller.signal,
+      });
       timingSamples.push((performance.now() - t0) / 1000);
       if (timingSamples.length > 10) timingSamples.shift();
       if (gen !== loadGeneration) break;
@@ -811,6 +802,10 @@ export async function loadDeviceInfo() {
   if (loadController === controller) loadController = null;
   if (!serialSession.port) return;
   updateStepButtons();
+  // Re-assert the practice row's readiness from data: setCmdButtons(true) on
+  // connect enabled every .cmd button, and Suggest/Start-over must stay
+  // locked until measured practice data says otherwise.
+  syncPracticeControls();
   if (deadLink) {
     const message =
       'The port opened but the LipSync is not responding. Unplug it, plug it back in, wait a few seconds, then click Connect again.';

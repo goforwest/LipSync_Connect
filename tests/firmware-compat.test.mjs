@@ -18,16 +18,14 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, resetHardBandUi, step } = await import(
-  '../app/js/services/settings-service.js'
-);
+const { loadDeviceInfo, resetRestrictionsUi, resetSwitchActionsUi, resetHardBandUi, step } =
+  await import('../app/js/services/settings-service.js');
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
 const { ENDPOINT_RENDERERS } = await import('../app/js/serial/endpoints.js');
 const { getOpenSection } = await import('../app/js/ui/sections.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
-const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } = await import(
-  '../app/js/serial/commands.js'
-);
+const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } =
+  await import('../app/js/serial/commands.js');
 const {
   ACCELERATION_MIN_FIRMWARE,
   INPUT_STATE_LIGHT_MIN_FIRMWARE,
@@ -151,7 +149,9 @@ function restoreRecorder() {
     { simulated: true },
     {
       write(bytes) {
-        const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
+        const text = Buffer.from(bytes)
+          .toString('utf8')
+          .replace(/\r?\n$/, '');
         sent.push(text);
         const reply = (line) => setTimeout(() => app.handleLine(line), 3);
         reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
@@ -301,6 +301,12 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks th
     assert.equal(doc.getElementById(id).classList.contains('err'), false, id + ' is not an error');
   }
   assert.equal(doc.getElementById('w1Input').disabled, true, 'the window input is locked on 4.1.0');
+  // Hold timing carries its own gate note with the shared Updates link (the
+  // acceleration pattern) — the ladder's legacy fallback needs the "why".
+  assert.match(doc.getElementById('windowsNote').textContent, /4\.4\.0\+/);
+  const windowsLink = doc.getElementById('windowsNote').children.find((child) => child.tagName === 'A');
+  assert.ok(windowsLink, 'the hold-timing note links to Updates');
+  assert.equal(windowsLink.textContent, 'Updates');
   // External switch actions: selects locked, with their own note.
   assert.equal(doc.getElementById('swSA0').disabled, true, 'the switch select is locked on 4.1.0');
   assert.match(doc.getElementById('switchActionsNote').textContent, /4\.5\.0\+/);
@@ -316,16 +322,14 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks th
   // answers FAIL,3 to every AV,1 — expose it as not-applicable, not as a
   // control whose writes can only fail.
   assert.equal(doc.getElementById('accelVal').textContent, '—', 'acceleration is not-applicable on 4.1.0');
-  const legacyAccelButtons = doc
-    .querySelectorAll('button[data-step]')
-    .filter((b) => b.dataset.target === 'accel');
+  const legacyAccelButtons = doc.querySelectorAll('button[data-step]').filter((b) => b.dataset.target === 'accel');
   assert.equal(legacyAccelButtons.length, 2, 'both acceleration steppers exist');
   assert.ok(
     legacyAccelButtons.every((b) => b.disabled),
     'the acceleration steppers are locked on 4.1.0',
   );
   const accelNote = doc.getElementById('accelNote');
-  assert.match(accelNote.textContent, /newer firmware/);
+  assert.match(accelNote.textContent, /4\.3\.0\+/);
   const updatesLink = accelNote.children.find((child) => child.tagName === 'A');
   assert.ok(updatesLink, 'the acceleration note links to Updates');
   assert.equal(updatesLink.textContent, 'Updates');
@@ -355,6 +359,7 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks th
   assert.equal(doc.getElementById('restrictionsNote').textContent, '');
   assert.equal(doc.getElementById('w1Val').textContent, '1000', 'the window readout loads on 4.7.0');
   assert.equal(doc.getElementById('w1Input').disabled, false, 'the window input is live on 4.7.0');
+  assert.equal(doc.getElementById('windowsNote').textContent, '', 'the hold-timing gate note clears once values land');
   assert.equal(doc.getElementById('swSA0').disabled, false, 'the switch select is live on 4.7.0');
   assert.equal(doc.getElementById('switchActionsNote').textContent, '');
   assert.equal(doc.getElementById('hardSipVal').textContent, '10.00', 'the hard-sip readout loads on 4.7.0');
@@ -369,7 +374,7 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks th
       .every((b) => !b.disabled),
     'the acceleration steppers are live on 4.7.0',
   );
-  assert.doesNotMatch(doc.getElementById('accelNote').textContent, /newer firmware/);
+  assert.doesNotMatch(doc.getElementById('accelNote').textContent, /firmware 4\.3\.0\+/);
   assert.equal(captureSettingsSnapshot().AV, '0', 'a 4.7.0 snapshot carries acceleration');
   await app.disconnect({ quiet: true });
   testHooks.detach();
@@ -377,23 +382,31 @@ test('4.1.0 locks the newer-firmware cards with an explanation; 4.7.0 unlocks th
 
 // ---- The input-state light option (LM=3) ---------------------------------
 
-test('the input-state light feedback option is withheld on 4.1.0 and offered on 4.7.0', () => {
+test('the input-state light feedback option is locked-with-reason on 4.1.0 and offered on 4.7.0', () => {
   const lightSelect = doc.getElementById('lightMode');
   // Seed the real option set the VN renderer inspects (the gating DOM makes
   // bare elements; a <select> needs an options array to gate against).
-  const inputStateOption = { value: '3', disabled: false, hidden: false };
+  const inputStateOption = {
+    value: '3',
+    disabled: false,
+    hidden: false,
+    textContent: 'Input state',
+  };
   lightSelect.options = [{ value: '0' }, { value: '1' }, { value: '2' }, inputStateOption];
   lightSelect.value = '3';
 
   resetWireNewlineFraming();
   ENDPOINT_RENDERERS.VN(LEGACY);
   assert.equal(inputStateOption.disabled, true, 'LM=3 is disabled on 4.1.0');
-  assert.equal(inputStateOption.hidden, true, 'LM=3 is hidden on 4.1.0');
+  // Visible but labelled with the reason — a silently vanished option hides
+  // a feature the next update unlocks (the version-gate contract).
+  assert.equal(inputStateOption.hidden, false, 'LM=3 stays visible on 4.1.0');
+  assert.equal(inputStateOption.textContent, 'Input state (needs firmware 4.4.0+)');
   assert.equal(lightSelect.value, '2', 'a selected LM=3 falls back to All on 4.1.0');
 
   ENDPOINT_RENDERERS.VN(RELEASE);
   assert.equal(inputStateOption.disabled, false, 'LM=3 is offered on 4.7.0');
-  assert.equal(inputStateOption.hidden, false, 'LM=3 is visible on 4.7.0');
+  assert.equal(inputStateOption.textContent, 'Input state', 'the plain label is restored on 4.7.0');
 });
 
 // ---- Backup / restore downgrade-safety across the span -------------------
@@ -431,7 +444,25 @@ test('a 4.7.0 settings backup restores fully onto 4.7.0 and safely (base-only) o
     'only the nine writable base settings reach 4.1.0',
   );
   assert.ok(!legacyWrites.includes('AV'), 'acceleration is withheld from 4.1.0 (AV,1 is FAIL,3 there)');
-  for (const gated of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC', 'HS', 'HP', 'HA', 'HB'])
+  for (const gated of [
+    'SD',
+    'MA',
+    'LK',
+    'CF',
+    'WS',
+    'WL',
+    'WM',
+    'SA',
+    'SB',
+    'SC',
+    'GA',
+    'GB',
+    'GC',
+    'HS',
+    'HP',
+    'HA',
+    'HB',
+  ])
     assert.ok(!legacyWrites.includes(gated), gated + ' is withheld from 4.1.0');
   testHooks.detach();
 
@@ -445,7 +476,25 @@ test('a 4.7.0 settings backup restores fully onto 4.7.0 and safely (base-only) o
   assert.deepEqual(releaseFailures, [], 'nothing fails restoring onto 4.7.0');
   const releaseWrites = release.sent.filter((s) => s.includes(',1:')).map((s) => s.slice(0, 2));
   assert.ok(releaseWrites.includes('AV'), 'acceleration is restored onto 4.7.0');
-  for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC', 'HS', 'HP', 'HA', 'HB'])
+  for (const ep of [
+    'SD',
+    'MA',
+    'LK',
+    'CF',
+    'WS',
+    'WL',
+    'WM',
+    'SA',
+    'SB',
+    'SC',
+    'GA',
+    'GB',
+    'GC',
+    'HS',
+    'HP',
+    'HA',
+    'HB',
+  ])
     assert.ok(releaseWrites.includes(ep), ep + ' is restored onto 4.7.0');
   testHooks.detach();
   resetWireNewlineFraming();

@@ -1,18 +1,21 @@
 // Sip/puff pressure gauge: fill position between the two threshold marks and
 // the axis labels. Range derives from the largest threshold × 1.5. The gauge
-// also carries the practice-peak hold: while any pressure data streams (live
-// view, one-shot reads, the diagnostics panel), the largest sip and puff seen
-// pin as a second pair of marks — the needle passes, the peak stays — and
-// suggestThresholds() turns those measured peaks into trigger values at a
-// fraction of them (the guesswork-killer for thresholds).
+// also watches practice: while any pressure data streams (live view, one-shot
+// reads, the diagnostics panel), the largest sip and puff seen are kept —
+// quietly, as data for suggestThresholds(), which turns them into trigger
+// values at a fraction (the guesswork-killer for thresholds). The measured
+// maxima surface only in the practice row's "Strongest so far" guide line;
+// pinning them on the gauge as a second pair of dashed marks competed with
+// the hard-band marks for the same "dashed thing beside the threshold" role.
 import { METER_SEGMENTS } from '../config/constants.js';
 import { fmtHpa } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
 
 let gaugeRange = null;
 let gaugeLastDelta = null;
-// Practice peaks: the largest |Δ| reached on each side since the last Clear
-// (or session start). Zero = nothing seen yet.
+// Practice watch: the largest |Δ| reached on each side since the last
+// Start-over (or session start). Zero = nothing seen yet. Internal data for
+// suggestThresholds() — the practice row's guide line is the visible surface.
 const practicePeaks = { sip: 0, puff: 0 };
 // The suggest fraction: standard assistive-tech practice — a threshold far
 // enough below a deliberate peak that a hold reliably crosses it, far enough
@@ -111,11 +114,12 @@ export function gaugeDelta(delta) {
     );
 }
 
-// ---- Practice peaks ----------------------------------------------------------
+// ---- Practice watch ----------------------------------------------------------
 // Every pressure frame flows through gaugeDelta (live stream frames and
-// one-shot reads alike), so this single hook sees all practice data. Peaks
-// pin on the gauge as dashed marks beside the solid threshold marks and
-// surface in the card's readout; Clear (and every fresh session) resets them.
+// one-shot reads alike), so this single hook sees all practice data. The
+// maxima stay internal (suggestThresholds' input); the practice row's guide
+// line is their only user-facing surface, and Clear (and every fresh session)
+// resets them.
 
 function notePracticeDelta(delta) {
   if (delta < 0 && -delta > practicePeaks.sip) practicePeaks.sip = -delta;
@@ -123,31 +127,38 @@ function notePracticeDelta(delta) {
   updatePracticeUi();
 }
 
-function renderPeakMark(id, peak, side) {
-  const el = $(id);
-  if (!el || !el.style) return;
-  if (gaugeRange === null || !(peak >= 1)) {
-    el.hidden = true;
-    return;
-  }
-  el.hidden = false;
-  const clamped = Math.min(peak / gaugeRange, 1) * 50;
-  el.style.left = (side === 'sip' ? 50 - clamped : 50 + clamped) + '%';
-  el.title = `Practice peak ${side}: ${fmtHpa(peak)} hPa`;
-}
-
+/**
+ * Syncs the practice row with the measured maxima: the guide line narrates
+ * the flow (practice → strongest-so-far → suggest), Suggest unlocks only
+ * when both sides reached the 2 hPa minimum threshold, and Clear (Start
+ * over) is live only while something is measured. Called by every peak
+ * change AND after connects/loads — setCmdButtons re-enables every .cmd
+ * button, so the readiness state must be re-asserted from data, not assumed.
+ */
 function updatePracticeUi() {
-  renderPeakMark('gaugeSipPeak', practicePeaks.sip, 'sip');
-  renderPeakMark('gaugePuffPeak', practicePeaks.puff, 'puff');
-  const sipOut = $('peakSipVal');
-  const puffOut = $('peakPuffVal');
-  if (sipOut) sipOut.textContent = practicePeaks.sip >= 1 ? fmtHpa(practicePeaks.sip) : '\u2014';
-  if (puffOut) puffOut.textContent = practicePeaks.puff >= 1 ? fmtHpa(practicePeaks.puff) : '\u2014';
+  const guide = $('practiceGuide');
   const suggest = $('btnSuggestThresholds');
-  if (suggest) suggest.hidden = !(practicePeaks.sip >= 2 && practicePeaks.puff >= 2);
+  const clear = $('btnClearPeaks');
+  const ready = practicePeaks.sip >= 2 && practicePeaks.puff >= 2;
+  const seen = practicePeaks.sip >= 1 || practicePeaks.puff >= 1;
+  if (guide) {
+    if (!seen) {
+      guide.textContent =
+        'Practice: with Live view running, sip and puff firmly a few times \u2014 your strongest becomes the starting point.';
+    } else {
+      const parts = [];
+      if (practicePeaks.sip >= 1) parts.push(`sip ${fmtHpa(practicePeaks.sip)} hPa`);
+      if (practicePeaks.puff >= 1) parts.push(`puff ${fmtHpa(practicePeaks.puff)} hPa`);
+      guide.textContent =
+        `Strongest so far: ${parts.join(' \u00b7 ')}` + (ready ? '' : ' \u2014 practice the other side too.');
+    }
+  }
+  if (suggest) suggest.disabled = !ready;
+  if (clear) clear.disabled = !seen;
 }
+export { updatePracticeUi as syncPracticeControls };
 
-/** Session reset (fresh connect) and the Clear button: no stale peak may
+/** Session reset (fresh connect) and the Start-over button: no stale peak may
  *  survive into a new practice. */
 export function resetPracticePeaks() {
   practicePeaks.sip = 0;
@@ -165,7 +176,11 @@ export function suggestThresholds() {
   const round = (v) => Math.round(v * 4) / 4; // 0.25 granularity
   const one = (peak) => Math.min(149.99, Math.max(2, round(peak * SUGGEST_FRACTION)));
   const ready = practicePeaks.sip >= 2 && practicePeaks.puff >= 2;
-  return { ready, sip: ready ? one(practicePeaks.sip) : 0, puff: ready ? one(practicePeaks.puff) : 0 };
+  return {
+    ready,
+    sip: ready ? one(practicePeaks.sip) : 0,
+    puff: ready ? one(practicePeaks.puff) : 0,
+  };
 }
 export function recalcGaugeRange() {
   const sip = Number($('sipVal').textContent),
@@ -215,6 +230,17 @@ export function gaugeMarks() {
   };
   markHard('gaugeHardSipMark', Number($('hardSipVal')?.textContent ?? ''), true);
   markHard('gaugeHardPuffMark', Number($('hardPuffVal')?.textContent ?? ''), false);
+  // With the practice marks gone, dashed means exactly one thing on this
+  // gauge: the hard band. Say so beside the scale while its marks are shown
+  // (hidden on older firmware, where the readouts stay at the placeholder).
+  const legend = $('gaugeLegend');
+  if (legend) {
+    const sipMark = $('gaugeHardSipMark');
+    const puffMark = $('gaugeHardPuffMark');
+    const hardShown = !!(sipMark && !sipMark.hidden) || !!(puffMark && !puffMark.hidden);
+    legend.hidden = !hardShown;
+    if (hardShown) legend.textContent = 'Dashed marks: the hard sip and hard puff triggers.';
+  }
   $('gaugeSipLabel').textContent = '\u2212' + gaugeRange.toFixed(1) + ' hPa';
   $('gaugePuffLabel').textContent = '+' + gaugeRange.toFixed(1) + ' hPa';
   // A range change moves the peak marks with the threshold marks.

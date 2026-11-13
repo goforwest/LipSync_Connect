@@ -319,7 +319,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // Hardware pages remain browsable while disconnected; their device actions
   // stay disabled until connection.
   const TASK_TARGETS = {
-    clicks: { section: 'sec-sip', focus: 'button[data-target="st"][data-step="1"]' },
+    clicks: {
+      section: 'sec-sip',
+      focus: 'button[data-target="st"][data-step="1"]',
+    },
     accidents: { section: 'sec-restrictions', focus: '#sapDisabled' },
     update: { section: 'sec-firmware', focus: '#btnCheckUpdate' },
     switches: { section: 'sec-switches', focus: '#swSA0' },
@@ -773,11 +776,12 @@ window.addEventListener('DOMContentLoaded', () => {
     // the typed value is one the device can hold. The readout beside the
     // field always shows the value actually in force.
 
-    // Practice peaks + suggest-from-practice: the peaks track in
-    // plotting/gauge.js off every pressure frame; these three buttons are the
-    // user-facing half. Suggest computes 65%-of-peak trigger values; Apply
-    // writes both through the same SET path the manual buttons use (device
-    // truth re-syncs the readouts and marks through the endpoint renderers).
+    // Practice watch + suggest-from-practice: the maxima track in
+    // plotting/gauge.js off every pressure frame; these buttons are the
+    // user-facing half. Suggest (unlocked by updatePracticeUi once both sides
+    // are measured) computes 65%-of-peak trigger values; Apply writes both
+    // through the same SET path the manual buttons use (device truth re-syncs
+    // the readouts and marks through the endpoint renderers).
     $('btnClearPeaks').addEventListener(
       'click',
       guard(() => {
@@ -785,20 +789,20 @@ window.addEventListener('DOMContentLoaded', () => {
         $('sapSuggestion').hidden = true;
         $('btnApplySuggested').hidden = true;
         $('btnDismissSuggestion').hidden = true;
-        log('Practice peaks cleared.', 'log-info');
+        log('Practice measurements cleared — start a fresh round.', 'log-info');
       }),
     );
     $('btnSuggestThresholds').addEventListener(
       'click',
       guard(() => {
         const s = suggestThresholds();
-        if (!s.ready) return; // the button is hidden until ready; guard anyway
+        if (!s.ready) return; // the button is disabled until ready; guard anyway
         $('sapSuggestionText').textContent =
           'Suggested: sip ' +
           fmtHpa(s.sip) +
           ' hPa, puff ' +
           fmtHpa(s.puff) +
-          ' hPa \u2014 65% of the practice peaks. A deliberate hold crosses them; breathing noise should not.';
+          ' hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.';
         $('sapSuggestion').hidden = false;
         $('btnApplySuggested').hidden = false;
         $('btnDismissSuggestion').hidden = false;
@@ -817,7 +821,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const rp = await sendCommand('PT,1:' + fmtApiFloat(s.puff));
             setValue('puffVal', fmtHpa(rp.value ?? s.puff));
             recalcGaugeRange();
-            log('Suggested thresholds applied (from practice peaks).', 'log-info');
+            log('Suggested thresholds applied (from the measured practice).', 'log-info');
             $('sapSuggestion').hidden = true;
             $('btnApplySuggested').hidden = true;
             $('btnDismissSuggestion').hidden = true;

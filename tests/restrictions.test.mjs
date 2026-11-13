@@ -8,19 +8,14 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const {
-  loadDeviceInfo,
-  setRestriction,
-  applyRestrictionValue,
-  markRestrictionsUnavailable,
-  resetRestrictionsUi,
-} = await import('../app/js/services/settings-service.js');
+const { loadDeviceInfo, setRestriction, applyRestrictionValue, markRestrictionsUnavailable, resetRestrictionsUi } =
+  await import('../app/js/services/settings-service.js');
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
 const { collectSettingsExport } = await import('../app/js/services/settings-export.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
-const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } = await import(
-  '../app/js/serial/commands.js'
-);
+const { getOpenSection } = await import('../app/js/ui/sections.js');
+const { noteDeviceVersion, resetWireNewlineFraming, deviceFirmwareAtLeast } =
+  await import('../app/js/serial/commands.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,10 +47,16 @@ const BASE_RESPONSES = {
 // restriction reads. writeFailures maps "SD,1:1"-style write commands to FAIL.
 function launchDevice({ version = '4.4.0', restrictionValues = {}, writeFailures = {} } = {}) {
   const sent = [];
-  const responses = { ...BASE_RESPONSES, 'VN,0': version, ...restrictionValues };
+  const responses = {
+    ...BASE_RESPONSES,
+    'VN,0': version,
+    ...restrictionValues,
+  };
   const writer = {
     write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
+      const text = Buffer.from(bytes)
+        .toString('utf8')
+        .replace(/\r?\n$/, '');
       sent.push(text);
       const reply = (line) => setTimeout(() => app.handleLine(line), 3);
       if (text === 'SETTINGS') {
@@ -88,7 +89,9 @@ function assertAllCheckboxes(expected) {
 test('a 4.4.0 device loads the four restriction settings into the checkboxes', async () => {
   resetWireNewlineFraming();
   resetRestrictionsUi();
-  const sent = launchDevice({ restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '1', 'CF,0': '0' } });
+  const sent = launchDevice({
+    restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '1', 'CF,0': '0' },
+  });
   await loadDeviceInfo();
   await sleep(30);
   // The restriction reads are sent (after VN identified 4.4.0).
@@ -114,6 +117,11 @@ test('older firmware never sees the restriction endpoints — the card reports w
   assertAllCheckboxes(false);
   for (const id of CHECKBOXES) assert.equal(doc.getElementById(id).disabled, true, id + ' stays disabled');
   assert.match(doc.getElementById('restrictionsNote').textContent, /need firmware 4\.4\.0\+/);
+  const updatesLink = doc.getElementById('restrictionsNote').children.find((child) => child.tagName === 'A');
+  assert.ok(updatesLink, 'the gate note links straight to Updates');
+  assert.equal(updatesLink.textContent, 'Updates');
+  updatesLink.dispatch('click');
+  assert.equal(getOpenSection(), 'sec-firmware', 'the Updates link opens the Updates card');
   await app.disconnect({ quiet: true });
   testHooks.detach();
 });
@@ -147,7 +155,9 @@ test('the update snapshot round-trips loaded restrictions and skips unavailable 
   resetWireNewlineFraming();
   resetRestrictionsUi();
   // Loaded 4.4.0 device with two restrictions on.
-  launchDevice({ restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '1', 'CF,0': '0' } });
+  launchDevice({
+    restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '1', 'CF,0': '0' },
+  });
   await loadDeviceInfo();
   await sleep(30);
   const snapshot = captureSettingsSnapshot();
@@ -160,17 +170,25 @@ test('the update snapshot round-trips loaded restrictions and skips unavailable 
 
   // Restoring re-writes all four present keys.
   const sent = [];
-  testHooks.attach({ simulated: true }, {
-    write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
-      sent.push(text);
-      const reply = (line) => setTimeout(() => app.handleLine(line), 3);
-      reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+  testHooks.attach(
+    { simulated: true },
+    {
+      write(bytes) {
+        const text = Buffer.from(bytes)
+          .toString('utf8')
+          .replace(/\r?\n$/, '');
+        sent.push(text);
+        const reply = (line) => setTimeout(() => app.handleLine(line), 3);
+        reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+      },
     },
-  });
+  );
   await restoreSettingsSnapshot(snapshot);
   for (const ep of ['SD', 'MA', 'LK', 'CF'])
-    assert.ok(sent.some((s) => s.startsWith(`${ep},1:`)), ep + ' restored');
+    assert.ok(
+      sent.some((s) => s.startsWith(`${ep},1:`)),
+      ep + ' restored',
+    );
   testHooks.detach();
 
   // A pre-4.4.0 device (restrictions unavailable) snapshots without the
@@ -190,7 +208,9 @@ test('the update snapshot round-trips loaded restrictions and skips unavailable 
 test('the settings export carries the restrictions as booleans, or lists them as holes', async () => {
   resetWireNewlineFraming();
   resetRestrictionsUi();
-  launchDevice({ restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '0', 'CF,0': '1' } });
+  launchDevice({
+    restrictionValues: { 'SD,0': '1', 'MA,0': '0', 'LK,0': '0', 'CF,0': '1' },
+  });
   await loadDeviceInfo();
   await sleep(30);
   const data = collectSettingsExport();

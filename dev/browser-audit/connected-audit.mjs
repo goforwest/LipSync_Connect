@@ -971,19 +971,23 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
-    // Practice peaks + suggest-from-practice: the streamed pressure swings
-    // (the fake's ±25 hPa wave) must pin both peaks, expose the Suggest
-    // button, and Apply must write both thresholds from the measured maxima.
+    // Practice watch + suggest-from-practice: the streamed pressure swings
+    // (the fake's ±25 hPa wave) must fill the practice guide line, unlock the
+    // Suggest button, and Apply must write both thresholds from the measured
+    // maxima (the maxima are internal data — the gauge carries no peak marks).
     const peaks = await evalCard(() => ({
-      sip: document.getElementById('peakSipVal').textContent,
-      puff: document.getElementById('peakPuffVal').textContent,
-      suggestVisible: !document.getElementById('btnSuggestThresholds').hidden,
+      guide: document.getElementById('practiceGuide').textContent,
+      suggestUnlocked: !document.getElementById('btnSuggestThresholds').disabled,
       sipBefore: document.getElementById('sipVal').textContent,
       puffBefore: document.getElementById('puffVal').textContent,
+      peakMarksRetired: !document.getElementById('gaugeSipPeak') && !document.getElementById('gaugePuffPeak'),
     }));
     note(
       'practice-peaks',
-      parseFloat(peaks.sip) >= 10 && parseFloat(peaks.puff) >= 10 && peaks.suggestVisible,
+      /Strongest so far: sip \d/.test(peaks.guide) &&
+        /puff \d/.test(peaks.guide) &&
+        peaks.suggestUnlocked &&
+        peaks.peakMarksRetired,
       JSON.stringify(peaks),
     );
     await page.click('#btnSuggestThresholds');
@@ -992,7 +996,11 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       open: !document.getElementById('sapSuggestion').hidden,
       text: document.getElementById('sapSuggestionText').textContent,
     }));
-    note('suggest-thresholds', suggest.open && /65% of the practice peaks/.test(suggest.text), JSON.stringify(suggest));
+    note(
+      'suggest-thresholds',
+      suggest.open && /65% of the measured strongest/.test(suggest.text),
+      JSON.stringify(suggest),
+    );
     await page.click('#btnApplySuggested');
     await page.waitForTimeout(600);
     const applied = await evalCard(() => ({
@@ -1525,10 +1533,10 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
       document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
     );
     if (livePressed === 'false') await page.click('#btnLivePressure');
-    let suggestVisible = false;
-    for (let i = 0; i < 14 && !suggestVisible; i++) {
+    let suggestUnlocked = false;
+    for (let i = 0; i < 14 && !suggestUnlocked; i++) {
       await page.waitForTimeout(300);
-      suggestVisible = await page.evaluate(() => !document.getElementById('btnSuggestThresholds').hidden);
+      suggestUnlocked = await page.evaluate(() => !document.getElementById('btnSuggestThresholds').disabled);
     }
     await page.click('#btnSuggestThresholds');
     await page.waitForTimeout(400);
@@ -1538,11 +1546,11 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
       sip: document.getElementById('sipVal').textContent,
     }));
     // The written value must differ from the loaded default — it came from
-    // the practice. (The Suggest button itself stays visible after Apply:
-    // the peaks persist and re-suggesting after more practice is legitimate.)
+    // the practice. (Suggest stays unlocked after Apply: the measured maxima
+    // persist and re-suggesting after more practice is legitimate.)
     note(
       'wizard-thresholds-from-practice',
-      suggestVisible && applied.sip !== '12.50' && applied.sip !== '—',
+      suggestUnlocked && applied.sip !== '12.50' && applied.sip !== '—',
       JSON.stringify(applied),
     );
     // The step's copy says to come back to this panel on Home and press

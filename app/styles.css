@@ -1388,17 +1388,25 @@ footer p {
   width: 2px;
   background: var(--brand-accent);
 }
-/* Practice peaks (peak-hold): the dashed marks pin the largest sip/puff the
-   user produced, beside the solid threshold marks. */
-.gauge .mark.peak {
-  background: transparent;
-  border-left: 2px dashed var(--info);
-}
 /* Hard sip/puff band (upstream #58): the hard thresholds as dashed marks in
-   the warning color, beyond the solid regular-threshold marks. */
+   the warning color, beyond the solid regular-threshold marks. With the
+   practice-peak marks retired, dashed means exactly one thing on this gauge. */
 .gauge .mark.hard {
   background: transparent;
   border-left: 2px dashed var(--warn, var(--brand-accent));
+}
+.gauge-legend {
+  margin: -4px 0 8px;
+  font-size: 0.85rem;
+}
+/* The practice row: one guidance line plus its two actions, matching the
+   other tuning rows' left label / right actions rhythm. */
+.practice-row {
+  flex-wrap: wrap;
+}
+.practice-row .value {
+  flex: 1 1 auto;
+  min-width: 12rem;
 }
 .gauge-scale {
   display: flex;
@@ -3153,9 +3161,6 @@ html.dark-mode .guide-card {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: 12px;
-}
-.maintenance-grid--restart {
-  grid-template-columns: minmax(min(300px, 100%), 520px);
 }
 .maintenance-option {
   display: flex;

@@ -1,15 +1,17 @@
-// Practice peaks + suggest-from-practice (plotting/gauge.js): every pressure
-// frame pins the largest sip/puff as gauge marks and readout values, the
-// suggestion is 65% of each peak rounded to the 0.25 input granularity and
-// clamped to the firmware range, readiness gates on the 2 hPa minimum
-// (a suggestion clamped up from noise would be a lie), and the session reset
-// clears stale peaks.
+// Practice watch + suggest-from-practice (plotting/gauge.js): every pressure
+// frame updates the largest sip/puff kept internally, the practice row's guide
+// line is their user-facing surface (no gauge marks — dashed belongs to the
+// hard band), the suggestion is 65% of each peak rounded to the 0.25 input
+// granularity and clamped to the firmware range, Suggest stays disabled until
+// BOTH sides reach the 2 hPa minimum (a suggestion clamped up from noise
+// would be a lie), Start-over is live only while something is measured, and
+// the session reset clears stale practice data.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document } = installGatingDom();
-const { gaugeDelta, recalcGaugeRange, resetPracticePeaks, suggestThresholds, SUGGEST_FRACTION } =
+const { gaugeDelta, recalcGaugeRange, resetPracticePeaks, suggestThresholds, syncPracticeControls, SUGGEST_FRACTION } =
   await import('../app/js/plotting/gauge.js');
 
 const setThresholds = (sip, puff) => {
@@ -18,31 +20,52 @@ const setThresholds = (sip, puff) => {
   recalcGaugeRange(); // derives gaugeRange and repositions every mark
 };
 
-test('peaks track the largest magnitude per side and pin as gauge marks', () => {
+const guide = () => document.getElementById('practiceGuide').textContent;
+const suggestBtn = () => document.getElementById('btnSuggestThresholds');
+const clearBtn = () => document.getElementById('btnClearPeaks');
+
+test('peaks track the largest magnitude per side in the guide line', () => {
   setThresholds(4, 8); // range = 12
   gaugeDelta(-4.5);
   gaugeDelta(-3.0); // smaller: never lowers the peak
   gaugeDelta(12.25);
-  assert.equal(document.getElementById('peakSipVal').textContent, '4.50');
-  assert.equal(document.getElementById('peakPuffVal').textContent, '12.25');
-  const sipPeak = document.getElementById('gaugeSipPeak');
-  const puffPeak = document.getElementById('gaugePuffPeak');
-  assert.equal(sipPeak.hidden, false);
-  assert.equal(puffPeak.hidden, false);
-  assert.equal(sipPeak.style.left, 50 - (4.5 / 12) * 50 + '%');
-  assert.equal(puffPeak.style.left, '100%'); // 12.25 > range 12 → clamped at the edge
-  assert.match(sipPeak.title, /Practice peak sip: 4\.50 hPa/);
+  assert.match(guide(), /Strongest so far: sip 4\.50 hPa · puff 12\.25 hPa/);
+  // Ready state: Suggest unlocked, Start-over live.
+  assert.equal(suggestBtn().disabled, false);
+  assert.equal(clearBtn().disabled, false);
 });
 
-test('sub-hPa noise never pins a mark or a readout', () => {
+test('no gauge marks are pinned for practice — dashed belongs to the hard band', () => {
+  setThresholds(4, 8);
+  gaugeDelta(-9);
+  gaugeDelta(9);
+  // The hard marks are the only dashed pair the gauge owns (hidden here: no
+  // hard values loaded), and the legend stays hidden with them.
+  assert.equal(document.getElementById('gaugeHardSipMark').hidden, true);
+  assert.equal(document.getElementById('gaugeHardPuffMark').hidden, true);
+  assert.equal(document.getElementById('gaugeLegend').hidden, true);
+});
+
+test('sub-hPa noise changes nothing: the practice invitation stays up', () => {
   resetPracticePeaks();
   gaugeDelta(0.4);
-  assert.equal(document.getElementById('peakPuffVal').textContent, '\u2014');
-  assert.equal(document.getElementById('gaugePuffPeak').hidden, true);
-  // The peak is still tracked internally for the ≥2 readiness gate — but a
-  // 0.4 hPa peak can never make a suggestion ready, so the readout stays
-  // honest: "nothing worth showing".
+  assert.match(guide(), /^Practice:/);
+  // The 0.4 hPa peak is still tracked internally for the ≥2 readiness gate —
+  // but it can never make a suggestion ready, so the row stays honest:
+  // nothing worth showing, Suggest locked, Start-over pointless.
   assert.equal(suggestThresholds().ready, false);
+  assert.equal(suggestBtn().disabled, true);
+  assert.equal(clearBtn().disabled, true);
+});
+
+test('a one-sided practice asks for the other side and keeps Suggest locked', () => {
+  resetPracticePeaks();
+  gaugeDelta(-6.0);
+  assert.match(guide(), /Strongest so far: sip 6\.00 hPa — practice the other side too\./);
+  assert.equal(suggestBtn().disabled, true);
+  gaugeDelta(9.0);
+  assert.match(guide(), /Strongest so far: sip 6\.00 hPa · puff 9\.00 hPa/);
+  assert.equal(suggestBtn().disabled, false);
 });
 
 test('suggest computes 65% of each peak at 0.25 granularity, clamped to range', () => {
@@ -77,12 +100,27 @@ test('readiness requires both peaks to reach the 2 hPa minimum', () => {
   assert.equal(s.puff, 2); // 2.5 × 0.65 = 1.625 → rounds to 1.75 → clamped up to the 2 hPa minimum
 });
 
-test('resetPracticePeaks clears marks, readouts, and readiness', () => {
+test('resetPracticePeaks clears the guide, locks the buttons, and clears readiness', () => {
   resetPracticePeaks();
   gaugeDelta(-7.7);
-  assert.equal(document.getElementById('peakSipVal').textContent, '7.70');
+  assert.match(guide(), /Strongest so far: sip 7\.70 hPa/);
   resetPracticePeaks();
-  assert.equal(document.getElementById('peakSipVal').textContent, '\u2014');
-  assert.equal(document.getElementById('gaugeSipPeak').hidden, true);
+  assert.match(guide(), /^Practice:/);
+  assert.equal(suggestBtn().disabled, true);
+  assert.equal(clearBtn().disabled, true);
   assert.equal(suggestThresholds().ready, false);
+});
+
+test('syncPracticeControls re-asserts readiness after setCmdButtons re-enabled the row', () => {
+  resetPracticePeaks();
+  suggestBtn().disabled = false; // as setCmdButtons(true) leaves every .cmd button
+  clearBtn().disabled = false;
+  syncPracticeControls();
+  assert.equal(suggestBtn().disabled, true); // no practice data → locked again
+  assert.equal(clearBtn().disabled, true);
+  gaugeDelta(-4);
+  gaugeDelta(4);
+  syncPracticeControls();
+  assert.equal(suggestBtn().disabled, false); // both sides ≥ 2 → unlocked
+  assert.equal(clearBtn().disabled, false);
 });

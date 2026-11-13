@@ -6,10 +6,31 @@ date every claim. Everything else in this folder is a dated log/ledger —
 accurate as of its date, superseded by later dated notes, never
 rewritten silently. Index and reading order: `docs/README.md`.
 
-**Last updated: 2026-11-11.**
+**Last updated: 2026-11-13.**
 
 ## App
 
+- Handover polish pass (2026-11-13): every version-gated feature now states
+  the lock with the shared note-and-Updates-link pattern (a new
+  `ui/firmware-gate.js` helper) — input safeguards, hold timing (which had no
+  note at all), external switch actions, and the hard band gained working
+  links, and the 4.8.0+ Bluetooth host table says why it is absent on older
+  firmware instead of silently hiding. The Input-state light option stays
+  visible but disabled with "(needs firmware 4.4.0+)" rather than vanishing.
+  The practice-peaks UI is retired: the measured maxima are internal data for
+  Suggest thresholds now, surfaced only in a practice guide line ("Strongest
+  so far: …"), Suggest unlocks from data instead of appearing hidden→shown,
+  Start over replaces Clear peaks, and the gauge's dashed marks mean exactly
+  one thing — the hard band (with a legend while shown). Auto-live keeps
+  starting the gauge on section open, and the Hold timing group explains the
+  device's one-stream-at-a-time limit (Watch holds pauses the gauge and vice
+  versa). Export settings moved to Profiles & backup (beside profile
+  import/export); Refresh all settings stays in Overview & modes. Test
+  auto-restart moved from Self-tests to Restart & reset — its consequence is
+  a restart, and Self-tests now offers only the non-disruptive LED/buzzer
+  tests (also fixing a stray ">" text node that had been rendering in that
+  row). Suites: 511/511 (three new practice-watch tests), lint/typecheck/
+  format clean, service worker bumped to v54.
 - The interface now keeps its established accessible visual system while
   grouping the feature inventory into four fixed, task-oriented areas: Home,
   Adjust controls, Device, and Help & support. Home is the first-run/default
@@ -83,10 +104,10 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 508/508 and offline E2E passes 2/2. CI now runs the
-  browser audit; the dev dependency audit is 0 vulnerabilities. The full CI job
-  is green on main as of 9f32869 (it had been stopping at the format check
-  since the 2026-11-10 UX commits).
+- Integration tests pass 511/511, the browser audit passes 116/116, and offline
+  E2E passes 2/2. CI now runs the browser audit; the dev dependency audit is 0
+  vulnerabilities. The full CI job is green on main as of 9f32869 (it had been
+  stopping at the format check since the 2026-11-10 UX commits).
 
 ## Firmware
 

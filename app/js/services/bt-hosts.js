@@ -31,6 +31,7 @@ import { serialSession } from '../serial/session.js';
 import { log, noisyLineLog } from '../services/log.js';
 import { $ } from '../ui/dom.js';
 import { showConfirm } from '../ui/formatting.js';
+import { showFirmwareGateNote } from '../ui/firmware-gate.js';
 // Single source of truth for the gate (constants.js): hub-remote's mirror and
 // the firmware↔Connect protocol cross-check both read THIS copy — a second
 // local number here could drift and split the card's gate from the mirror's.
@@ -57,7 +58,12 @@ export function parseHostRow(value) {
   // A row for a host whose name never cached at pair time arrives as its MAC;
   // keep the raw name for display and the MAC separately for stable identity.
   const macOk = /^[0-9A-F]{12}$/i.test(name);
-  return { i, mac: macOk ? name.toUpperCase() : null, name: macOk ? null : name, active: Number(active) };
+  return {
+    i,
+    mac: macOk ? name.toUpperCase() : null,
+    name: macOk ? null : name,
+    active: Number(active),
+  };
 }
 
 /** Apply a host count (the read answer or a MANUAL BT,4 push). Shrinking is
@@ -365,14 +371,23 @@ function renderHostList() {
 
 /** Wire the card's Pair new / Forget all controls and do the first load.
  * Called once per connect (after the settings load identified the firmware).
- * Older firmware keeps the host list hidden — nothing to show, nothing to
- * send. */
+ * Supported firmware shows the host list; older firmware keeps it hidden but
+ * says why — a silently missing feature reads as a bug, the gate note (same
+ * contract as every other version gate) points at Updates instead. */
 export function bindBluetoothHosts() {
   const listEl = $('btHostList');
   const controls = $('btCardControls');
+  const note = $('btHostsNote');
   const gated = !!(serialSession.port && deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE));
   if (listEl) listEl.hidden = !gated;
   if (controls) controls.hidden = !gated;
+  if (note) {
+    if (gated || !serialSession.port) note.hidden = true;
+    else {
+      note.hidden = false;
+      showFirmwareGateNote(note, 'Paired Bluetooth hosts', BT_HOSTS_MIN_FIRMWARE, ' to manage them here.', 'need');
+    }
+  }
   if (!gated) return;
 
   bindBluetoothControls();
@@ -446,6 +461,11 @@ export function resetBluetoothHostsUi() {
   if (summaryRow) summaryRow.hidden = true;
   const controls = $('btCardControls');
   if (controls) controls.hidden = true;
+  const note = $('btHostsNote');
+  if (note) {
+    note.hidden = true;
+    note.textContent = '';
+  }
 }
 
 /** The poller's interval handle (module-level so a reconnect re-uses the
