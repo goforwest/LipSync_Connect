@@ -10,6 +10,17 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Pressure display units (2026-11-13): a cmH₂O display preference (appearance
+  popup, persisted, hPa default) for clinicians who think in it — 1 cmH₂O =
+  0.980665 hPa. It converts the READING surfaces (gauge titles/scale/current
+  delta, the practice guide line, the suggestion copy, and a ≈-annotation
+  beside each hPa readout) and nothing else: the wire format, the stored
+  thresholds, the steppers, the exact-value inputs, and the hard-band margin
+  rule are hPa-native, so editing granularity never changes and no value can
+  drift between display and wire. The hPa default keeps every pre-preference
+  string byte-identical; the settings export and the support report stay
+  wire-native. Suites 539/539, browser audit 116/116, offline E2E 2/2;
+  service worker v56.
 - Handover pass (2026-11-13): a deploy taking over an open page mid-session
   (the new service worker claiming clients over the stale one) now tells the
   user — a calm, sticky update toast with an explicit Reload button (never

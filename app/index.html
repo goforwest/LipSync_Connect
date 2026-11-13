@@ -743,7 +743,7 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="sipVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" data-pressure-hint="st" aria-hidden="true">hPa</span>
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -790,7 +790,7 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="puffVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" data-pressure-hint="pt" aria-hidden="true">hPa</span>
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -937,7 +937,7 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="hardSipVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" data-pressure-hint="hs" aria-hidden="true">hPa</span>
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -988,7 +988,7 @@
                     &minus;0.25
                   </button>
                   <span class="value" id="hardPuffVal">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">hPa</span>
+                  <span class="hint row-hint tuning-unit" data-pressure-hint="hp" aria-hidden="true">hPa</span>
                   <button
                     type="button"
                     class="cmd secondary step-fine"
@@ -2458,6 +2458,13 @@
             <button type="button" class="scale-btn" data-scale="1" aria-pressed="true">100%</button>
             <button type="button" class="scale-btn" data-scale="1.25" aria-pressed="false">125%</button>
             <button type="button" class="scale-btn" data-scale="1.5" aria-pressed="false">150%</button>
+          </div>
+        </div>
+        <div class="popup-row">
+          <span>Pressure units</span>
+          <div class="scale-seg" role="group" aria-label="Pressure display units">
+            <button type="button" class="scale-btn" data-pressure-unit="hpa" aria-pressed="true">hPa</button>
+            <button type="button" class="scale-btn" data-pressure-unit="cmh2o" aria-pressed="false">cmH₂O</button>
           </div>
         </div>
         <details class="appearance-advanced">

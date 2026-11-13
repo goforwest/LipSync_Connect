@@ -1,7 +1,7 @@
-// v55 carries the update toast (new ui module) and the select write-on-change
-// pass. Hard invalidate because markup, controller, and styles must arrive
-// together for offline users.
-const CACHE = 'lipsync-connect-v55';
+// v56 carries the pressure-units display preference (new services module) and
+// the appearance-popup row. Hard invalidate because markup, controller, and
+// styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v56';
 const ASSETS = [
   './',
   './index.html',
@@ -45,6 +45,7 @@ const ASSETS = [
   './js/services/profiles.js',
   './js/services/wizard.js',
   './js/services/practice-stats.js',
+  './js/services/pressure-units.js',
   './js/services/device-ops.js',
   './js/services/calibration.js',
   './js/services/health.js',

@@ -8,8 +8,8 @@
 // pinning them on the gauge as a second pair of dashed marks competed with
 // the hard-band marks for the same "dashed thing beside the threshold" role.
 import { METER_SEGMENTS } from '../config/constants.js';
-import { fmtHpa } from '../utils/format.js';
 import { $ } from '../ui/dom.js';
+import { fmtPressure, onPressureUnitChange, renderPressureHints } from '../services/pressure-units.js';
 
 let gaugeRange = null;
 let gaugeLastDelta = null;
@@ -110,7 +110,7 @@ export function gaugeDelta(delta) {
   if (gaugeEl)
     gaugeEl.setAttribute(
       'aria-label',
-      `Pressure gauge: sip fills left, puff fills right, thresholds marked in red. Current delta: ${Math.abs(delta).toFixed(1)} hPa ${delta < 0 ? '(sip)' : '(puff)'}.`,
+      `Pressure gauge: sip fills left, puff fills right, thresholds marked in red. Current delta: ${fmtPressure(Math.abs(delta), { decimals: 1, withUnit: true })} ${delta < 0 ? '(sip)' : '(puff)'}.`,
     );
 }
 
@@ -147,8 +147,9 @@ function updatePracticeUi() {
         'Practice: with Live view running, sip and puff firmly a few times \u2014 your strongest becomes the starting point.';
     } else {
       const parts = [];
-      if (practicePeaks.sip >= 1) parts.push(`sip ${fmtHpa(practicePeaks.sip)} hPa`);
-      if (practicePeaks.puff >= 1) parts.push(`puff ${fmtHpa(practicePeaks.puff)} hPa`);
+      if (practicePeaks.sip >= 1) parts.push(`sip ${fmtPressure(practicePeaks.sip, { decimals: 2, withUnit: true })}`);
+      if (practicePeaks.puff >= 1)
+        parts.push(`puff ${fmtPressure(practicePeaks.puff, { decimals: 2, withUnit: true })}`);
       guide.textContent =
         `Strongest so far: ${parts.join(' \u00b7 ')}` + (ready ? '' : ' \u2014 practice the other side too.');
     }
@@ -208,11 +209,11 @@ export function gaugeMarks() {
     puff = Number($('puffVal').textContent);
   if (sipEl && sipEl.style && Number.isFinite(sip) && sip > 0) {
     sipEl.style.left = 50 - Math.min(sip / gaugeRange, 1) * 50 + '%';
-    sipEl.title = 'Sip triggers at \u2212' + sip + ' hPa';
+    sipEl.title = 'Sip triggers at \u2212' + fmtPressure(sip, { withUnit: true });
   }
   if (puffEl && puffEl.style && Number.isFinite(puff) && puff > 0) {
     puffEl.style.left = 50 + Math.min(puff / gaugeRange, 1) * 50 + '%';
-    puffEl.title = 'Puff triggers at +' + puff + ' hPa';
+    puffEl.title = 'Puff triggers at +' + fmtPressure(puff, { withUnit: true });
   }
   // Hard band markers (upstream #58): shown only once their values loaded
   // (hidden on older firmware, where the readouts stay at the placeholder).
@@ -223,7 +224,12 @@ export function gaugeMarks() {
       el.hidden = false;
       el.style.left =
         (negative ? 50 - Math.min(value / gaugeRange, 1) * 50 : 50 + Math.min(value / gaugeRange, 1) * 50) + '%';
-      el.title = 'Hard ' + (negative ? 'sip' : 'puff') + ' triggers at ' + (negative ? '\u2212' : '+') + value + ' hPa';
+      el.title =
+        'Hard ' +
+        (negative ? 'sip' : 'puff') +
+        ' triggers at ' +
+        (negative ? '\u2212' : '+') +
+        fmtPressure(value, { withUnit: true });
     } else {
       el.hidden = true;
     }
@@ -241,9 +247,33 @@ export function gaugeMarks() {
     legend.hidden = !hardShown;
     if (hardShown) legend.textContent = 'Dashed marks: the hard sip and hard puff triggers.';
   }
-  $('gaugeSipLabel').textContent = '\u2212' + gaugeRange.toFixed(1) + ' hPa';
-  $('gaugePuffLabel').textContent = '+' + gaugeRange.toFixed(1) + ' hPa';
+  $('gaugeSipLabel').textContent = '\u2212' + fmtPressure(gaugeRange, { decimals: 1, withUnit: true });
+  $('gaugePuffLabel').textContent = '+' + fmtPressure(gaugeRange, { decimals: 1, withUnit: true });
+  // The ≈-annotations beside the hPa readouts follow the same values.
+  renderPressureHints();
   // A range change moves the peak marks with the threshold marks.
   updatePracticeUi();
   if (gaugeLastDelta !== null) gaugeDelta(gaugeLastDelta);
 }
+
+/**
+ * The suggestion notice's copy, in the display unit (the Apply button writes
+ * the wire hPa values unchanged — s.sip/s.puff are wire values either way).
+ * @param {{ sip: number, puff: number }} s
+ */
+export function formatSuggestion(s) {
+  return (
+    'Suggested: sip ' +
+    fmtPressure(s.sip, { decimals: 2, withUnit: true }) +
+    ', puff ' +
+    fmtPressure(s.puff, { decimals: 2, withUnit: true }) +
+    ' \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.'
+  );
+}
+
+// A unit switch re-renders every converted surface from the same wire data:
+// the gauge marks/scale/legend (annotations included) and the practice guide.
+onPressureUnitChange(() => {
+  if (gaugeRange !== null) gaugeMarks();
+  else updatePracticeUi();
+});

@@ -20,7 +20,14 @@ import { bindSupportReport } from './services/support-report.js';
 import { serialApi } from './serial/transport.js';
 import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
 
-import { gaugeDelta, recalcGaugeRange, gaugeMarks, resetPracticePeaks, suggestThresholds } from './plotting/gauge.js';
+import {
+  gaugeDelta,
+  recalcGaugeRange,
+  gaugeMarks,
+  resetPracticePeaks,
+  suggestThresholds,
+  formatSuggestion,
+} from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
 import { updateLiveStreamNote } from './plotting/diag.js';
 
@@ -60,6 +67,12 @@ import { resetPracticeStats, copyPracticeStats } from './services/practice-stats
 import { bindWizard, exitWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
 import { exportSettings } from './services/settings-export.js';
+import {
+  getPressureUnit,
+  initPressureUnits,
+  onPressureUnitChange,
+  setPressureUnit,
+} from './services/pressure-units.js';
 import { afterDeviceLoad, bindFirmwareUpdate, resetFirmwareUpdateUi } from './services/firmware-update.js';
 import { initSettings } from './ui/theme.js';
 // bindBluetoothHosts/startBtHostsPoller are dynamically imported by
@@ -322,6 +335,7 @@ window.addEventListener('DOMContentLoaded', () => {
       );
   }
   initSettings();
+  initPressureUnits(); // the display-unit preference must land before the first gauge render
 
   // --- Always-run initialization (nav, popup, service worker) ---
   // Group tiles + compact page navigation
@@ -439,6 +453,17 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Pressure display units (hPa default; cmH2O for clinicians who think in
+  // it): a reading preference only — steppers, exact inputs, and the wire
+  // stay hPa-native (see services/pressure-units.js).
+  const unitBtns = /** @type {NodeListOf<any>} */ (document.querySelectorAll('[data-pressure-unit]'));
+  const syncUnitButtons = () => {
+    unitBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pressureUnit === getPressureUnit())));
+  };
+  unitBtns.forEach((b) => b.addEventListener('click', () => setPressureUnit(b.dataset.pressureUnit)));
+  onPressureUnitChange(syncUnitButtons);
+  syncUnitButtons();
 
   circleTriggers.forEach((btn) => {
     btn.addEventListener('click', () => openGroupById(btn.dataset.group));
@@ -829,12 +854,7 @@ window.addEventListener('DOMContentLoaded', () => {
       guard(() => {
         const s = suggestThresholds();
         if (!s.ready) return; // the button is disabled until ready; guard anyway
-        $('sapSuggestionText').textContent =
-          'Suggested: sip ' +
-          fmtHpa(s.sip) +
-          ' hPa, puff ' +
-          fmtHpa(s.puff) +
-          ' hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.';
+        $('sapSuggestionText').textContent = formatSuggestion(s);
         $('sapSuggestion').hidden = false;
         $('btnApplySuggested').hidden = false;
         $('btnDismissSuggestion').hidden = false;
