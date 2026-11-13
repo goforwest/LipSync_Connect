@@ -15,6 +15,7 @@ export function showNotification(msg, isWarning = false) {
   const el = $('notification');
   if (!el) return;
   el.classList.toggle('warning', !!isWarning);
+  el.classList.remove('update');
   // Errors interrupt (assertive); advisory notes (the contrast warning) are
   // polite — the container's static role="alert" is swapped per message.
   el.setAttribute('role', isWarning ? 'status' : 'alert');
@@ -56,4 +57,34 @@ export function showNotification(msg, isWarning = false) {
   // steals a click aimed at the content it floats over (its × still closes,
   // and the auto-dismiss timer runs regardless).
   armTimer();
+}
+
+/** Sticky advisory with one action (the app-update toast): no auto-dismiss —
+ *  the reader may be mid-session and the news stays true until they act or
+ *  dismiss it. The action runs once and closes the bar. */
+export function showUpdateNotification(msg, actionLabel, onAction) {
+  clearTimeout(notifTimer);
+  notifTimer = null;
+  const el = $('notification');
+  if (!el) return;
+  el.classList.remove('warning');
+  el.classList.add('update');
+  // Advisory: polite, never interrupting (an update can wait its turn).
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.hidden = false;
+  el.innerHTML =
+    '<span class="notif-msg"></span><button class="notif-action"></button><button class="notif-close" aria-label="Dismiss notification">&times;</button>';
+  el.querySelector('.notif-msg').textContent = msg;
+  const action = el.querySelector('.notif-action');
+  action.textContent = actionLabel;
+  action.onclick = (e) => {
+    e.stopPropagation();
+    el.hidden = true;
+    onAction();
+  };
+  el.querySelector('.notif-close').onclick = (e) => {
+    e.stopPropagation();
+    el.hidden = true;
+  };
 }

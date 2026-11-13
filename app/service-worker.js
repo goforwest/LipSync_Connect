@@ -1,9 +1,7 @@
-// v54 carries the shared firmware-gate notes, the practice-row rework, the
-// Restart & reset / Profiles regrouping, and the quiet 15 s BT backstop poll
-// (log hygiene: the 1 Hz poll no longer floods the log panel and the exported
-// support log). Hard invalidate because markup, controller, and styles must
-// arrive together for offline users.
-const CACHE = 'lipsync-connect-v54';
+// v55 carries the update toast (new ui module) and the select write-on-change
+// pass. Hard invalidate because markup, controller, and styles must arrive
+// together for offline users.
+const CACHE = 'lipsync-connect-v55';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +14,7 @@ const ASSETS = [
   './js/ui/dom.js',
   './js/ui/a11y.js',
   './js/ui/notification.js',
+  './js/ui/update-toast.js',
   './js/ui/motion.js',
   './js/ui/theme.js',
   './js/ui/values.js',

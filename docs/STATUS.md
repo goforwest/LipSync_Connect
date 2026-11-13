@@ -10,6 +10,17 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Handover pass (2026-11-13): a deploy taking over an open page mid-session
+  (the new service worker claiming clients over the stale one) now tells the
+  user — a calm, sticky update toast with an explicit Reload button (never
+  auto-reload: the reader may be mid-tuning, and a reload closes the device
+  connection). The future-improvements ledger gained a dated at-a-glance
+  status block (1/2/3/4/5 done, 7/8 terminal, 9 declined; only item 6
+  open), and `docs/HANDOVER.md` is the new-maintainer companion to STATUS
+  (the gates, the five codebase rules, verified vs simulator-proven, sharp
+  edges), indexed in docs/README.md. Suites 533/533, browser audit 116/116,
+  offline E2E 2/2. The cmH₂O display-option idea stays parked until the
+  clinician conversation happens.
 - Consistency pass (2026-11-13): the Sip & Puff card names the stream that
   is running (#liveStreamNote, driven by the same DM-echo sync as the live
   buttons and hidden with the session) — the device sends one live view at a

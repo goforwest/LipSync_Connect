@@ -13,6 +13,13 @@ notes), 3 (stranded-marker persistence) and
 Open: item 6 (the Android/OTG hardware session, which now also validates
 the UM path).
 
+**Status at a glance (2026-11-13):** 1/2/3/5 done; 4 done (2026-10-12);
+7 validated, 8 verified, 9 declined by recorded decision — nothing left
+to do there. Only item 6 (Android/OTG hardware session) remains, tracked
+alongside bench-window G in `STATUS.md`; item 2's hardware residual
+(post-flash restore in one pass without the settle) rides the same
+untouched-hardware 4.6.5 bench item.
+
 ## Firmware (lipsync repo)
 
 ### 1. Show a deliberate "Update mode" screen (or blank the OLED) before entering the bootloader

@@ -36,6 +36,7 @@ import { readCalibration, setDeadzone, setSimpleSetting, requireNumber, step } f
 import { updateConnectionGating, hideGuide, setCmdButtons } from './ui/connection-ui.js';
 import { showConfirm } from './ui/formatting.js';
 import { showNotification } from './ui/notification.js';
+import { bindUpdateToast } from './ui/update-toast.js';
 import {
   openSectionById,
   openGroupById,
@@ -684,6 +685,10 @@ window.addEventListener('DOMContentLoaded', () => {
         })
         .catch((err) => console.error('Could not clear the local development cache:', err));
     } else {
+      // A deploy takes over the open page mid-session (the new worker claims
+      // clients over the stale one) — say so and offer the reload; the user
+      // decides when.
+      bindUpdateToast();
       navigator.serviceWorker.register('./service-worker.js').catch((err) => {
         console.error('Service worker registration failed:', err);
         log('Service worker registration failed: ' + err.message, 'log-err');

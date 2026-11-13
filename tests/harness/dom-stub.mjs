@@ -200,9 +200,9 @@ export function makeEl(tag) {
     },
     // Controls that get synthesized by the app's error/notification paths.
     querySelector(sel) {
-      if (sel === '.notif-msg' || sel === '.notif-close') {
+      if (sel === '.notif-msg' || sel === '.notif-close' || sel === '.notif-action') {
         if (!this._queries) this._queries = {};
-        if (!this._queries[sel]) this._queries[sel] = makeEl(sel === '.notif-close' ? 'button' : 'span');
+        if (!this._queries[sel]) this._queries[sel] = makeEl(sel === '.notif-msg' ? 'span' : 'button');
         return this._queries[sel];
       }
       // showConfirm: dialog body and its action buttons

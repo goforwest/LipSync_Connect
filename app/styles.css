@@ -2318,8 +2318,37 @@ button.ready-chip:hover:not(:disabled) {
   background: var(--info-fill);
   color: #fff;
 }
+/* The update toast: calm and informational, never the danger red — an
+   update is good news with a decision attached, not an alarm. */
+#notification.update {
+  background: var(--info-fill);
+  color: #fff;
+}
+#notification.update::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 10.5v6.5'/%3E%3Cpath d='M12 7v.01'/%3E%3C/svg%3E");
+}
 #notification .notif-msg {
   flex: 1;
+}
+/* The update toast's Reload action: the only other live target in the
+   pointer-transparent bar. */
+#notification .notif-action {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: #fff;
+  color: var(--text);
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-height: unset;
+  min-width: unset;
+  transition: background 0.15s ease;
+  pointer-events: auto;
+}
+#notification .notif-action:hover {
+  background: color-mix(in srgb, #fff 85%, var(--text));
 }
 #notification .notif-close {
   flex-shrink: 0;
