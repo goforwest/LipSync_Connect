@@ -32,6 +32,10 @@ function sanitizeEntry(raw) {
     }
   }
   const version = typeof raw.version === 'string' ? raw.version.trim().slice(0, 20) : '';
+  // Per-device scoping (2026-11-13): entries carry the device id they were
+  // recorded against; entries from before the scoping existed have none and
+  // stay visible everywhere until they age out of the cap.
+  const deviceId = typeof raw.deviceId === 'string' ? raw.deviceId.trim().slice(0, 40) : '';
   // Value-level drift metrics (neutral offset, weakest corner, bus recovery
   // count): finite, non-negative numbers on a fixed key whitelist — the same
   // treatment every other field gets.
@@ -42,10 +46,28 @@ function sanitizeEntry(raw) {
       if (Number.isFinite(v) && v >= 0) metrics[key] = v;
     }
   }
-  return Object.keys(metrics).length ? { at, outcome, steps, version, metrics } : { at, outcome, steps, version };
+  const base = { at, outcome, steps, version, deviceId };
+  return Object.keys(metrics).length ? { ...base, metrics } : base;
 }
 
-/** @returns {{at: string, outcome: string, steps: Record<string, string>, version: string}[]} */
+/** The raw sanitized list, unscoped — resetHealthHistory's keeper. */
+function readHistoryRaw() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.map(sanitizeEntry).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** The connected device's raw id ('' while disconnected or unloaded). */
+function currentDeviceId() {
+  const id = ($('deviceId')?.textContent ?? '').trim();
+  return ['', '\u2014', 'ERR', '\u2026', '?'].includes(id) ? '' : id;
+}
+
+/** @returns {{at: string, outcome: string, steps: Record<string, string>, version: string, deviceId: string}[]} */
 function readHistory() {
   try {
     const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -70,6 +92,7 @@ export function recordHealthRun(outcome, steps, metrics) {
     outcome,
     steps: { ...(steps || {}) },
     version: ($('version')?.textContent || '').trim(),
+    deviceId: currentDeviceId(),
   };
   if (metrics && typeof metrics === 'object') {
     // Only finite numbers survive — a refused/malformed read records
@@ -96,7 +119,11 @@ export function recordHealthRun(outcome, steps, metrics) {
 export function renderHealthHistory() {
   const row = $('healthHistory');
   if (!row) return;
-  const list = readHistory();
+  const current = currentDeviceId();
+  // Trend scoping: a device's history renders on that device. Entries from
+  // before the scoping existed (no id) render everywhere and age out; with
+  // nothing connected the row only exists if a run just happened.
+  const list = readHistory().filter((e) => !e.deviceId || !current || e.deviceId === current);
   if (!list.length) {
     while (row.children?.length) row.removeChild(row.children[row.children.length - 1]);
     row.hidden = true;
@@ -129,7 +156,11 @@ export function renderHealthHistory() {
   const clear = document.createElement('button');
   clear.type = 'button';
   clear.className = 'secondary health-history-clear';
-  clear.textContent = 'Clear history';
+  clear.textContent = 'Clear this device\u2019s history';
+  clear.setAttribute(
+    'aria-label',
+    'Clear the health-check history for this device (other devices\u2019 histories are kept)',
+  );
   clear.addEventListener('click', resetHealthHistory);
   row.appendChild(clear);
   // The drift line — value-level trend, with restraint: ONE line comparing
@@ -162,13 +193,17 @@ function driftLine(list) {
   return `Drift since first run: ${parts.join(' \u00b7 ')}.`;
 }
 
-/** Clears the stored history and hides the row. */
+/** Clears the visible device's history and hides the row. Other devices'
+ *  trends are kept — connecting them shows their own. */
 export function resetHealthHistory() {
   // The Clear button disappears with the row; without moving focus the
   // keyboard user is dropped on <body>. The Run button is the nearest action.
   const hadFocus = !!document.activeElement?.classList?.contains?.('health-history-clear');
+  const current = currentDeviceId();
   try {
-    localStorage.removeItem(HISTORY_KEY);
+    const rest = readHistoryRaw().filter((e) => current && e.deviceId && e.deviceId !== current);
+    if (rest.length) localStorage.setItem(HISTORY_KEY, JSON.stringify(rest));
+    else localStorage.removeItem(HISTORY_KEY);
   } catch {}
   const row = $('healthHistory');
   if (row) {

@@ -10,6 +10,21 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Hardening + visual-aids pass (2026-11-13): the health-check history is
+  device-scoped at last — entries carry the device id, the trend renders only
+  for the connected device (multi-device benches no longer inherit another
+  unit's history), and Clear is scoped to the visible device. Exact-value
+  fields accept comma decimals (locale keyboards; one comma normalized,
+  thousand-guessing deliberately not), and the deadzone blur validates the
+  inner<outer ordering too — blur no longer blesses values Set would refuse.
+  The gauge grew two visual aids: permanent threshold value labels (the
+  titles were hover-only — invisible on touch, and Android is a supported
+  platform) and translucent ghost marks that preview the suggested
+  thresholds on the gauge while the suggestion notice is open, so Apply
+  both confirms something seen. The audit's axe net now covers the dark
+  theme as well. Suites 562/562, browser audit 118/118, offline E2E 2/2;
+  service worker v58.
+
 - Handover-workflow pass (2026-11-13): the settings export gained its other
   half — Import settings applies a previously exported file back to the
   connected device through the proven restore path (version gates, ordering,
@@ -189,7 +204,9 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 554/554, the browser audit passes 117/117 (axe-core now
+- Integration tests pass 562/562, the browser audit passes 118/118 (axe-core now
+  scans every section card in BOTH themes and fails the audit on any
+  accessibility violation; the dark palette passed clean on its first scan —
   scans every section card and fails the audit on any accessibility violation),
   and offline
   E2E passes 2/2. CI now runs the browser audit; the dev dependency audit is 0

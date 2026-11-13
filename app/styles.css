@@ -4683,3 +4683,36 @@ footer {
     border-bottom: 1px solid #000;
   }
 }
+
+/* ---- Gauge mark labels + suggestion ghosts ----
+   The marks' titles are hover-only — invisible on touch (Android is a
+   supported platform). The strips carry the same values as small permanent
+   labels: regular thresholds above the gauge, hard thresholds below, each
+   centered on its mark's position. */
+.gauge-mark-labels {
+  position: relative;
+  height: 15px;
+  margin: 15px 0 -4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.gauge-mark-labels--hard {
+  margin: 2px 0 0;
+}
+.gauge-mark-label {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-weight: 600;
+}
+.gauge-mark-label[hidden] {
+  display: none;
+}
+/* The suggestion ghosts: translucent copies of the regular marks showing
+   what Apply both WOULD write — visually "not real yet" next to the solid
+   live thresholds and the dashed hard band. */
+.gauge .mark.ghost {
+  width: 2px;
+  background: var(--danger);
+  opacity: 0.4;
+}

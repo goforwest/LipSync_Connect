@@ -61,3 +61,29 @@ test('deadzone blurs report into the joystick form error', () => {
   blur('outerDeadzone', '0.5');
   assert.equal(doc.getElementById('formError').textContent, '');
 });
+
+test('a comma decimal parses like a dot (locale keyboards)', () => {
+  blur('sipInput', '12,5');
+  assert.equal(doc.getElementById('sapError').textContent, '', '12,5 is valid and clears the error');
+  blur('w1Input', '1,5'); // 1.5 → out of the window range
+  assert.equal(doc.getElementById('sapError').textContent, 'Expected 200–2500 ms.');
+  blur('w1Input', '600');
+  assert.equal(doc.getElementById('sapError').textContent, '');
+});
+
+test('deadzone blur enforces the pair ordering, not just the range', () => {
+  doc.getElementById('innerDeadzoneVal').textContent = '0.30';
+  doc.getElementById('outerDeadzoneVal').textContent = '0.60';
+  blur('innerDeadzone', '0.65'); // in range, but >= the outer readout
+  assert.equal(doc.getElementById('formError').textContent, 'Inner deadzone must stay below the outer one.');
+  blur('outerDeadzone', '0.20'); // in range, but <= the inner readout
+  assert.equal(doc.getElementById('formError').textContent, 'Outer deadzone must stay above the inner one.');
+  blur('innerDeadzone', '0,30'); // comma form, valid ordering
+  assert.equal(doc.getElementById('formError').textContent, '');
+});
+
+test('deadzone blur stays quiet about ordering while the sibling is unloaded', () => {
+  doc.getElementById('outerDeadzoneVal').textContent = '—';
+  blur('innerDeadzone', '0.30');
+  assert.equal(doc.getElementById('formError').textContent, '');
+});

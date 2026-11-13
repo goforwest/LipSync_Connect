@@ -1,7 +1,7 @@
-// v57 carries the settings import/export/print row (new setup-sheet module)
-// and the readiness factory-timing chip. Hard invalidate because markup,
-// controller, and styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v57';
+// v58 carries the gauge mark labels + suggestion ghosts, the device-scoped
+// health history, and comma-decimal input tolerance. Hard invalidate because
+// markup, controller, and styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v58';
 const ASSETS = [
   './',
   './index.html',

@@ -11,8 +11,17 @@ import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document } = installGatingDom();
-const { gaugeDelta, recalcGaugeRange, resetPracticePeaks, suggestThresholds, syncPracticeControls, SUGGEST_FRACTION } =
-  await import('../app/js/plotting/gauge.js');
+const {
+  gaugeDelta,
+  gaugeMarks,
+  recalcGaugeRange,
+  resetPracticePeaks,
+  suggestThresholds,
+  syncPracticeControls,
+  showSuggestionGhosts,
+  hideSuggestionGhosts,
+  SUGGEST_FRACTION,
+} = await import('../app/js/plotting/gauge.js');
 
 const setThresholds = (sip, puff) => {
   document.getElementById('sipVal').textContent = sip;
@@ -123,4 +132,44 @@ test('syncPracticeControls re-asserts readiness after setCmdButtons re-enabled t
   syncPracticeControls();
   assert.equal(suggestBtn().disabled, false); // both sides ≥ 2 → unlocked
   assert.equal(clearBtn().disabled, false);
+});
+
+test('the gauge marks carry permanent value labels for touch users', () => {
+  setThresholds(3, 6); // range 9
+  const sip = document.getElementById('gaugeSipMarkLabel');
+  assert.equal(sip.hidden, false);
+  assert.equal(sip.textContent, '−3');
+  assert.equal(sip.style.left, 50 - (3 / 9) * 50 + '%');
+  assert.equal(document.getElementById('gaugePuffMarkLabel').textContent, '+6');
+  // Hard labels stay hidden while the hard-band values are absent.
+  assert.equal(document.getElementById('gaugeHardSipMarkLabel').hidden, true);
+});
+
+test('hard threshold labels follow the marks and the display unit', async () => {
+  setThresholds(3, 6);
+  document.getElementById('hardSipVal').textContent = '10';
+  document.getElementById('hardPuffVal').textContent = '20';
+  gaugeMarks();
+  const hardSip = document.getElementById('gaugeHardSipMarkLabel');
+  assert.equal(hardSip.hidden, false);
+  assert.equal(hardSip.textContent, '−10');
+  const { setPressureUnit } = await import('../app/js/services/pressure-units.js');
+  setPressureUnit('cmh2o');
+  assert.equal(document.getElementById('gaugeSipMarkLabel').textContent, '−2.94');
+  setPressureUnit('hpa');
+});
+
+test('suggestion ghosts preview the proposal on the gauge and die with Apply', () => {
+  document.getElementById('hardSipVal').textContent = '—';
+  document.getElementById('hardPuffVal').textContent = '—';
+  setThresholds(3, 6);
+  showSuggestionGhosts(4, 5.75);
+  const ghost = document.getElementById('gaugeSipGhost');
+  assert.equal(ghost.hidden, false);
+  assert.equal(ghost.style.left, 50 - (4 / 9) * 50 + '%');
+  const legend = document.getElementById('gaugeLegend');
+  assert.match(legend.textContent, /Translucent marks: the suggested values/);
+  hideSuggestionGhosts();
+  assert.equal(document.getElementById('gaugeSipGhost').hidden, true);
+  assert.equal(legend.hidden, true, 'the ghost sentence leaves with the ghosts (no hard marks here)');
 });

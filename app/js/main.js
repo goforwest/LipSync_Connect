@@ -12,7 +12,7 @@ import {
   FIRMWARE_MANIFEST_URL_OVERRIDE_KEY,
   APP_BUILD_ID,
 } from './config/constants.js';
-import { debounce, fmtApiFloat, fmtHpa } from './utils/format.js';
+import { debounce, fmtApiFloat, fmtHpa, parseDecimal } from './utils/format.js';
 import { $, $$ } from './ui/dom.js';
 import { log } from './services/log.js';
 import { buildLogFile, downloadLogFile, shareLog } from './services/log-export.js';
@@ -27,6 +27,8 @@ import {
   resetPracticePeaks,
   suggestThresholds,
   formatSuggestion,
+  showSuggestionGhosts,
+  hideSuggestionGhosts,
 } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
 import { updateLiveStreamNote } from './plotting/diag.js';
@@ -209,6 +211,7 @@ const clearSessionUi = () => {
     delete lightSelect.dataset.applied;
   }
   updateLiveStreamNote(null); // the stream note dies with the session
+  hideSuggestionGhosts(); // a stale proposal must not survive into a new session
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
@@ -867,6 +870,7 @@ window.addEventListener('DOMContentLoaded', () => {
         $('sapSuggestion').hidden = true;
         $('btnApplySuggested').hidden = true;
         $('btnDismissSuggestion').hidden = true;
+        hideSuggestionGhosts();
         log('Practice measurements cleared — start a fresh round.', 'log-info');
       }),
     );
@@ -876,6 +880,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const s = suggestThresholds();
         if (!s.ready) return; // the button is disabled until ready; guard anyway
         $('sapSuggestionText').textContent = formatSuggestion(s);
+        showSuggestionGhosts(s.sip, s.puff); // see the proposal on the gauge before committing
         $('sapSuggestion').hidden = false;
         $('btnApplySuggested').hidden = false;
         $('btnDismissSuggestion').hidden = false;
@@ -895,6 +900,7 @@ window.addEventListener('DOMContentLoaded', () => {
             setValue('puffVal', fmtHpa(rp.value ?? s.puff));
             recalcGaugeRange();
             log('Suggested thresholds applied (from the measured practice).', 'log-info');
+            hideSuggestionGhosts();
             $('sapSuggestion').hidden = true;
             $('btnApplySuggested').hidden = true;
             $('btnDismissSuggestion').hidden = true;
@@ -913,6 +919,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }),
     );
     $('btnDismissSuggestion').addEventListener('click', () => {
+      hideSuggestionGhosts();
       $('sapSuggestion').hidden = true;
       $('btnApplySuggested').hidden = true;
       $('btnDismissSuggestion').hidden = true;
@@ -941,7 +948,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // Typing a valid value clears a stale inline error (the windows never
       // had this — an ordering refusal used to survive any edit).
       $(w.inputId).addEventListener('input', () => {
-        const v = Number($(w.inputId).value);
+        const v = parseDecimal($(w.inputId).value);
         if ($('sapError').textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max)))
           $('sapError').textContent = '';
       });
@@ -950,7 +957,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // the moment the field loses focus — the user no longer has to
       // remember to tap Set to learn their value is out of range.
       $(w.inputId).addEventListener('blur', () => {
-        const v = Number($(w.inputId).value);
+        const v = parseDecimal($(w.inputId).value);
         const errEl = $('sapError');
         const unit = w.inputId === 'w1Input' || w.inputId === 'w2Input' || w.inputId === 'w3Input' ? 'ms' : '';
         const inRange = Number.isFinite(v) && Number.isInteger(v) && v >= w.min && v <= w.max;
@@ -969,7 +976,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!input) return;
       input.addEventListener('blur', () => {
         const errEl = $(errId);
-        const v = Number(input.value);
+        const v = parseDecimal(input.value);
         errEl.textContent = Number.isFinite(v) && v >= min && v <= max ? '' : msg;
       });
     };
@@ -977,8 +984,34 @@ window.addEventListener('DOMContentLoaded', () => {
     makeRangeBlur('puffInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
     makeRangeBlur('hardSipInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
     makeRangeBlur('hardPuffInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
-    makeRangeBlur('innerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.', 'formError');
-    makeRangeBlur('outerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.', 'formError');
+    // The deadzone pair validates ordering on blur too: Set refuses
+    // inner >= outer, so blur must not call the same value fine.
+    const deadzoneBlur = (id, otherId, isInner, errId) => {
+      const input = $(id);
+      if (!input) return;
+      input.addEventListener('blur', () => {
+        const errEl = $(errId);
+        const v = parseDecimal(input.value);
+        if (!Number.isFinite(v) || v < 0.01 || v > 0.99) {
+          errEl.textContent = 'Expected 0.01–0.99.';
+          return;
+        }
+        const other = parseDecimal(($(otherId)?.textContent ?? '').trim());
+        if (Number.isFinite(other) && other > 0) {
+          if (isInner && v >= other) {
+            errEl.textContent = 'Inner deadzone must stay below the outer one.';
+            return;
+          }
+          if (!isInner && v <= other) {
+            errEl.textContent = 'Outer deadzone must stay above the inner one.';
+            return;
+          }
+        }
+        errEl.textContent = '';
+      });
+    };
+    deadzoneBlur('innerDeadzone', 'outerDeadzoneVal', true, 'formError');
+    deadzoneBlur('outerDeadzone', 'innerDeadzoneVal', false, 'formError');
     $('btnReadCalibration').addEventListener('click', guard(readCalibration));
     $('btnSetInnerDeadzone').addEventListener(
       'click',

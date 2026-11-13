@@ -138,3 +138,48 @@ function resetHistoryForDrift() {
   localStorage.removeItem('lipsync-health-history');
   doc.getElementById('healthHistory').hidden = true;
 }
+
+test('history is device-scoped: another device does not inherit the trend', () => {
+  localStorage.removeItem('lipsync-health-history');
+  const id = doc.getElementById('deviceId');
+  id.textContent = 'a1b2c3d4';
+  recordHealthRun('passed', { hcPressure: 'ok', hcJoystick: 'ok', hcNeutral: 'ok', hcCalibration: 'ok', hcBus: 'ok' });
+  renderHealthHistory();
+  assert.equal(dots().length, 1);
+  // A different device connects: the first device's trend must not render.
+  id.textContent = 'f9e8d7c6';
+  recordHealthRun('attention', {
+    hcPressure: 'ok',
+    hcJoystick: 'ok',
+    hcNeutral: 'warn',
+    hcCalibration: 'ok',
+    hcBus: 'ok',
+  });
+  renderHealthHistory();
+  const d = dots();
+  assert.equal(d.length, 1, 'only the connected device’s runs render');
+  assert.match(d[0].cls, /warn/);
+  assert.match(d[0].title, /Neutral warn/);
+  // ...and the Clear button only clears the visible device's entries.
+  Array.from(doc.getElementById('healthHistory').children)
+    .find((c) => c.className.includes('health-history-clear'))
+    .dispatch('click');
+  renderHealthHistory();
+  assert.equal(dots().length, 0, 'the second device’s history cleared');
+  id.textContent = 'a1b2c3d4';
+  renderHealthHistory();
+  assert.equal(dots().length, 1, 'the first device’s trend is kept');
+  assert.match(dots()[0].cls, /health-dot--ok/);
+  id.textContent = '—';
+});
+
+test('pre-scoping entries (no device id) render everywhere and age out', () => {
+  localStorage.removeItem('lipsync-health-history');
+  const id = doc.getElementById('deviceId');
+  id.textContent = '—'; // legacy runs were recorded without a device
+  recordHealthRun('passed', {});
+  id.textContent = 'a1b2c3d4';
+  renderHealthHistory();
+  assert.equal(dots().length, 1, 'a legacy entry stays visible on any device');
+  id.textContent = '—';
+});

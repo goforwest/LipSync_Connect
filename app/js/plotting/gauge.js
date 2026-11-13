@@ -243,16 +243,40 @@ export function gaugeMarks() {
   if (legend) {
     const sipMark = $('gaugeHardSipMark');
     const puffMark = $('gaugeHardPuffMark');
+    const ghostsShown = suggestionGhosts !== null;
     const hardShown = !!(sipMark && !sipMark.hidden) || !!(puffMark && !puffMark.hidden);
-    legend.hidden = !hardShown;
-    if (hardShown) legend.textContent = 'Dashed marks: the hard sip and hard puff triggers.';
+    const parts = [];
+    if (hardShown) parts.push('Dashed marks: the hard sip and hard puff triggers.');
+    if (ghostsShown) parts.push('Translucent marks: the suggested values \u2014 Apply both writes them.');
+    legend.hidden = parts.length === 0;
+    if (parts.length) legend.textContent = parts.join(' ');
   }
   $('gaugeSipLabel').textContent = '\u2212' + fmtPressure(gaugeRange, { decimals: 1, withUnit: true });
   $('gaugePuffLabel').textContent = '+' + fmtPressure(gaugeRange, { decimals: 1, withUnit: true });
+  // Permanent value labels beside the marks: the titles are hover-only, and
+  // touch users (Android) have no hover. Sip/puff label the strip above the
+  // gauge, hard thresholds the strip below.
+  const label = (id, value, negative, shown) => {
+    const el = $(id);
+    if (!el) return;
+    if (!shown || !Number.isFinite(value) || !(value > 0)) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.style.left =
+      (negative ? 50 - Math.min(value / gaugeRange, 1) * 50 : 50 + Math.min(value / gaugeRange, 1) * 50) + '%';
+    el.textContent = (negative ? '\u2212' : '+') + fmtPressure(value);
+  };
+  label('gaugeSipMarkLabel', sip, true, Number.isFinite(sip) && sip > 0);
+  label('gaugePuffMarkLabel', puff, false, Number.isFinite(puff) && puff > 0);
+  label('gaugeHardSipMarkLabel', Number($('hardSipVal')?.textContent ?? ''), true, !$('gaugeHardSipMark')?.hidden);
+  label('gaugeHardPuffMarkLabel', Number($('hardPuffVal')?.textContent ?? ''), false, !$('gaugeHardPuffMark')?.hidden);
   // The ≈-annotations beside the hPa readouts follow the same values.
   renderPressureHints();
   // A range change moves the peak marks with the threshold marks.
   updatePracticeUi();
+  positionSuggestionGhosts();
   if (gaugeLastDelta !== null) gaugeDelta(gaugeLastDelta);
 }
 
@@ -269,6 +293,47 @@ export function formatSuggestion(s) {
     fmtPressure(s.puff, { decimals: 2, withUnit: true }) +
     ' \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.'
   );
+}
+
+// ---- Suggestion ghosts -------------------------------------------------------
+// The suggestion notice proposes thresholds in text; the ghost marks show
+// the proposal ON the gauge — translucent, clearly not yet applied — so
+// Apply both confirms something seen, not a leap of faith.
+let suggestionGhosts = null; // { sip, puff } in wire hPa, or null
+
+export function showSuggestionGhosts(sip, puff) {
+  suggestionGhosts = { sip: Number(sip), puff: Number(puff) };
+  if (gaugeRange !== null) gaugeMarks();
+  else positionSuggestionGhosts();
+}
+
+export function hideSuggestionGhosts() {
+  suggestionGhosts = null;
+  for (const id of ['gaugeSipGhost', 'gaugePuffGhost']) {
+    const el = $(id);
+    if (el) el.hidden = true;
+  }
+  // The legend's ghost sentence dies with the ghosts.
+  if (gaugeRange !== null) gaugeMarks();
+}
+
+function positionSuggestionGhosts() {
+  const ids = [
+    { id: 'gaugeSipGhost', side: 'sip', negative: true },
+    { id: 'gaugePuffGhost', side: 'puff', negative: false },
+  ];
+  for (const { id, side, negative } of ids) {
+    const el = $(id);
+    if (!el) continue;
+    const value = suggestionGhosts?.[side];
+    if (suggestionGhosts === null || gaugeRange === null || !Number.isFinite(value) || !(value > 0)) {
+      el.hidden = true;
+      continue;
+    }
+    el.hidden = false;
+    el.style.left =
+      (negative ? 50 - Math.min(value / gaugeRange, 1) * 50 : 50 + Math.min(value / gaugeRange, 1) * 50) + '%';
+  }
 }
 
 // A unit switch re-renders every converted surface from the same wire data:

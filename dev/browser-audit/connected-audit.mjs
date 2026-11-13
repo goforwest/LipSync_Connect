@@ -1469,6 +1469,41 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
       axeCount += violations.length;
       if (violations.length) axeDetails.push(`${id}: ${violations.join('; ')}`);
     }
+    // Dark theme gets the same net: the dark palette is a different set of
+    // color pairs, and its contrast was previously verified by nobody.
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.waitForTimeout(250);
+    let axeDarkCount = 0;
+    const axeDarkDetails = [];
+    for (const id of sectionIds) {
+      await openCard(id);
+      await page.waitForTimeout(150);
+      const violations = await page.evaluate(async (secId) => {
+        const results = await axe.run(document.getElementById(secId), { resultTypes: ['violations'] });
+        return results.violations.map((v) => {
+          const first = v.nodes[0];
+          let probe = '';
+          if (v.id === 'color-contrast' && first) {
+            const el = document.querySelector(first.target.join(' '));
+            if (el) {
+              const cs = getComputedStyle(el);
+              probe = ` [color=${cs.color} bg=${cs.backgroundColor}]`;
+            }
+          }
+          return `${v.id}(${v.impact ?? 'none'}) x${v.nodes.length}: ${first?.target?.join(' ') ?? ''}${probe}`;
+        });
+      }, id);
+      axeDarkCount += violations.length;
+      if (violations.length) axeDarkDetails.push(`${id}: ${violations.join('; ')}`);
+    }
+    note(
+      'axe-clean-dark',
+      axeDarkCount === 0,
+      `${axeDarkCount} dark violation(s) across ${sectionIds.length} sections` +
+        (axeDarkDetails.length ? ' — ' + axeDarkDetails.join(' | ') : ''),
+    );
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.waitForTimeout(150);
     note(
       'axe-clean',
       axeCount === 0,

@@ -894,6 +894,10 @@
                   Live view
                 </button>
               </div>
+              <div class="gauge-mark-labels" id="gaugeMarkLabelsTop" aria-hidden="true">
+                <span class="gauge-mark-label" id="gaugeSipMarkLabel" hidden></span>
+                <span class="gauge-mark-label" id="gaugePuffMarkLabel" hidden></span>
+              </div>
               <div
                 class="gauge"
                 id="mainGauge"
@@ -906,6 +910,12 @@
                 <div class="mark" id="gaugePuffMark"></div>
                 <div class="mark hard" id="gaugeHardSipMark" hidden></div>
                 <div class="mark hard" id="gaugeHardPuffMark" hidden></div>
+                <div class="mark ghost" id="gaugeSipGhost" hidden></div>
+                <div class="mark ghost" id="gaugePuffGhost" hidden></div>
+              </div>
+              <div class="gauge-mark-labels gauge-mark-labels--hard" id="gaugeMarkLabelsBottom" aria-hidden="true">
+                <span class="gauge-mark-label" id="gaugeHardSipMarkLabel" hidden></span>
+                <span class="gauge-mark-label" id="gaugeHardPuffMarkLabel" hidden></span>
               </div>
               <div class="gauge-scale">
                 <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>

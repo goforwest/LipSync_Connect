@@ -43,3 +43,18 @@ export function fmtHpa(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(2) : String(v);
 }
+
+/**
+ * Tolerant numeric input parse for the exact-value fields: trims whitespace
+ * and normalizes ONE comma decimal separator (locale keyboards and Android
+ * numeric pads produce "12,5") before Number. A second comma stays NaN —
+ * no thousand-separator guessing on values whose ranges never reach 1000.
+ * @param {any} text
+ */
+export function parseDecimal(text) {
+  return Number(
+    String(text ?? '')
+      .trim()
+      .replace(',', '.'),
+  );
+}
