@@ -10,6 +10,20 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Log-hygiene fix (2026-11-13, 4.9.6 final-verification finding I-2): the
+  Bluetooth-host backstop poller used to poll `BT,0:0` once per second for
+  the whole session with both directions echoed — 4 log lines/s that filled
+  the 400-line panel in ~3 minutes and capped the exported support log
+  (5000-entry history) at ~40 minutes of session regardless of session
+  length, burying the diagnostic events the log exists to carry. The poll is
+  now every 15 s (`BT_HOSTS_BACKSTOP_POLL_MS`, pinned by test) and runs as a
+  QUIET exchange (new `sendCommand({ quiet })` + `quietExchangeActive()` in
+  `serial/commands.js`): its TX echo and completion-line RX echo are
+  suppressed, while MANUAL BT,4/BT,5 pushes, INFO/diagnostic lines, and every
+  user-initiated command still log — the firmware's own change-detected pushes
+  remain the primary sync. Three new tests pin the contract (quiet echo
+  suppression, MANUAL-during-quiet still logged, the 15 s cadence with zero
+  log lines on an unchanged table); suites 514/514, lint/typecheck clean.
 - Handover polish pass (2026-11-13): every version-gated feature now states
   the lock with the shared note-and-Updates-link pattern (a new
   `ui/firmware-gate.js` helper) — input safeguards, hold timing (which had no

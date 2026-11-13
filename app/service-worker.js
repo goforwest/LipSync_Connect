@@ -1,6 +1,8 @@
-// v54 carries the shared firmware-gate notes, the practice-row rework, and the
-// Restart & reset / Profiles regrouping. Hard invalidate because markup,
-// controller, and styles must arrive together for offline users.
+// v54 carries the shared firmware-gate notes, the practice-row rework, the
+// Restart & reset / Profiles regrouping, and the quiet 15 s BT backstop poll
+// (log hygiene: the 1 Hz poll no longer floods the log panel and the exported
+// support log). Hard invalidate because markup, controller, and styles must
+// arrive together for offline users.
 const CACHE = 'lipsync-connect-v54';
 const ASSETS = [
   './',

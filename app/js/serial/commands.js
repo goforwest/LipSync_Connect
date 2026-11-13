@@ -9,6 +9,28 @@ import { announceStatus } from '../ui/a11y.js';
 
 const enc = new TextEncoder();
 
+// ---- Quiet exchanges (the BT-host backstop poller, 4.9.6 final-verification
+// finding) ----------------------------------------------------------------
+// The BT host poller polls BT,0:0 for the whole session as the backstop to
+// the firmware's change-detected BT,4/BT,5 pushes. At 1 Hz with both
+// directions echoed (TX line + SETTINGS handshake + both responses = 4 log
+// lines/s), the poll alone filled the 400-line log panel in ~3 minutes and
+// capped the exported support log (5000-entry history) at ~40 minutes of
+// session regardless of session length — burying the diagnostic events the
+// log exists to carry. A QUIET exchange skips its own '>>' TX echo and,
+// while it is in flight, the '<<' echo of COMPLETION-shaped lines in
+// serial/device.js. MANUAL pushes and INFO/diagnostic lines are never
+// completions, so device-initiated events stay logged even mid-poll; and
+// the shared command queue means the only completion that can be in flight
+// during a quiet window is the quiet exchange's own (a user command's
+// completion arrives after the window closes — the queue serializes runs).
+let quietDepth = 0;
+
+/** True while at least one quiet exchange is in flight (see block above). */
+export function quietExchangeActive() {
+  return quietDepth > 0;
+}
+
 /** The abort error shape shared by the command path and its waiters. */
 export function commandAbortError() {
   const e = new Error('Firmware update cancelled.');
@@ -167,8 +189,8 @@ export function noteDeviceVersion(version) {
   sessionDeviceVersion = m ? [+m[1], +m[2], +m[3]] : null;
 }
 
-export async function sendRaw(text) {
-  log('>> ' + text, 'log-tx');
+export async function sendRaw(text, quiet = false) {
+  if (!quiet) log('>> ' + text, 'log-tx');
   if (!serialSession.writer) throw new Error('Not connected');
   resetReadTimer();
   await serialSession.writer.write(enc.encode(wireNewlineFraming ? text + '\n' : text));
@@ -185,24 +207,35 @@ export async function sendRaw(text) {
  * @param {string} cmd
  * @param {number} [timeoutMs]
  * @param {number} [settingsTimeoutMs]
- * @param {{ signal?: AbortSignal }} [options]
+ * @param {{ signal?: AbortSignal, quiet?: boolean }} [options]
+ *   `quiet` (the BT-host backstop poller) skips this exchange's TX echo and,
+ *   while it is in flight, the completion-line RX echo (see the quiet block
+ *   above).
  */
 export function sendCommand(
   cmd,
   timeoutMs = CMD_DEFAULT_TIMEOUT,
   settingsTimeoutMs = CMD_SETTINGS_TIMEOUT,
-  { signal } = {},
+  { signal, quiet = false } = {},
 ) {
   const aborted = () => !!signal?.aborted;
   const run = async () => {
     if (!serialSession.port) throw new Error('Not connected');
     if (aborted()) throw commandAbortError();
+    if (quiet) quietDepth++;
+    try {
+      return await runExchange();
+    } finally {
+      if (quiet) quietDepth--;
+    }
+  };
+  const runExchange = async () => {
     // Fresh connections sometimes reject the very first SETTINGS handshake
     // (observed on hardware: FAIL,0:SETTINGS immediately after port open).
     // Retry that specific failure once. Long-running sessions hit the
     // handshake normally and get no artificial pause.
     for (let attempt = 0; attempt < 2; attempt++) {
-      await sendRaw('SETTINGS');
+      await sendRaw('SETTINGS', quiet);
       const line = await waitLine(
         (l) => {
           const response = parseResponse(l);
@@ -230,7 +263,7 @@ export function sendCommand(
     // whether or not anyone is still listening (SR,1:1 reboots it).
     if (aborted()) throw commandAbortError();
     const { expectedCommand, expectedValue, shouldEchoValue } = commandMatchDetails(cmd);
-    await sendRaw(cmd);
+    await sendRaw(cmd, quiet);
     let line;
     try {
       line = await waitLine(

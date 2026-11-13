@@ -472,9 +472,24 @@ export function resetBluetoothHostsUi() {
  * running poller instead of stacking another one). */
 let btHostsPollerTimer = /** @type {any} */ (null);
 
-/** Poll BT,0:0 once per second while a gated session is live and refetch the
- * rows whenever the count changes (a pair or forget elsewhere). The push
- * paths (BT,4/BT,5) make this a backstop, not the primary sync. */
+/** The backstop poll's cadence. The firmware's BT,4/BT,5 pushes land within
+ * one 1 s pass of any change (LSBLE.h lsHostPushState via btFeedbackLoop), so
+ * this poll is only insurance against a missed push — a 15 s backstop catches
+ * one within seconds of anything the user could notice, and (with the quiet
+ * exchange below) it no longer dominates the log: at the previous 1 Hz with
+ * both directions echoed, the poll alone filled the 400-line panel in ~3
+ * minutes and capped the exported support log at ~40 minutes of session,
+ * burying real events (4.9.6 final-verification finding). Exported so a test
+ * pins the contract instead of the number living only here. */
+export const BT_HOSTS_BACKSTOP_POLL_MS = 15000;
+
+/** Poll BT,0:0 every BT_HOSTS_BACKSTOP_POLL_MS while a gated session is live
+ * and refetch the rows whenever the count changes (a pair or forget
+ * elsewhere). The push paths (BT,4/BT,5) are the primary sync — this poller
+ * is the backstop. Each poll runs as a QUIET exchange (serial/commands.js):
+ * its TX and completion responses are not logged, so a whole-session poll
+ * cannot bury the log's real events; MANUAL BT,4/BT,5 pushes and
+ * user-initiated BT,0 reads still log. */
 export function startBtHostsPoller() {
   if (!serialSession.port || !deviceFirmwareAtLeast(...BT_HOSTS_MIN_FIRMWARE)) return;
   if (btHostsPollerTimer !== null) return; // already running for this session — resetBluetoothHostsUi owns the stop
@@ -484,7 +499,7 @@ export function startBtHostsPoller() {
     if (!serialSession.port || inFlight) return;
     inFlight = true;
     try {
-      const r = await sendCommand('BT,0:0');
+      const r = await sendCommand('BT,0:0', undefined, undefined, { quiet: true });
       if (r && r.ok) {
         const count = Number(r.value);
         if (count !== lastCount) {
@@ -501,7 +516,7 @@ export function startBtHostsPoller() {
     }
   };
   tick();
-  btHostsPollerTimer = /** @type {any} */ (setInterval(tick, 1000));
+  btHostsPollerTimer = /** @type {any} */ (setInterval(tick, BT_HOSTS_BACKSTOP_POLL_MS));
   // Node test runs must not hang on the poller's interval: Node's timer is an
   // object with unref(); a browser's is a number, so guard before unref. The
   // any-cast is deliberate — the DOM lib types setInterval as returning a

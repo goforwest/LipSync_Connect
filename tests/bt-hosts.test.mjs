@@ -238,3 +238,110 @@ test('4.9.1: a failed row read leaves the PREVIOUS table intact (commit-atomic l
     flaky.detach();
   }
 });
+
+// ---- 4.9.6 final-verification finding: the session-long backstop poll used
+// to run at 1 Hz with both directions echoed (4 log lines/s), which filled
+// the 400-line panel in ~3 minutes and capped the exported support log at
+// ~40 minutes of session. The poll is now 15 s and quiet. These tests pin
+// both halves of that contract.
+
+test('quiet exchange: TX echo and completion RX echo are suppressed; a loud command still echoes as before', async () => {
+  identify('4.8.0');
+  bt.resetBluetoothHostsUi();
+  const { sendCommand } = await import('../app/js/serial/commands.js');
+  const { getLogHistory } = await import('../app/js/services/log.js');
+  const sim = createDeviceSimulator({ handleLine: app.handleLine });
+  const device = sim.attachDevice((text) => {
+    if (text === 'SETTINGS') return [{ delay: 2, line: 'SUCCESS,0:SETTINGS' }];
+    if (text === 'BT,0:0') return [{ delay: 2, line: 'SUCCESS,0:BT,0:3' }];
+    return [{ delay: 2, line: `SUCCESS,0:${text}` }];
+  });
+  try {
+    // Quiet: no '>>' TX echo and no '<<' completion echo — the poll is
+    // invisible in the log while the caller still gets its answer.
+    const histStart = getLogHistory().length;
+    const r = await sendCommand('BT,0:0', undefined, undefined, { quiet: true });
+    assert.equal(r.value, '3', 'the quiet exchange still returns the answer');
+    const quietLog = getLogHistory().slice(histStart).join('\n');
+    assert.ok(!quietLog.includes('>> SETTINGS'), 'quiet TX handshake must not log');
+    assert.ok(!quietLog.includes('>> BT,0:0'), 'quiet TX command must not log');
+    assert.ok(!quietLog.includes('<< SUCCESS,0:SETTINGS'), 'quiet handshake response must not log');
+    assert.ok(!quietLog.includes('<< SUCCESS,0:BT,0:3'), 'quiet poll response must not log');
+
+    // The loud path is unchanged: a user-initiated read echoes as before.
+    await sendCommand('BT,0:0');
+    const loudLog = getLogHistory().slice(histStart).join('\n');
+    assert.ok(loudLog.includes('>> BT,0:0'), 'loud TX must still log');
+    assert.ok(loudLog.includes('<< SUCCESS,0:BT,0:3'), 'loud completion must still log');
+  } finally {
+    device.detach();
+  }
+});
+
+test('a MANUAL push landing DURING a quiet window still logs; the window closes with the exchange', async () => {
+  identify('4.8.0');
+  bt.resetBluetoothHostsUi();
+  const { sendCommand, quietExchangeActive } = await import('../app/js/serial/commands.js');
+  const { getLogHistory } = await import('../app/js/services/log.js');
+  const sim = createDeviceSimulator({ handleLine: app.handleLine });
+  // A slow BT,0:0 answer holds the quiet window open across the assertions.
+  const device = sim.attachDevice((text) => {
+    if (text === 'SETTINGS') return [{ delay: 2, line: 'SUCCESS,0:SETTINGS' }];
+    if (text === 'BT,0:0') return [{ delay: 60, line: 'SUCCESS,0:BT,0:3' }];
+    return [{ delay: 2, line: `SUCCESS,0:${text}` }];
+  });
+  try {
+    const histStart = getLogHistory().length;
+    const pending = sendCommand('BT,0:0', undefined, undefined, { quiet: true });
+    await sleep(15); // handshake answered, command written, waiter pending
+    assert.ok(quietExchangeActive(), 'the quiet window is open while the exchange is in flight');
+    app.handleLine('MANUAL,0:BT,4:2');
+    assert.ok(
+      getLogHistory().slice(histStart).some((l) => l.includes('<< MANUAL,0:BT,4:2')),
+      'a device-initiated push during the quiet window is an event and stays logged',
+    );
+    await pending;
+    assert.ok(!quietExchangeActive(), 'the quiet window closes with the exchange');
+    assert.ok(
+      !getLogHistory().slice(histStart).some((l) => l.includes('<< SUCCESS,0:BT,0:3')),
+      'the exchange completion echo was suppressed',
+    );
+  } finally {
+    device.detach();
+  }
+});
+
+test('the backstop poll runs every 15 s and logs nothing while the table is unchanged', async () => {
+  assert.equal(bt.BT_HOSTS_BACKSTOP_POLL_MS, 15000, 'the backstop cadence is pinned at 15 s');
+  identify('4.8.0');
+  bt.resetBluetoothHostsUi();
+  const { getLogHistory } = await import('../app/js/services/log.js');
+  const sim = createDeviceSimulator({ handleLine: app.handleLine });
+  const device = sim.attachDevice(firmware48([['AABBCCDDEEFF', 1]]));
+  try {
+    // Pre-load the table (the loud connect-load convention): with the count
+    // already mirrored, the poller's periodic check finds NO change, so the
+    // only traffic after the poller starts is the quiet poll itself. A count
+    // CHANGE would still surface — through the loud row load, which is the
+    // event the log exists to carry.
+    await bt.loadBluetoothHostTable();
+    const histStart = getLogHistory().length;
+    const sentStart = device.sent.length;
+    bt.startBtHostsPoller();
+    await sleep(30); // the immediate tick: SETTINGS + BT,0:0
+    const tickWrites = device.sent.slice(sentStart).map((t) => t.replace(/\r?\n$/, ''));
+    assert.deepEqual(
+      tickWrites,
+      ['SETTINGS', 'BT,0:0'],
+      'the immediate tick is exactly the quiet poll (no row reads when nothing changed)',
+    );
+    assert.equal(
+      getLogHistory().length,
+      histStart,
+      'the backstop poll logs nothing when the table is unchanged',
+    );
+  } finally {
+    bt.resetBluetoothHostsUi();
+    device.detach();
+  }
+});

@@ -1,7 +1,8 @@
 // Incoming-line handling: applies parsed device responses to the UI, serves
 // pending command waiters, routes self-test narration, and forwards anything
 // unparseable to the corrupt-drop logger.
-import { parseResponse, isDeviceDiagnosticLine } from './protocol.js';
+import { parseResponse, isCommandCompletion, isDeviceDiagnosticLine } from './protocol.js';
+import { quietExchangeActive } from './commands.js';
 import { serialBus } from './session.js';
 import { log, noisyLineLog, unrecognizedResponseLog } from '../services/log.js';
 import {
@@ -257,7 +258,15 @@ export function applyDeviceResponse(line) {
 
 export function handleLine(line) {
   const isDebug = /^SUCCESS,\d+:DEBUG,\d+:/.test(line);
-  if (!isDebug) log('<< ' + line, 'log-rx');
+  // Quiet-exchange echo suppression: a COMPLETION line arriving while a
+  // quiet exchange is in flight is that exchange's own answer (see the
+  // quiet block in serial/commands.js — the shared command queue keeps any
+  // other command's completion out of the window, and the window closes
+  // before a queued user command's response can arrive). MANUAL pushes,
+  // INFO/diagnostic lines, and every line outside a quiet window still log.
+  if (!isDebug && !(quietExchangeActive() && isCommandCompletion(parseResponse(line)))) {
+    log('<< ' + line, 'log-rx');
+  }
   applyDeviceResponse(line);
   if (isDebug) return;
   for (let i = 0; i < serialBus.lineWaiters.length; i++) {
