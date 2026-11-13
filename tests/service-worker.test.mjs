@@ -58,7 +58,14 @@ function loadWorker({ keys = [], cached = null, network = null, putError = null 
     },
   };
   vm.runInNewContext(source, context, { filename: 'service-worker.js' });
-  return { handlers, deleted, puts, get fetches() { return fetches; } };
+  return {
+    handlers,
+    deleted,
+    puts,
+    get fetches() {
+      return fetches;
+    },
+  };
 }
 
 test('service-worker activation deletes only obsolete LipSync caches', async () => {

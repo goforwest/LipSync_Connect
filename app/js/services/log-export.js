@@ -9,6 +9,7 @@ import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showNotification } from '../ui/notification.js';
 import { practiceStatsLine } from './practice-stats.js';
+import { btHostTable } from './bt-hosts.js';
 
 // The health grid's steps, in display order: the support report ships the
 // per-step outcome, not just the one-line summary — "Failed" alone forces a
@@ -81,7 +82,7 @@ export function buildLogFile() {
 /** Builds the single support artifact shown ahead of the expert log tools.
  * Device identity is intentionally omitted from the summary and scrubbed from
  * the transcript with the same redactor used by detailed-log exports.
- * @param {{ dumpStatus?: string }} [options]
+ * @param {{ dumpStatus?: string, includeBtHosts?: boolean }} [options]
  */
 export function buildSupportReport(options = {}) {
   const read = (id, fallback = 'Not available') => {
@@ -107,6 +108,18 @@ export function buildSupportReport(options = {}) {
   // holds were measured, so the report carries the clinical context an OT
   // would otherwise have to copy separately.
   const stats = practiceStatsLine();
+  // Paired Bluetooth host NAMES, strictly opt-in: names are user content
+  // ("Mary's iPad") and can identify people, so they ship only when the
+  // report option is ticked — and never the MAC addresses (device
+  // identifiers, redacted like every other one).
+  const hosts = [];
+  if (options.includeBtHosts && btHostTable.count > 0) {
+    hosts.push('Paired Bluetooth hosts: ' + btHostTable.count);
+    for (let i = 1; i <= btHostTable.count; i++) {
+      const row = btHostTable.rows[i];
+      if (row) hosts.push(`  ${i}. ${row.name}${row.active ? ' (active)' : ''}`);
+    }
+  }
   const header = [
     'LipSync Connect support report',
     'Created: ' + new Date().toISOString(),
@@ -119,6 +132,7 @@ export function buildSupportReport(options = {}) {
     'Health check: ' + read('healthSummary', 'Not run'),
     ...(healthSteps && healthSteps.length ? ['Health check steps: ' + healthSteps.join('; ')] : []),
     ...(stats ? ['Hold practice: ' + stats] : []),
+    ...hosts,
     'Settings dump: ' + (options.dumpStatus || 'Not captured'),
     'Session entries: ' + logHistory.length,
     'Device identifiers: redacted',

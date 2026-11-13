@@ -31,6 +31,9 @@
   --value-bg: #f0f3f5;
   --success: #1e7d46;
   --info: var(--mmc-blue);
+  /* Text-safe variant of the info blue: 7:1 on white, ~6.8:1 on the
+     recommendation tint — small uppercase labels need the depth. */
+  --info-strong: #005a9e;
   --warning: #c77700;
   --focus: #0072ce;
   --btn-text: #ffffff;
@@ -70,6 +73,7 @@
     --value-bg: #141b25;
     --success: #4fc08d;
     --info: #6cb6ff;
+    --info-strong: #8ecbff;
     --warning: #ffb74d;
     --focus: #8ecbff;
     --log-bg: #0d1117;
@@ -1977,6 +1981,25 @@ summary {
   font-weight: 650;
   overflow-wrap: anywhere;
 }
+/* Glance links: the fact value itself opens its section. Quiet by design —
+   it must read as the value first, a link second. */
+.home-fact {
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-weight: 650;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+.home-fact:hover,
+.home-fact:focus-visible {
+  text-decoration-color: currentColor;
+}
 .home-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3176,7 +3199,9 @@ html.dark-mode .guide-card {
 .recommend-label {
   display: block;
   margin-bottom: 2px;
-  color: var(--info);
+  /* The info blue at label size fails 4.5:1 on the recommendation's tinted
+     background — the deep variant keeps the hue readable (axe-enforced). */
+  color: var(--info-strong);
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.06em;
@@ -3835,9 +3860,15 @@ html.dark-mode .appearance-popup {
   font-weight: 700;
   border-color: var(--accent2-text);
 }
-/* While the wizard runs, the check rows recede and only the panel matters. */
-#sec-firmware[data-wizard] .fw-check-rows {
-  opacity: 0.6;
+/* While the wizard RUNS, the check rows recede and only the panel matters.
+   Scoped to the active phase on purpose: data-wizard stays "done" after the
+   update completes, and the dim must not wash the rows out for the rest of
+   the session (an ancestor opacity blends the label to #75797b = 4.39:1 —
+   axe-enforced). */
+#sec-firmware[data-wizard='active'] .fw-check-rows {
+  /* 0.7 is the lowest opacity that keeps #3a3f42-on-white above the 4.5:1
+     floor while still reading as de-emphasized (0.6 measured 4.03). */
+  opacity: 0.7;
 }
 #fwWizard {
   border: 1px solid var(--border);
@@ -4592,5 +4623,63 @@ footer {
   .app-sidebar,
   .app-workspace .section-subnav {
     border-width: 2px;
+  }
+}
+
+/* ---- Printable setup sheet (Profiles & backup) ----
+   A print-only host: on screen it never renders; printing hides every other
+   top-level element and shows the generated sheet as plain black-on-white
+   paper. The @media print block is the sheet's only styling surface, so the
+   CSP (style-src 'self') stays honest — no inline styles, no popups. */
+#setupSheet {
+  display: none;
+}
+@media print {
+  body > :not(#setupSheet) {
+    display: none !important;
+  }
+  #setupSheet {
+    display: block !important;
+    color: #000;
+    background: #fff;
+    font:
+      11pt/1.45 Georgia,
+      'Times New Roman',
+      serif;
+  }
+  #setupSheet h1 {
+    font-size: 18pt;
+    margin: 0 0 4px;
+  }
+  #setupSheet h2 {
+    font-size: 12pt;
+    margin: 14px 0 4px;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2px;
+  }
+  #setupSheet .sheet-meta,
+  #setupSheet .sheet-foot {
+    font-size: 9.5pt;
+    color: #333;
+  }
+  #setupSheet table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  #setupSheet th,
+  #setupSheet td {
+    text-align: left;
+    padding: 3px 8px 3px 0;
+    border-bottom: 1px solid #ccc;
+    vertical-align: top;
+  }
+  #setupSheet th {
+    font-weight: 600;
+    width: 38%;
+  }
+  #setupSheet .sheet-blank {
+    display: inline-block;
+    width: 42mm;
+    border-bottom: 1px solid #000;
   }
 }

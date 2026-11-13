@@ -36,7 +36,9 @@ const launch = (replies = {}) => {
   const sent = [];
   const writer = {
     write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
+      const text = Buffer.from(bytes)
+        .toString('utf8')
+        .replace(/\r?\n$/, '');
       sent.push(text);
       const reply = replies[text];
       if (reply) setTimeout(() => app.handleLine(reply), 3);

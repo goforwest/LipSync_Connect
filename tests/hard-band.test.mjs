@@ -9,14 +9,8 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const {
-  loadDeviceInfo,
-  setHardThreshold,
-  setHardAction,
-  resetHardBandUi,
-  populateHardActionSelects,
-  step,
-} = await import('../app/js/services/settings-service.js');
+const { loadDeviceInfo, setHardThreshold, setHardAction, resetHardBandUi, populateHardActionSelects, step } =
+  await import('../app/js/services/settings-service.js');
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
 const { collectSettingsExport } = await import('../app/js/services/settings-export.js');
 const { recalcGaugeRange } = await import('../app/js/plotting/gauge.js');

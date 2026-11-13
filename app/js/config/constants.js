@@ -307,6 +307,12 @@ export const RESTRICTION_SETTINGS = [
 // The short/long/very-long input window boundaries in ms (upstream #62/#9):
 // how long a sip/puff must be held to land in each action window. Ranges
 // mirror the firmware's setters, which also enforce short < long < max.
+// The firmware's compiled hold-timing defaults (LipSync LSConfig.h
+// CONF_INPUT_WINDOW_*_DEFAULT_MS): a freshly seeded settings file reports
+// exactly these, so the readiness strip can honestly say a device's hold
+// timing has not been tuned yet.
+export const FACTORY_INPUT_WINDOWS = [1000, 3000, 8000];
+
 export const WINDOW_SETTINGS = [
   {
     endpoint: 'WS',

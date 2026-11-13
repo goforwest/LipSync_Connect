@@ -8,8 +8,23 @@
 import { $ } from '../ui/dom.js';
 import { log } from './log.js';
 import { announceStatus } from '../ui/a11y.js';
+import { showConfirm } from '../ui/formatting.js';
+import { showNotification } from '../ui/notification.js';
 import { downloadLogFile } from './log-export.js';
-import { RESTRICTION_SETTINGS, SWITCH_SETTINGS, HARD_ACTION_SETTINGS } from '../config/constants.js';
+import { restoreSettingsSnapshot } from './firmware-update.js';
+import { deviceFirmwareAtLeast } from '../serial/commands.js';
+import {
+  RESTRICTION_SETTINGS,
+  SWITCH_SETTINGS,
+  SWITCH_ACTION_PACK_BASE,
+  HARD_ACTION_SETTINGS,
+  FEEDBACK_MODES,
+  ACCELERATION_MIN_FIRMWARE,
+  RESTRICTIONS_MIN_FIRMWARE,
+  SWITCH_ACTIONS_MIN_FIRMWARE,
+  HARD_BAND_MIN_FIRMWARE,
+  HARD_MARGIN_HPA,
+} from '../config/constants.js';
 
 // [element id, JSON key] — every value is read from the live readout, so the
 // export always matches what the user sees (and can act as a screenshot-
@@ -21,6 +36,7 @@ const EXPORTED_VALUES = [
   ['commode', 'communicationMode'],
   ['speedVal', 'cursorSpeedLevel'],
   ['scrollVal', 'scrollLevel'],
+  ['accelVal', 'cursorAcceleration'],
   ['sipVal', 'sipThresholdhPa'],
   ['puffVal', 'puffThresholdhPa'],
   ['hardSipVal', 'hardSipThresholdhPa'],
@@ -133,4 +149,230 @@ export function exportSettings() {
   const message = 'Settings exported' + (missing.length ? ` (${missing.length} value(s) had not loaded)` : '') + '.';
   log(message, 'log-info');
   announceStatus(message);
+}
+
+// ---- Settings import (the other half of the export loop) --------------------
+// An exported settings file exists so a device's setup can travel — the
+// replacement-device case: the old unit dies, the new one connects, the file
+// is applied. The mapper turns the export's JSON keys back into the wire
+// snapshot the proven restore path writes (version gates, ordering, failure
+// counting, and write-confirm suppression included), so the import is the
+// restore machinery with a different front door.
+//
+// Deliberately NOT restored: operating/communication mode (a mode change
+// restarts the device — the explicit Change-mode flow owns it), the live-view
+// selection (session state), and calibration (it belongs to the physical
+// joystick and has no serial write — run the calibration procedure).
+
+const EXPORT_KEY_ENDPOINTS = {
+  cursorSpeedLevel: 'SS',
+  scrollLevel: 'SL',
+  cursorAcceleration: 'AV',
+  sipThresholdhPa: 'ST',
+  puffThresholdhPa: 'PT',
+  hardSipThresholdhPa: 'HS',
+  hardPuffThresholdhPa: 'HP',
+  innerDeadzone: 'IZ',
+  outerDeadzone: 'OZ',
+  ledBrightness: 'LL',
+  inputWindowShortMs: 'WS',
+  inputWindowLongMs: 'WL',
+  inputWindowMaxMs: 'WM',
+};
+const FEEDBACK_LABEL_KEYS = { soundFeedback: 'SM', lightFeedback: 'LM' };
+
+const EXCLUDED_KEYS = {
+  operatingMode: 'a mode change restarts the device — change it in Overview & modes',
+  communicationMode: 'a mode change restarts the device — change it in Overview & modes',
+  debugMode: 'the live view is session state, not part of a saved setup',
+  neutralPosition: 'calibration belongs to the physical joystick — run the calibration procedure',
+  calibrationCorner1: 'calibration belongs to the physical joystick — run the calibration procedure',
+  calibrationCorner2: 'calibration belongs to the physical joystick — run the calibration procedure',
+  calibrationCorner3: 'calibration belongs to the physical joystick — run the calibration procedure',
+  calibrationCorner4: 'calibration belongs to the physical joystick — run the calibration procedure',
+};
+
+/** Version gates the restore enforces anyway; listed here so the summary can
+ *  say honestly what was skipped and why instead of a silent partial apply. */
+const GATED_FAMILIES = [
+  { endpoints: ['AV'], min: ACCELERATION_MIN_FIRMWARE, label: 'Cursor acceleration' },
+  {
+    endpoints: ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM'],
+    min: RESTRICTIONS_MIN_FIRMWARE,
+    label: 'Input safeguards and hold timing',
+  },
+  {
+    endpoints: ['SA', 'SB', 'SC', 'GA', 'GB', 'GC'],
+    min: SWITCH_ACTIONS_MIN_FIRMWARE,
+    label: 'External switch mappings',
+  },
+  { endpoints: ['HS', 'HP', 'HA', 'HB'], min: HARD_BAND_MIN_FIRMWARE, label: 'The hard sip & puff band' },
+];
+
+/**
+ * Maps a settings-export object into the wire snapshot the restore path
+ * writes. Pure (no wire, no UI) and strict per value: a malformed value
+ * becomes a skip with a reason, never a guess. Throws only for data-level
+ * inconsistencies a valid export can never carry (unordered timing windows).
+ * @param {{ settings?: Object, notLoaded?: string[] }} data
+ * @returns {{ snapshot: Object, skipped: {key: string, reason: string}[], holes: string[], unknown: string[], count: number }}
+ */
+export function mapSettingsExportToSnapshot(data) {
+  const settings = data?.settings;
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error('That file is not a LipSync Connect settings export.');
+  }
+  const snapshot = { VN: String(settings.firmwareVersion ?? '') };
+  /** @type {{key: string, reason: string}[]} */
+  const skipped = [];
+  const holes = Array.isArray(data.notLoaded) ? data.notLoaded.map(String) : [];
+  const known = new Set([
+    'firmwareVersion',
+    'model',
+    ...Object.keys(EXPORT_KEY_ENDPOINTS),
+    ...Object.keys(FEEDBACK_LABEL_KEYS),
+    ...Object.keys(EXCLUDED_KEYS),
+    ...RESTRICTION_SETTINGS.map((r) => r.jsonKey),
+    ...SWITCH_SETTINGS.map((s) => s.jsonKey),
+    ...HARD_ACTION_SETTINGS.map((a) => a.jsonKey),
+  ]);
+  const unknown = Object.keys(settings).filter((k) => !known.has(k));
+  for (const [key, reason] of Object.entries(EXCLUDED_KEYS)) {
+    if (key in settings) skipped.push({ key, reason });
+  }
+  for (const [jsonKey, endpoint] of Object.entries(EXPORT_KEY_ENDPOINTS)) {
+    if (!(jsonKey in settings)) continue;
+    const value = Number(settings[jsonKey]);
+    if (!Number.isFinite(value)) {
+      skipped.push({ key: jsonKey, reason: `unexpected value "${settings[jsonKey]}"` });
+      continue;
+    }
+    snapshot[endpoint] = String(value);
+  }
+  for (const [jsonKey, endpoint] of Object.entries(FEEDBACK_LABEL_KEYS)) {
+    if (!(jsonKey in settings)) continue;
+    const label = String(settings[jsonKey]);
+    const entry = Object.entries(FEEDBACK_MODES).find(([, l]) => l === label);
+    if (!entry) {
+      skipped.push({ key: jsonKey, reason: `unrecognized value "${label}"` });
+      continue;
+    }
+    snapshot[endpoint] = String(entry[0]);
+  }
+  for (const r of RESTRICTION_SETTINGS) {
+    if (!(r.jsonKey in settings)) continue;
+    const value = settings[r.jsonKey];
+    if (typeof value !== 'boolean') {
+      skipped.push({ key: r.jsonKey, reason: 'expected true or false' });
+      continue;
+    }
+    snapshot[r.endpoint] = value ? '1' : '0';
+  }
+  for (const s of SWITCH_SETTINGS) {
+    if (!(s.jsonKey in settings)) continue;
+    const cells = settings[s.jsonKey];
+    const nums = Array.isArray(cells) ? cells.map(Number) : [];
+    if (nums.length !== 3 || nums.some((c) => !Number.isFinite(c))) {
+      skipped.push({ key: s.jsonKey, reason: 'expected a [short, long, veryLong] triple' });
+      continue;
+    }
+    snapshot[s.endpoint] = String(SWITCH_ACTION_PACK_BASE + nums[0] * 10000 + nums[1] * 100 + nums[2]);
+  }
+  for (const a of HARD_ACTION_SETTINGS) {
+    if (!(a.jsonKey in settings)) continue;
+    const value = Number(settings[a.jsonKey]);
+    if (!Number.isFinite(value)) {
+      skipped.push({ key: a.jsonKey, reason: 'expected an action number' });
+      continue;
+    }
+    snapshot[a.endpoint] = String(value);
+  }
+  // Timing-window ordering is a data-level invariant a valid export always
+  // carries (the device validated it before the values ever displayed).
+  // Refuse the import rather than half-apply an inconsistent triple.
+  const ws = Number(snapshot.WS),
+    wl = Number(snapshot.WL),
+    wm = Number(snapshot.WM);
+  if ([ws, wl, wm].every(Number.isFinite) && !(ws < wl && wl < wm)) {
+    throw new Error(
+      `The file's timing windows are not ordered (short ${ws}, long ${wl}, max ${wm} — expected short < long < max). Fix the file or set the windows manually.`,
+    );
+  }
+  // The hard >= regular + margin rule depends on the file's OWN regular
+  // thresholds: a file whose hard values sit below them is refused per side
+  // (skip, not abort — one bad pair should not block the other values).
+  for (const [endpoint, regularEndpoint, label] of [
+    ['HS', 'ST', 'hard sip'],
+    ['HP', 'PT', 'hard puff'],
+  ]) {
+    if (snapshot[endpoint] === undefined || snapshot[regularEndpoint] === undefined) continue;
+    const hard = Number(snapshot[endpoint]);
+    const regular = Number(snapshot[regularEndpoint]);
+    if (Number.isFinite(hard) && Number.isFinite(regular) && hard < regular + HARD_MARGIN_HPA) {
+      delete snapshot[endpoint];
+      skipped.push({
+        key: endpoint,
+        reason: `the ${label} threshold must stay at least ${HARD_MARGIN_HPA} hPa above the file's regular one`,
+      });
+    }
+  }
+  // Firmware-gate honesty: drop what the connected device cannot hold and say
+  // so (the restore enforces the same gates — this makes the summary truthful).
+  // With no version known (nothing connected / VN never read) the values stay:
+  // the restore path skips gated families on its own in that state.
+  if (deviceFirmwareAtLeast(0, 0, 0)) {
+    for (const family of GATED_FAMILIES) {
+      if (deviceFirmwareAtLeast(family.min[0], family.min[1], family.min[2] ?? 0)) continue;
+      for (const ep of family.endpoints) {
+        if (snapshot[ep] !== undefined) {
+          delete snapshot[ep];
+          skipped.push({
+            key: ep,
+            reason: `${family.label} need${family.endpoints.length === 1 ? 's' : ''} firmware ${family.min.join('.')}+`,
+          });
+        }
+      }
+    }
+  }
+  const count = Object.keys(snapshot).filter((k) => k !== 'VN').length;
+  if (!count) throw new Error('The file has no values this app can apply to the device.');
+  return { snapshot, skipped, holes, unknown, count };
+}
+
+/**
+ * The Import settings action: parse → confirm → restore → honest summary.
+ * Returns the import result (or null when the confirm was declined).
+ * @param {string} text the file's text
+ */
+export async function importSettingsFromFile(text) {
+  let data;
+  try {
+    data = JSON.parse(String(text));
+  } catch {
+    throw new Error('That file is not valid JSON.');
+  }
+  const { snapshot, skipped, holes, unknown, count } = mapSettingsExportToSnapshot(data);
+  if (!count) throw new Error('The file has no values this app can apply to the device.');
+  const confirmed = await showConfirm(
+    'Import settings',
+    `Apply ${count} value${count === 1 ? '' : 's'} from the file to the connected device? It replaces the device's current setup for those settings.`,
+    { danger: true },
+  );
+  if (!confirmed) return null;
+  const failures = await restoreSettingsSnapshot(snapshot);
+  const applied = count - failures.length;
+  log(
+    `Settings import: ${applied} of ${count} value${count === 1 ? '' : 's'} applied.` +
+      (failures.length ? ' Failures: ' + failures.join('; ') : ''),
+    failures.length ? 'log-err' : 'log-info',
+  );
+  for (const s of skipped) log(`Not applied — ${s.key}: ${s.reason}.`, 'log-info');
+  if (holes.length) log(`Not in the file (not loaded at export time): ${holes.join(', ')}.`, 'log-info');
+  if (unknown.length) log(`File keys this app does not know (ignored): ${unknown.join(', ')}.`, 'log-info');
+  const message = failures.length
+    ? `Settings import finished with ${failures.length} failure${failures.length === 1 ? '' : 's'} — see the log.`
+    : `Settings imported: ${applied} value${applied === 1 ? '' : 's'} applied.`;
+  showNotification(message, failures.length > 0);
+  announceStatus(message);
+  return { applied, count, failures, skipped, holes, unknown };
 }

@@ -9,7 +9,7 @@ import { $ } from '../ui/dom.js';
 import { serialSession } from '../serial/session.js';
 import { openSectionById } from '../ui/sections.js';
 import { listProfiles } from './profiles.js';
-import { SWITCH_ACTION_PACK_BASE, FEEDBACK_MODES } from '../config/constants.js';
+import { SWITCH_ACTION_PACK_BASE, FEEDBACK_MODES, FACTORY_INPUT_WINDOWS } from '../config/constants.js';
 
 /** Re-derives the strip from the live UI state. Cheap; called at every seam
  *  where a signal can change (settings load done, firmware check result,
@@ -51,6 +51,15 @@ export function updateReadiness() {
   // is someone else's config (silent); few comparable keys is not judgeable.
   const mismatch = profileMismatch();
   if (mismatch) items.push(mismatch);
+
+  // Untuned hold timing (setup QA): a device whose three windows all sit at
+  // the compiled factory defaults has not been through the tuning flow yet.
+  // Informational on purpose — factory timing is a legitimate choice — so
+  // the chip reads as an observation with a jump link, never a warning.
+  const windows = ['w1Val', 'w2Val', 'w3Val'].map((id) => Number(String($(id)?.textContent ?? '').trim()));
+  if (windows.every((v) => Number.isFinite(v) && v > 0) && windows.every((v, i) => v === FACTORY_INPUT_WINDOWS[i])) {
+    items.push({ text: 'Hold timing looks like the factory defaults', section: 'sec-sip', tone: 'info' });
+  }
 
   // Rebuild: at most a handful of chips, and never hot enough to matter.
   // Indexed access (children is a live HTMLCollection in the real DOM, a

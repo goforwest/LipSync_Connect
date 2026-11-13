@@ -32,7 +32,8 @@ function buildStoredZip(entries) {
       ...u16(20), // version needed
       ...u16(0), // flags
       ...u16(0), // method: stored
-      ...u16(0), ...u16(0), // time/date
+      ...u16(0),
+      ...u16(0), // time/date
       ...u32(0), // crc32 (not checked by the reader)
       ...u32(dataBytes.length),
       ...u32(dataBytes.length),
@@ -43,16 +44,20 @@ function buildStoredZip(entries) {
     ]);
     centralParts.push([
       ...u32(0x02014b50),
-      ...u16(20), ...u16(20), // made-by / needed
+      ...u16(20),
+      ...u16(20), // made-by / needed
       ...u16(0), // flags
       ...u16(0), // method
-      ...u16(0), ...u16(0),
+      ...u16(0),
+      ...u16(0),
       ...u32(0),
       ...u32(dataBytes.length),
       ...u32(dataBytes.length),
       ...u16(nameBytes.length),
-      ...u16(0), ...u16(0), // extra, comment
-      ...u16(0), ...u16(0), // disk numbers
+      ...u16(0),
+      ...u16(0), // extra, comment
+      ...u16(0),
+      ...u16(0), // disk numbers
       ...u32(0), // attributes
       ...u32(offset),
       ...nameBytes,
@@ -63,8 +68,10 @@ function buildStoredZip(entries) {
   const centralSize = centralParts.reduce((a, p) => a + p.length, 0);
   const eocd = [
     ...u32(0x06054b50),
-    ...u16(0), ...u16(0),
-    ...u16(entries.length), ...u16(entries.length),
+    ...u16(0),
+    ...u16(0),
+    ...u16(entries.length),
+    ...u16(entries.length),
     ...u32(centralSize),
     ...u32(centralOffset),
     ...u16(0),
@@ -87,7 +94,8 @@ function buildDeflatedZip(entries) {
       ...u16(20),
       ...u16(0),
       ...u16(8),
-      ...u16(0), ...u16(0),
+      ...u16(0),
+      ...u16(0),
       ...u32(0),
       ...u32(dataBytes.length),
       ...u32(data.length),
@@ -98,16 +106,20 @@ function buildDeflatedZip(entries) {
     ]);
     central.push([
       ...u32(0x02014b50),
-      ...u16(20), ...u16(20),
+      ...u16(20),
+      ...u16(20),
       ...u16(0),
       ...u16(8),
-      ...u16(0), ...u16(0),
+      ...u16(0),
+      ...u16(0),
       ...u32(0),
       ...u32(dataBytes.length),
       ...u32(data.length),
       ...u16(nameBytes.length),
-      ...u16(0), ...u16(0),
-      ...u16(0), ...u16(0),
+      ...u16(0),
+      ...u16(0),
+      ...u16(0),
+      ...u16(0),
       ...u32(0),
       ...u32(offset),
       ...nameBytes,
@@ -118,8 +130,10 @@ function buildDeflatedZip(entries) {
   const centralSize = central.reduce((a, p) => a + p.length, 0);
   const eocd = [
     ...u32(0x06054b50),
-    ...u16(0), ...u16(0),
-    ...u16(entries.length), ...u16(entries.length),
+    ...u16(0),
+    ...u16(0),
+    ...u16(entries.length),
+    ...u16(entries.length),
     ...u32(centralSize),
     ...u32(centralOffset),
     ...u16(0),
@@ -153,7 +167,12 @@ test('parseDfuPackage extracts and validates the application image', async () =>
   const bin = new Uint8Array(100).fill(0x5a);
   const dat = new Uint8Array(14).fill(0x11);
   const zip = buildStoredZip([
-    { name: 'manifest.json', data: Buffer.from(JSON.stringify({ manifest: { application: { bin_file: 'app.bin', dat_file: 'app.dat', bin_size: 100 } } })) },
+    {
+      name: 'manifest.json',
+      data: Buffer.from(
+        JSON.stringify({ manifest: { application: { bin_file: 'app.bin', dat_file: 'app.dat', bin_size: 100 } } }),
+      ),
+    },
     { name: 'app.bin', data: Buffer.from(bin) },
     { name: 'app.dat', data: Buffer.from(dat) },
   ]);
@@ -167,7 +186,10 @@ test('parseDfuPackage reports missing pieces clearly', async () => {
   const noManifest = buildStoredZip([{ name: 'app.bin', data: Buffer.from([1]) }]);
   await assert.rejects(() => parseDfuPackage(noManifest), /missing manifest\.json/);
   const noBin = buildStoredZip([
-    { name: 'manifest.json', data: Buffer.from(JSON.stringify({ manifest: { application: { bin_file: 'gone.bin', dat_file: 'x' } } })) },
+    {
+      name: 'manifest.json',
+      data: Buffer.from(JSON.stringify({ manifest: { application: { bin_file: 'gone.bin', dat_file: 'x' } } })),
+    },
   ]);
   await assert.rejects(() => parseDfuPackage(noBin), /missing gone\.bin/);
 });
@@ -194,15 +216,19 @@ const distDfuName = fs.existsSync(distManifestPath)
   : null;
 const distDfuPath = distDfuName ? path.join(distDir, distDfuName) : null;
 
-test('parses the real locally built artifact when present', { skip: !distDfuPath || !fs.existsSync(distDfuPath) }, async () => {
-  const bytes = fs.readFileSync(distDfuPath);
-  const pkg = await parseDfuPackage(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-  const app = pkg.manifest.manifest.application;
-  assert.ok(app.bin_file.endsWith('.bin'));
-  assert.ok(app.dat_file.endsWith('.dat'));
-  assert.ok(pkg.bin.length > 250000, 'real firmware image is ~256 KB');
-  assert.equal(pkg.dat.length, 14, 'adafruit init packet for this app is 14 bytes');
-});
+test(
+  'parses the real locally built artifact when present',
+  { skip: !distDfuPath || !fs.existsSync(distDfuPath) },
+  async () => {
+    const bytes = fs.readFileSync(distDfuPath);
+    const pkg = await parseDfuPackage(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    const app = pkg.manifest.manifest.application;
+    assert.ok(app.bin_file.endsWith('.bin'));
+    assert.ok(app.dat_file.endsWith('.dat'));
+    assert.ok(pkg.bin.length > 250000, 'real firmware image is ~256 KB');
+    assert.equal(pkg.dat.length, 14, 'adafruit init packet for this app is 14 bytes');
+  },
+);
 
 // The update manifest is what the in-app check compares against and what the
 // wizard's download step checksums before flashing. If the built manifest and

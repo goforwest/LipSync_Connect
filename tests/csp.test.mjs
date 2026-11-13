@@ -19,7 +19,9 @@ function extractConnectSrc(csp) {
 
 function readCspDefinitions() {
   const vercel = JSON.parse(fs.readFileSync(path.join(root, 'app/vercel.json'), 'utf8'));
-  const vercelCsp = vercel.headers.find((h) => h.source === '/(.*)').headers.find((h) => h.key === 'Content-Security-Policy').value;
+  const vercelCsp = vercel.headers
+    .find((h) => h.source === '/(.*)')
+    .headers.find((h) => h.key === 'Content-Security-Policy').value;
   const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
   const htmlCsp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)[1];
   const server = fs.readFileSync(path.join(root, 'dev/server.js'), 'utf8');

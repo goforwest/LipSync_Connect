@@ -31,8 +31,11 @@ async function collectSettingsDump() {
 
 export async function createSupportReport() {
   const dumpStatus = await collectSettingsDump();
+  // Paired-host names are user content: they ship only when the report's
+  // option is ticked (the checkbox itself explains why it is off by default).
+  const includeBtHosts = !!$('reportIncludeBtHosts')?.checked;
   log('Support report created. Device identifiers are redacted.', 'log-info');
-  return buildSupportReport({ dumpStatus });
+  return buildSupportReport({ dumpStatus, includeBtHosts });
 }
 
 export function bindSupportReport() {

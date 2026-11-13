@@ -185,3 +185,32 @@ test('feedback modes compare by label, restrictions by checkbox state', async ()
   assert.match(m[0], /in 1 setting/); // only the restriction differs
   testHooks.detach();
 });
+
+test('hold timing at the compiled factory defaults becomes an informational chip', () => {
+  connected();
+  doc.getElementById('btnStartUpdate').hidden = true;
+  doc.getElementById('healthSummary').textContent = 'Passed';
+  doc.getElementById('w1Val').textContent = '1000';
+  doc.getElementById('w2Val').textContent = '3000';
+  doc.getElementById('w3Val').textContent = '8000';
+  updateReadiness();
+  const chip = chips().find((c) => /factory defaults/.test(c.text));
+  assert.ok(chip, 'the factory-timing chip appears');
+  assert.match(chip.text, /Hold timing looks like the factory defaults/);
+  assert.match(chip.cls, /ready-chip--info/, 'informational, never a warning');
+  chip.el.dispatch('click');
+  assert.ok(doc.getElementById('sec-sip').classList.contains('open'), 'the chip opens Sip & Puff');
+  testHooks.detach();
+});
+
+test('tuned hold timing does not produce the factory chip', () => {
+  connected();
+  doc.getElementById('btnStartUpdate').hidden = true;
+  doc.getElementById('healthSummary').textContent = 'Passed';
+  doc.getElementById('w1Val').textContent = '600';
+  doc.getElementById('w2Val').textContent = '1200';
+  doc.getElementById('w3Val').textContent = '3000';
+  updateReadiness();
+  assert.ok(!chips().some((c) => /factory defaults/.test(c.text)));
+  testHooks.detach();
+});

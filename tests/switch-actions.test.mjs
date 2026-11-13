@@ -134,7 +134,9 @@ test('a 4.5.0 device loads the six switch mappings into the selects', async () =
 
 test('gamepad switch selects omit the firmware-forbidden Drag/Scroll cells (4.8.7 review)', () => {
   // The mouse column offers the full palette…
-  const mouseValues = byId('swSA0').querySelectorAll('option').map((o) => o.value);
+  const mouseValues = byId('swSA0')
+    .querySelectorAll('option')
+    .map((o) => o.value);
   assert.ok(mouseValues.includes('4'), 'mouse palette keeps Drag');
   assert.ok(mouseValues.includes('5'), 'mouse palette keeps Scroll');
   // …the gamepad column omits exactly 4 and 5: the firmware's gamepad remap

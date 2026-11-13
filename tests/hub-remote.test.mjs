@@ -277,14 +277,7 @@ test('a 4.7.0 device shows Hard Sip/Hard Puff between Timing and Back', async ()
   await next(3); // Sip & Puff
   await select();
   await settle();
-  assert.deepEqual(labels(), [
-    'Sip Threshold',
-    'Puff Threshold',
-    'Timing',
-    'Hard Sip',
-    'Hard Puff',
-    '... Back',
-  ]);
+  assert.deepEqual(labels(), ['Sip Threshold', 'Puff Threshold', 'Timing', 'Hard Sip', 'Hard Puff', '... Back']);
   // The pre-4.7.0 rows keep their indices: Back moved from row 3 to row 5
   // on this firmware and the mirror must follow that exactly.
   await next(3); // → Hard Sip

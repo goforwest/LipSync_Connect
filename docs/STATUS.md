@@ -1,7 +1,7 @@
 # LipSync Connect + LipSync firmware — current state
 
 The one-screen answer to "where are we". This is the only doc that
-tracks *now*: update it in the same change that moves the state, and
+tracks _now_: update it in the same change that moves the state, and
 date every claim. Everything else in this folder is a dated log/ledger —
 accurate as of its date, superseded by later dated notes, never
 rewritten silently. Index and reading order: `docs/README.md`.
@@ -10,6 +10,28 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Handover-workflow pass (2026-11-13): the settings export gained its other
+  half — Import settings applies a previously exported file back to the
+  connected device through the proven restore path (version gates, ordering,
+  failure counting, write-confirm suppression), with mode changes, the
+  live-view selection, and calibration named as exclusions rather than
+  silently dropped; cursor acceleration joined the export keys. A printable
+  device setup sheet (print-only DOM + @media print, no popup, CSP-honest)
+  turns the same data into the paper that travels with the device, display
+  unit included and holes visible as "—". The browser audit now scans every
+  section card with axe-core (86 connected checks) — the first run found 14
+  real violations, all fixed: the Home glance buttons' accessible names, the
+  recommendation labels' contrast (a new --info-strong var, 4.24 → 6.17:1),
+  decorative aria-labels on the joystick dots, an empty role="list" in the
+  Bluetooth host table, and a genuine UX bug — the firmware wizard's
+  data-wizard="done" state kept its check rows dimmed for the whole session
+  at 4.39:1 (the dim now scopes to the active wizard). The support report
+  takes paired Bluetooth host NAMES strictly opt-in (a checkbox; MAC
+  addresses never ship), the session log opens with the app build id, the
+  readiness strip flags hold timing still at the compiled factory defaults
+  (grounded against the firmware's LSConfig.h), and Home's glance facts are
+  jump links. Suites 554/554, browser audit 117/117, offline E2E 2/2;
+  service worker v57.
 - Pressure display units (2026-11-13): a cmH₂O display preference (appearance
   popup, persisted, hPa default) for clinicians who think in it — 1 cmH₂O =
   0.980665 hPa. It converts the READING surfaces (gauge titles/scale/current
@@ -167,7 +189,9 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 511/511, the browser audit passes 116/116, and offline
+- Integration tests pass 554/554, the browser audit passes 117/117 (axe-core now
+  scans every section card and fails the audit on any accessibility violation),
+  and offline
   E2E passes 2/2. CI now runs the browser audit; the dev dependency audit is 0
   vulnerabilities. The full CI job is green on main as of 9f32869 (it had been
   stopping at the format check since the 2026-11-10 UX commits).

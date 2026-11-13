@@ -237,10 +237,7 @@ test('transfer: every flash page (8×512B frames) pauses for the page-write dwel
   // this clearly while a live one can never false-fail.
   for (const i of [7, 15, 23]) {
     const gap = transfer[i + 1].at - transfer[i].at;
-    assert.ok(
-      gap >= 90,
-      `page-write dwell observed after chunk ${i + 1} (${gap} ms; a normal chunk gap is ~12 ms)`,
-    );
+    assert.ok(gap >= 90, `page-write dwell observed after chunk ${i + 1} (${gap} ms; a normal chunk gap is ~12 ms)`);
   }
   // The final page's dwell lands between the last chunk and finalize.
   const finalizeAt = marks.find((m) => m.stage === 'finalize').at;

@@ -8,9 +8,8 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const app = await import('../app/js/main.js');
-const { loadDeviceInfo, setTimingWindow, applyTimingWindowValue } = await import(
-  '../app/js/services/settings-service.js'
-);
+const { loadDeviceInfo, setTimingWindow, applyTimingWindowValue } =
+  await import('../app/js/services/settings-service.js');
 const { captureSettingsSnapshot, restoreSettingsSnapshot } = await import('../app/js/services/firmware-update.js');
 const { collectSettingsExport } = await import('../app/js/services/settings-export.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
@@ -51,7 +50,9 @@ function launchDevice({ version = '4.4.0', windowValues = {}, writeFailures = {}
   const responses = { ...BASE_RESPONSES, 'VN,0': version, ...windowValues };
   const writer = {
     write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
+      const text = Buffer.from(bytes)
+        .toString('utf8')
+        .replace(/\r?\n$/, '');
       sent.push(text);
       const reply = (line) => setTimeout(() => app.handleLine(line), 3);
       if (text === 'SETTINGS') {
@@ -150,17 +151,25 @@ test('the update snapshot round-trips the windows; old firmware snapshots withou
   testHooks.detach();
 
   const sent = [];
-  testHooks.attach({ simulated: true }, {
-    write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
-      sent.push(text);
-      const reply = (line) => setTimeout(() => app.handleLine(line), 3);
-      reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+  testHooks.attach(
+    { simulated: true },
+    {
+      write(bytes) {
+        const text = Buffer.from(bytes)
+          .toString('utf8')
+          .replace(/\r?\n$/, '');
+        sent.push(text);
+        const reply = (line) => setTimeout(() => app.handleLine(line), 3);
+        reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+      },
     },
-  });
+  );
   await restoreSettingsSnapshot(snapshot);
   for (const ep of ['WS', 'WL', 'WM'])
-    assert.ok(sent.some((s) => s.startsWith(`${ep},1:`)), ep + ' restored');
+    assert.ok(
+      sent.some((s) => s.startsWith(`${ep},1:`)),
+      ep + ' restored',
+    );
   testHooks.detach();
 
   // Pre-4.4.0: no window keys in the snapshot at all.
@@ -195,25 +204,48 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   // settings go out.
   const snapshot = {
     VN: '4.5.0',
-    SS: '6', SL: '4', AV: '3', ST: '3.25', PT: '3.00', IZ: '0.10', OZ: '0.90',
-    SM: '2', LM: '2', LL: '6',
-    SD: '1', MA: '0', LK: '0', CF: '0',
-    WS: '500', WL: '1500', WM: '4000',
-    SA: '110419', SB: '130014', SC: '120503', GA: '160819', GB: '201114', GC: '170900',
+    SS: '6',
+    SL: '4',
+    AV: '3',
+    ST: '3.25',
+    PT: '3.00',
+    IZ: '0.10',
+    OZ: '0.90',
+    SM: '2',
+    LM: '2',
+    LL: '6',
+    SD: '1',
+    MA: '0',
+    LK: '0',
+    CF: '0',
+    WS: '500',
+    WL: '1500',
+    WM: '4000',
+    SA: '110419',
+    SB: '130014',
+    SC: '120503',
+    GA: '160819',
+    GB: '201114',
+    GC: '170900',
   };
 
   // --- Connected device reports 4.1.0 (a downgrade): gated keys never sent.
   resetWireNewlineFraming();
   noteDeviceVersion('4.1.0');
   const sentOld = [];
-  testHooks.attach({ simulated: true }, {
-    write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
-      sentOld.push(text);
-      const reply = (line) => setTimeout(() => app.handleLine(line), 3);
-      reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+  testHooks.attach(
+    { simulated: true },
+    {
+      write(bytes) {
+        const text = Buffer.from(bytes)
+          .toString('utf8')
+          .replace(/\r?\n$/, '');
+        sentOld.push(text);
+        const reply = (line) => setTimeout(() => app.handleLine(line), 3);
+        reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+      },
     },
-  });
+  );
   const failuresOld = await restoreSettingsSnapshot(snapshot);
   assert.deepEqual(failuresOld, [], 'nothing fails against the old device');
   const writesOld = sentOld.filter((s) => s.includes(',1:'));
@@ -230,20 +262,31 @@ test('a downgrade restore writes only what the connected firmware holds', async 
   resetWireNewlineFraming();
   noteDeviceVersion('4.5.0');
   const sentNew = [];
-  testHooks.attach({ simulated: true }, {
-    write(bytes) {
-      const text = Buffer.from(bytes).toString('utf8').replace(/\r?\n$/, '');
-      sentNew.push(text);
-      const reply = (line) => setTimeout(() => app.handleLine(line), 3);
-      reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+  testHooks.attach(
+    { simulated: true },
+    {
+      write(bytes) {
+        const text = Buffer.from(bytes)
+          .toString('utf8')
+          .replace(/\r?\n$/, '');
+        sentNew.push(text);
+        const reply = (line) => setTimeout(() => app.handleLine(line), 3);
+        reply(text === 'SETTINGS' ? 'SUCCESS,0:SETTINGS' : `SUCCESS,0:${text}`);
+      },
     },
-  });
+  );
   const failuresNew = await restoreSettingsSnapshot(snapshot);
   assert.deepEqual(failuresNew, [], 'nothing fails against the 4.5.0 device');
   const writesNew = sentNew.filter((s) => s.includes(',1:'));
-  assert.ok(writesNew.some((s) => s.startsWith('AV,1:')), 'acceleration is restored on 4.5.0');
+  assert.ok(
+    writesNew.some((s) => s.startsWith('AV,1:')),
+    'acceleration is restored on 4.5.0',
+  );
   for (const ep of ['SD', 'MA', 'LK', 'CF', 'WS', 'WL', 'WM', 'SA', 'SB', 'SC', 'GA', 'GB', 'GC'])
-    assert.ok(writesNew.some((s) => s.startsWith(ep + ',1:')), ep + ' restored on 4.5.0');
+    assert.ok(
+      writesNew.some((s) => s.startsWith(ep + ',1:')),
+      ep + ' restored on 4.5.0',
+    );
   testHooks.detach();
   resetWireNewlineFraming();
 });

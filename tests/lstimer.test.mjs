@@ -26,12 +26,11 @@ const FW = process.env.FIRMWARE_REPO
 const HEADER = path.join(FW, 'Build_Files/Firmware_Files/LipSync_Firmware/LSTimer.h');
 const RUNNER = path.resolve(here, '../dev/firmware/lstimer-test/run.sh');
 
-const skip =
-  !existsSync(HEADER)
-    ? 'firmware checkout not found — set FIRMWARE_REPO to run this gate'
-    : !existsSync(RUNNER)
-      ? 'lstimer runner missing'
-      : undefined;
+const skip = !existsSync(HEADER)
+  ? 'firmware checkout not found — set FIRMWARE_REPO to run this gate'
+  : !existsSync(RUNNER)
+    ? 'lstimer runner missing'
+    : undefined;
 
 test(
   'LSTimer host suite: cadence, disable/enable, pool exhaustion, stopwatch, method timers, safe-mode soak',

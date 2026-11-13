@@ -160,7 +160,14 @@ test('forget removes the row and the refetch follows the renumbered device', asy
       forgot = 1;
       return [{ delay: 2, line: 'SUCCESS,0:BT,2:1' }];
     }
-    return firmware48(forgot === 0 ? [['AABBCCDDEEFF', 1], ['112233445566', 0]] : [['112233445566', 1]])(text);
+    return firmware48(
+      forgot === 0
+        ? [
+            ['AABBCCDDEEFF', 1],
+            ['112233445566', 0],
+          ]
+        : [['112233445566', 1]],
+    )(text);
   });
   try {
     await bt.loadBluetoothHostTable();
@@ -297,13 +304,17 @@ test('a MANUAL push landing DURING a quiet window still logs; the window closes 
     assert.ok(quietExchangeActive(), 'the quiet window is open while the exchange is in flight');
     app.handleLine('MANUAL,0:BT,4:2');
     assert.ok(
-      getLogHistory().slice(histStart).some((l) => l.includes('<< MANUAL,0:BT,4:2')),
+      getLogHistory()
+        .slice(histStart)
+        .some((l) => l.includes('<< MANUAL,0:BT,4:2')),
       'a device-initiated push during the quiet window is an event and stays logged',
     );
     await pending;
     assert.ok(!quietExchangeActive(), 'the quiet window closes with the exchange');
     assert.ok(
-      !getLogHistory().slice(histStart).some((l) => l.includes('<< SUCCESS,0:BT,0:3')),
+      !getLogHistory()
+        .slice(histStart)
+        .some((l) => l.includes('<< SUCCESS,0:BT,0:3')),
       'the exchange completion echo was suppressed',
     );
   } finally {
@@ -335,11 +346,7 @@ test('the backstop poll runs every 15 s and logs nothing while the table is unch
       ['SETTINGS', 'BT,0:0'],
       'the immediate tick is exactly the quiet poll (no row reads when nothing changed)',
     );
-    assert.equal(
-      getLogHistory().length,
-      histStart,
-      'the backstop poll logs nothing when the table is unchanged',
-    );
+    assert.equal(getLogHistory().length, histStart, 'the backstop poll logs nothing when the table is unchanged');
   } finally {
     bt.resetBluetoothHostsUi();
     device.detach();

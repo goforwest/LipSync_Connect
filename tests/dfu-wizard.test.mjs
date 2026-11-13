@@ -2570,7 +2570,11 @@ test('wizard: cancelling at the port picker says the device is in update mode', 
 
   assert.equal(byId('fwWizard').hidden, true, 'the wizard closes');
   const history = logMod.getLogHistory().slice(histStart).join('\n');
-  assert.match(history, /was restarted into update mode/, 'the cancel message keys on the restart that demonstrably landed');
+  assert.match(
+    history,
+    /was restarted into update mode/,
+    'the cancel message keys on the restart that demonstrably landed',
+  );
   assert.match(history, /unplug and replug/, 'recovery guidance is present');
   assert.doesNotMatch(history, /Nothing was changed/, 'the lying message is gone for this stage');
   await app.disconnect({ quiet: true });
@@ -3145,64 +3149,64 @@ test('wizard: a stalled serial open fails fast with replug guidance, not a froze
   fw.setTouchOpenTimeoutForTests(250);
   try {
     try {
-    localStorage.setItem(
-      'lipsync-fw-check',
-      JSON.stringify({
-        manifest: {
-          firmwareVersion: '4.2.0',
-          files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
-        },
-        tagName: 'V4.2.0',
-        releaseUrl: null,
-        repo: { owner: 'goforwest', name: 'LipSync' },
-        checkedAt: Date.now(),
-      }),
-    );
-  } catch {}
-  globalThis.fetch = async (url) =>
-    String(url).includes('/git/trees/')
-      ? {
-          ok: true,
-          status: 200,
-          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
-        }
-      : {
-          ok: true,
-          status: 200,
-          json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
-        };
-  const logMod = await import('../app/js/services/log.js');
-  const histStart = logMod.getLogHistory().length;
+      localStorage.setItem(
+        'lipsync-fw-check',
+        JSON.stringify({
+          manifest: {
+            firmwareVersion: '4.2.0',
+            files: { dfu: { fileName: 'LipSync_Firmware_4.2.0_dfu.zip', size: 10, sha256: FW_ZIP_SHA256 } },
+          },
+          tagName: 'V4.2.0',
+          releaseUrl: null,
+          repo: { owner: 'goforwest', name: 'LipSync' },
+          checkedAt: Date.now(),
+        }),
+      );
+    } catch {}
+    globalThis.fetch = async (url) =>
+      String(url).includes('/git/trees/')
+        ? {
+            ok: true,
+            status: 200,
+            json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.2.0_dfu.zip', sha: 'fwblob' }] }),
+          }
+        : {
+            ok: true,
+            status: 200,
+            json: async () => ({ encoding: 'base64', content: Buffer.from(FW_ZIP_BYTES).toString('base64') }),
+          };
+    const logMod = await import('../app/js/services/log.js');
+    const histStart = logMod.getLogHistory().length;
 
-  // The macOS wedged-port hang: open() never resolves at all.
-  const stalledAppPort = {
-    open() {
-      return new Promise(() => {});
-    },
-    async close() {},
-    async setSignals() {},
-    getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
-    readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
-    writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
-  };
-  const { serialSession } = await import('../app/js/serial/session.js');
-  serialSession.port = stalledAppPort;
-  setLoadedValues();
+    // The macOS wedged-port hang: open() never resolves at all.
+    const stalledAppPort = {
+      open() {
+        return new Promise(() => {});
+      },
+      async close() {},
+      async setSignals() {},
+      getInfo: () => ({ usbVendorId: 0x2886, usbProductId: 0x8045 }),
+      readable: { getReader: () => ({ read: async () => ({ done: true }), cancel: async () => {}, releaseLock() {} }) },
+      writable: { getWriter: () => ({ write: async () => {}, releaseLock() {} }) },
+    };
+    const { serialSession } = await import('../app/js/serial/session.js');
+    serialSession.port = stalledAppPort;
+    setLoadedValues();
 
-  const wizardDone = fw.startFirmwareUpdate();
-  await flush();
-  click('confirmOk');
-  await wizardDone; // previously froze forever — now bounded per attempt
+    const wizardDone = fw.startFirmwareUpdate();
+    await flush();
+    click('confirmOk');
+    await wizardDone; // previously froze forever — now bounded per attempt
 
-  const history = logMod.getLogHistory().slice(histStart).join('\n');
-  assert.match(history, /attempt 1 did not take \(the serial port did not respond\)/, 'the stall is diagnosed');
-  assert.match(history, /failed after 3 attempts \(the serial port did not respond\)/, 'the failure names the stall');
-  assert.match(history, /Unplug the LipSync, plug it back in/, 'the guidance is actionable');
-  assert.match(byId('fwWizardStep').textContent, /serial port stopped responding/, 'the picker step says what to do');
-  assert.equal(byId('btnFwContinue').hidden, false, 'Continue remains available');
-  click('btnFwCancel');
-  await flush();
-  assert.equal(byId('fwWizard').hidden, true);
+    const history = logMod.getLogHistory().slice(histStart).join('\n');
+    assert.match(history, /attempt 1 did not take \(the serial port did not respond\)/, 'the stall is diagnosed');
+    assert.match(history, /failed after 3 attempts \(the serial port did not respond\)/, 'the failure names the stall');
+    assert.match(history, /Unplug the LipSync, plug it back in/, 'the guidance is actionable');
+    assert.match(byId('fwWizardStep').textContent, /serial port stopped responding/, 'the picker step says what to do');
+    assert.equal(byId('btnFwContinue').hidden, false, 'Continue remains available');
+    click('btnFwCancel');
+    await flush();
+    assert.equal(byId('fwWizard').hidden, true);
   } finally {
     // The seam must be restored on every path — a failed assertion here must
     // not leak a 250 ms touch bound into every later test in this module.
@@ -3572,11 +3576,7 @@ test('wizard: a stalled bootloader-port open routes back to the picker step, not
   });
 
   const history = logMod.getLogHistory().slice(histStart).join('\n');
-  assert.match(
-    history,
-    /did not respond/,
-    'the stall message with its replug + Continue guidance is on the record',
-  );
+  assert.match(history, /did not respond/, 'the stall message with its replug + Continue guidance is on the record');
   assert.doesNotMatch(history, /Firmware update failed:/, 'a pre-START stall is not a failure');
   assert.equal(
     byId('btnFwContinue').hidden,
@@ -3835,10 +3835,7 @@ test('wizard: cancelling while the SR ack is pending stops the update without a 
   await sleep(400); // let the zombie SR continuation finish (ack + teardown)
 
   const history = logMod.getLogHistory().slice(histStart).join('\n');
-  assert.ok(
-    sent.includes('SR,1:1'),
-    'sanity: the SR write really happened before the cancel (the honest hard case)',
-  );
+  assert.ok(sent.includes('SR,1:1'), 'sanity: the SR write really happened before the cancel (the honest hard case)');
   assert.match(
     history,
     /may still restart on its own|restarts on its own/,
@@ -4138,7 +4135,11 @@ test('wizard: a STOP whose ACK is lost at the detach hedges instead of declaring
   assert.equal(sim.state.activated, true, 'the update actually completed on the device');
   const history = logMod.getLogHistory().slice(histStart).join('\n');
   assert.doesNotMatch(history, /Firmware update failed:/, 'the completed update is not declared a failure');
-  assert.doesNotMatch(history, /interrupted while the device.s memory was being rewritten/, 'the stranded claim is never made');
+  assert.doesNotMatch(
+    history,
+    /interrupted while the device.s memory was being rewritten/,
+    'the stranded claim is never made',
+  );
   assert.match(history, /may have completed/, 'the hedge is logged honestly');
   assert.equal(fw.readPending()?.flashStarted, true, 'the flashStarted truth is kept for the reconnect');
   click('btnFwCancel');
@@ -4986,8 +4987,16 @@ test('stranded marker: the sessionStorage mirror survives a reload and restores 
   assert.equal(byId('sec-firmware').getAttribute('data-recover'), 'true');
   assert.equal(firmwareTab.classList.contains('dimmed'), false, 'the Firmware page is openable after marker restore');
   assert.equal(deviceGroup.classList.contains('dimmed'), false, 'Device exposes the reachable Updates page');
-  assert.equal(byId('sec-firmware').classList.contains('card-off'), false, 'the recovery surface is not visually gated');
-  assert.equal(byId('sec-firmware').classList.contains('open'), true, 'reload lands directly on the only recovery path');
+  assert.equal(
+    byId('sec-firmware').classList.contains('card-off'),
+    false,
+    'the recovery surface is not visually gated',
+  );
+  assert.equal(
+    byId('sec-firmware').classList.contains('open'),
+    true,
+    'reload lands directly on the only recovery path',
+  );
 
   // A successful settings load is the marker's honest end of life.
   const writer = {
@@ -5038,7 +5047,11 @@ test('wizard: firmware 4.3.0+ enters update mode over the session (UM) — no 12
   } catch {}
   globalThis.fetch = async (url) =>
     String(url).includes('/git/trees/')
-      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }) }
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }),
+        }
       : {
           ok: true,
           status: 200,
@@ -5130,7 +5143,11 @@ test('wizard: a firmware that rejects UM falls back to the standard SR + touch r
   } catch {}
   globalThis.fetch = async (url) =>
     String(url).includes('/git/trees/')
-      ? { ok: true, status: 200, json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }) }
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({ tree: [{ path: 'LipSync_Firmware_4.3.0_dfu.zip', sha: 'fwblob' }] }),
+        }
       : {
           ok: true,
           status: 200,

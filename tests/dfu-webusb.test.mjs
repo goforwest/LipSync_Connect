@@ -175,10 +175,7 @@ test('WebUSB: a failed port is avoided by device identity — the avoid-mark sur
   // open works) but its bulk writes are dead — the flash fails on the probe.
   const firstPort = await requestDfuPort();
   assert.equal(firstPort.device, bad.device, 'sanity: the granted device was silently reused');
-  await assert.rejects(
-    () => flashSerialDfu({ port: firstPort, bin, dat }),
-    /did not respond as an update loader/,
-  );
+  await assert.rejects(() => flashSerialDfu({ port: firstPort, bin, dat }), /did not respond as an update loader/);
 
   // Second attempt with the failed wrapper as the avoid-mark: the fresh
   // wrapper over the same device must NOT be silently returned.
@@ -231,10 +228,18 @@ test('WebUSB: shim opens serialize per device and a stalled open cannot race a n
     opened: false,
     configuration: {
       interfaces: [
-        { interfaceNumber: 1, alternates: [{ interfaceClass: 10, endpoints: [
-          { direction: 'in', endpointNumber: 1 },
-          { direction: 'out', endpointNumber: 2 },
-        ] }] },
+        {
+          interfaceNumber: 1,
+          alternates: [
+            {
+              interfaceClass: 10,
+              endpoints: [
+                { direction: 'in', endpointNumber: 1 },
+                { direction: 'out', endpointNumber: 2 },
+              ],
+            },
+          ],
+        },
       ],
     },
     async open() {

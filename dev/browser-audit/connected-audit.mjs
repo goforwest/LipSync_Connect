@@ -82,7 +82,10 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
   const browser = await chromium.launch({ headless: true, executablePath });
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // bypassCSP is tooling-only: the audit injects axe-core (an inline script
+    // the app's own CSP rightly blocks for real users — tests/csp.test.mjs
+    // pins that). Nothing else in the audit depends on the CSP blocking.
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, bypassCSP: true });
     const page = await ctx.newPage();
     // The automatic update check must not depend on GitHub's reachability.
     await page.route('**api.github.com**', (r) => r.abort());
@@ -1429,6 +1432,48 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
         restore.w1 === '600' && // the fake's post-flash factory default is 500 — only the restore brings 600 back
         restore.status === 'Connected',
       JSON.stringify(restore),
+    );
+
+    // ---------------- Phase 3: accessibility regression net (axe) ----------------
+    // Every section card is scanned with axe-core in the connected state; any
+    // violation fails the audit. Findings get fixed in the app, not waived —
+    // a new intentional pattern needs an explicit rule discussion, not a
+    // silencer. axe ships as a dev dependency; its browser build injects as
+    // a plain script (no network fetch, works offline like the rest).
+    const { readFileSync } = await import('node:fs');
+    const axeSource = readFileSync(path.join(dir, '..', 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
+    await page.addScriptTag({ content: axeSource });
+    const sectionIds = await page.evaluate(() =>
+      [...document.querySelectorAll('section.section-card')].map((s) => s.id),
+    );
+    let axeCount = 0;
+    const axeDetails = [];
+    for (const id of sectionIds) {
+      await openCard(id);
+      await page.waitForTimeout(250);
+      const violations = await page.evaluate(async (secId) => {
+        const results = await axe.run(document.getElementById(secId), { resultTypes: ['violations'] });
+        return results.violations.map((v) => {
+          const first = v.nodes[0];
+          let probe = '';
+          if (v.id === 'color-contrast' && first) {
+            const el = document.querySelector(first.target.join(' '));
+            if (el) {
+              const cs = getComputedStyle(el);
+              probe = ` [color=${cs.color} opacity=${cs.opacity}]`;
+            }
+          }
+          return `${v.id}(${v.impact ?? 'none'}) x${v.nodes.length}: ${first?.target?.join(' ') ?? ''}${probe}`;
+        });
+      }, id);
+      axeCount += violations.length;
+      if (violations.length) axeDetails.push(`${id}: ${violations.join('; ')}`);
+    }
+    note(
+      'axe-clean',
+      axeCount === 0,
+      `${axeCount} violation(s) across ${sectionIds.length} sections` +
+        (axeDetails.length ? ' — ' + axeDetails.join(' | ') : ''),
     );
     await ctx.close();
   } finally {

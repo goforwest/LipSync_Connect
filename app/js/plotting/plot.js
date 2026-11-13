@@ -193,11 +193,12 @@ export function cornerState(index, state) {
   el.classList.remove('captured');
   if (state) {
     el.classList.add(state);
-    el.setAttribute('aria-label', `Corner ${index} ${state}`);
+    // The dots are decorative inside the plot's single role="img" label —
+    // a bare div's generic role prohibits aria-label (axe-enforced), and
+    // the calibration progress already narrates through the live status
+    // region and the step list.
     if (state === 'pending' && !plotState.corners[index] && CORNER_SIGNS[index])
       plotDot('dotC' + index, CORNER_SIGNS[index][0] * inputRadius(), CORNER_SIGNS[index][1] * inputRadius());
-  } else {
-    el.removeAttribute('aria-label');
   }
 }
 export function resetPlotState() {

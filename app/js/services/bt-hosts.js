@@ -294,6 +294,10 @@ function renderHostList() {
     .filter(Boolean);
 
   if (rows.length === 0) {
+    // An empty role="list" violates aria-required-children — the empty state
+    // is a plain paragraph until a row exists.
+    listEl.removeAttribute('role');
+    listEl.removeAttribute('aria-label');
     const p = document.createElement('p');
     p.className = 'hint';
     p.textContent = serialSession.port
@@ -302,6 +306,8 @@ function renderHostList() {
     listEl.appendChild(p);
     return;
   }
+  listEl.setAttribute('role', 'list');
+  listEl.setAttribute('aria-label', 'Paired hosts');
   for (const row of rows) {
     const item = document.createElement('div');
     item.className = 'bt-host-row' + (row.active ? ' active' : '');

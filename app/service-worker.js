@@ -1,7 +1,7 @@
-// v56 carries the pressure-units display preference (new services module) and
-// the appearance-popup row. Hard invalidate because markup, controller, and
-// styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v56';
+// v57 carries the settings import/export/print row (new setup-sheet module)
+// and the readiness factory-timing chip. Hard invalidate because markup,
+// controller, and styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v57';
 const ASSETS = [
   './',
   './index.html',
@@ -51,6 +51,7 @@ const ASSETS = [
   './js/services/health.js',
   './js/services/health-history.js',
   './js/services/settings-export.js',
+  './js/services/setup-sheet.js',
   './js/services/firmware-update.js',
   './js/serial/dfu/dfu-protocol.js',
   './js/serial/dfu/dfu-serial.js',

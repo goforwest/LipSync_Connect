@@ -458,7 +458,12 @@ test('a local-manifest install refreshes the manifest (a rebuild cannot strand t
   fetchImpl = async (url) =>
     String(url).includes('/firmware-manifest.json')
       ? { ok: true, status: 200, json: async () => newManifest }
-      : { ok: true, status: 200, arrayBuffer: async () => artifact.buffer.slice(artifact.byteOffset, artifact.byteOffset + artifact.byteLength) };
+      : {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () =>
+            artifact.buffer.slice(artifact.byteOffset, artifact.byteOffset + artifact.byteLength),
+        };
 
   await fw.startFirmwareUpdate();
   await flush();

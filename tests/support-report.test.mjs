@@ -87,3 +87,30 @@ test('disconnected report still succeeds and names the missing settings dump', a
   assert.match(text, /Connection: Not connected/);
   assert.match(text, /Settings dump: Not captured \(no LipSync connected\)/);
 });
+
+test('paired Bluetooth host names ship only when the option is ticked — never MACs', async () => {
+  const { btHostTable } = await import('../app/js/services/bt-hosts.js');
+  btHostTable.count = 2;
+  btHostTable.rows = {
+    1: { i: 1, mac: 'AA:BB:CC:DD:EE:F1', name: 'Marys_iPad', active: 1 },
+    2: { i: 2, mac: 'AA:BB:CC:DD:EE:F2', name: 'School_Laptop', active: 0 },
+  };
+  try {
+    const without = buildSupportReport();
+    assert.ok(!without.text.includes('Marys_iPad'), 'names stay out by default');
+    assert.ok(!without.text.includes('Paired Bluetooth hosts'));
+    const withHosts = buildSupportReport({ includeBtHosts: true });
+    assert.match(withHosts.text, /Paired Bluetooth hosts: 2/);
+    assert.match(withHosts.text, /1\. Marys_iPad \(active\)/);
+    assert.match(withHosts.text, /2\. School_Laptop/);
+    assert.ok(!withHosts.text.includes('AA:BB'), 'MAC addresses never ship, even opted in');
+  } finally {
+    btHostTable.count = 0;
+    btHostTable.rows = {};
+  }
+});
+
+test('an empty host table omits the line even when opted in', () => {
+  const { text } = buildSupportReport({ includeBtHosts: true });
+  assert.ok(!text.includes('Paired Bluetooth hosts'));
+});

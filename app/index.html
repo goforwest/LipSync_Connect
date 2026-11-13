@@ -410,19 +410,39 @@
                 <dl class="home-facts">
                   <div>
                     <dt>Model</dt>
-                    <dd id="homeModel">&mdash;</dd>
+                    <dd>
+                      <button type="button" class="home-fact" data-open-section="sec-device">
+                        <span id="homeModel">&mdash;</span>
+                        <span class="sr-only"> — Model — open device details</span>
+                      </button>
+                    </dd>
                   </div>
                   <div>
                     <dt>Firmware</dt>
-                    <dd id="homeVersion">&mdash;</dd>
+                    <dd>
+                      <button type="button" class="home-fact" data-open-section="sec-firmware">
+                        <span id="homeVersion">&mdash;</span>
+                        <span class="sr-only"> — Firmware — open Updates</span>
+                      </button>
+                    </dd>
                   </div>
                   <div>
                     <dt>Mode</dt>
-                    <dd id="homeMode">&mdash;</dd>
+                    <dd>
+                      <button type="button" class="home-fact" data-open-section="sec-device">
+                        <span id="homeMode">&mdash;</span>
+                        <span class="sr-only"> — Mode — open device details</span>
+                      </button>
+                    </dd>
                   </div>
                   <div>
                     <dt>Profile</dt>
-                    <dd id="homeProfile">&mdash;</dd>
+                    <dd>
+                      <button type="button" class="home-fact" data-open-section="sec-profiles">
+                        <span id="homeProfile">&mdash;</span>
+                        <span class="sr-only"> — Profile — open Profiles and backup</span>
+                      </button>
+                    </dd>
                   </div>
                   <div>
                     <dt>Connection</dt>
@@ -554,9 +574,19 @@
             </div>
             <div class="row" id="settingsFileRow">
               <button type="button" class="cmd secondary" id="btnExportSettings" disabled>Export settings</button>
+              <button type="button" class="cmd secondary" id="btnImportSettings" disabled>Import settings…</button>
+              <button type="button" class="cmd secondary" id="btnPrintSetupSheet" disabled>Print setup sheet</button>
+              <input
+                type="file"
+                id="settingsFileInput"
+                accept=".json,application/json"
+                hidden
+                aria-label="Settings file to import"
+              />
               <span class="hint row-hint"
-                >Download the current setup as a file &mdash; for a support ticket, or as a record before an update. The
-                device identifier is removed.</span
+                >Download the current setup as a file, apply a previously exported one to the connected device, or print
+                a paper sheet for the handover. Mode changes and calibration are not part of a file import; the device
+                identifier is removed.</span
               >
             </div>
             <details class="inline-help">
@@ -2316,12 +2346,20 @@
                   <li>Connection, model, firmware, and operating mode</li>
                   <li>Health-check result and session errors</li>
                   <li>Current device settings when connected</li>
+                  <li>Paired Bluetooth host names — only with the option below ticked</li>
                 </ul>
               </div>
               <div class="support-report-actions">
                 <button type="button" id="btnDownloadSupportReport">Download support report</button>
                 <button type="button" id="btnShareSupportReport" class="secondary">Share support report</button>
               </div>
+              <label class="check-row report-option">
+                <input type="checkbox" id="reportIncludeBtHosts" />
+                <span
+                  >Include paired Bluetooth host names
+                  <span class="row-hint">off by default — names can identify people</span></span
+                >
+              </label>
               <p id="supportReportStatus" class="hint" role="status" aria-live="polite"></p>
             </div>
 
@@ -2526,6 +2564,8 @@
         <button type="button" id="confirmOk">OK</button>
       </div>
     </dialog>
+
+    <div id="setupSheet" hidden></div>
 
     <script type="module" src="./js/main.js"></script>
   </body>

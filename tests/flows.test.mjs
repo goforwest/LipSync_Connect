@@ -564,9 +564,7 @@ test('raw command rejects empty and malformed input without touching the wire', 
 });
 
 test('raw state-changing commands keep their confirm: cancel sends nothing', async () => {
-  const { sent, detach } = launch((text) =>
-    text === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : [],
-  );
+  const { sent, detach } = launch((text) => (text === 'SETTINGS' ? [{ delay: 5, line: 'SUCCESS,0:SETTINGS' }] : []));
   app.setConnectedUI(true);
   doc.getElementById('rawCommand').value = 'SR,1:1';
   click('btnSendRaw');
@@ -644,7 +642,10 @@ test('typed deadzone Set snaps to the 0.01 grid and refuses the 1.0 ceiling', as
   // 0.12 instead of writing a value it would then report as failed.
   doc.getElementById('innerDeadzone').value = '0.1234';
   await clickAndDrain('btnSetInnerDeadzone');
-  assert.ok(sent.some((t) => t.includes('IZ,1:0.12')), JSON.stringify(sent));
+  assert.ok(
+    sent.some((t) => t.includes('IZ,1:0.12')),
+    JSON.stringify(sent),
+  );
   assert.ok(!sent.some((t) => t.includes('0.1234')), JSON.stringify(sent));
   assert.equal(doc.getElementById('innerDeadzoneVal').textContent, '0.12');
   // 1.00 "succeeds" on the wire but the firmware normalizes >= 1.0 back to

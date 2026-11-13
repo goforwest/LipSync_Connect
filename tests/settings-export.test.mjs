@@ -8,9 +8,7 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 await import('../app/js/main.js');
-const { collectSettingsExport, buildSettingsExportFile } = await import(
-  '../app/js/services/settings-export.js'
-);
+const { collectSettingsExport, buildSettingsExportFile } = await import('../app/js/services/settings-export.js');
 
 function setLoadedValues(v = {}) {
   const defaults = {

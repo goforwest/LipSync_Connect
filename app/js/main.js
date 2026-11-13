@@ -66,7 +66,8 @@ import { bindProfiles } from './services/profiles.js';
 import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
 import { bindWizard, exitWizard } from './services/wizard.js';
 import { runDiagnostics } from './services/health.js';
-import { exportSettings } from './services/settings-export.js';
+import { exportSettings, importSettingsFromFile } from './services/settings-export.js';
+import { openSetupSheet } from './services/setup-sheet.js';
 import {
   getPressureUnit,
   initPressureUnits,
@@ -650,6 +651,9 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!getOpenSection()) openSectionById('sec-home');
   initWindowLadders();
   bindSupportReport();
+  // Session provenance: a pasted raw log must answer "which build?" without
+  // the support report (the report carries the same id in its header).
+  log('LipSync Connect ' + APP_BUILD_ID + ' ready.', 'log-info');
   // Manual hash edits and history navigation open their section too (the
   // skip link's #main-content is not a section and is ignored).
   window.addEventListener('hashchange', () => {
@@ -744,6 +748,23 @@ window.addEventListener('DOMContentLoaded', () => {
     $('btnDisconnect').addEventListener('click', disconnect);
     $('btnRefreshAll').addEventListener('click', guard(loadDeviceInfo));
     $('btnExportSettings').addEventListener('click', guard(exportSettings));
+    // Import settings: the file dialog must open directly from the click
+    // (transient activation), the apply runs through the guarded importer.
+    $('btnImportSettings').addEventListener('click', () => $('settingsFileInput').click());
+    $('settingsFileInput').addEventListener(
+      'change',
+      guard(async () => {
+        const input = $('settingsFileInput');
+        const file = input.files && input.files[0];
+        if (!file) return;
+        try {
+          await importSettingsFromFile(await file.text());
+        } finally {
+          input.value = ''; // the same file can be re-picked after a fix
+        }
+      }),
+    );
+    $('btnPrintSetupSheet').addEventListener('click', guard(openSetupSheet));
     $('btnRunDiagnostics').addEventListener('click', guard(runDiagnostics));
     bindDeviceOps(guard);
     bindWriteConfirm(); // the inline write-confirm chip's Undo button
