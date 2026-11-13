@@ -8,6 +8,19 @@ import { getLogHistory, log } from './log.js';
 import { $ } from '../ui/dom.js';
 import { announceStatus } from '../ui/a11y.js';
 import { showNotification } from '../ui/notification.js';
+import { practiceStatsLine } from './practice-stats.js';
+
+// The health grid's steps, in display order: the support report ships the
+// per-step outcome, not just the one-line summary — "Failed" alone forces a
+// follow-up question, the failing step usually answers it.
+const HEALTH_REPORT_STEPS = [
+  { id: 'hcPressure', label: 'Pressure sensors' },
+  { id: 'hcJoystick', label: 'Joystick response' },
+  { id: 'hcNeutral', label: 'Neutral position' },
+  { id: 'hcCalibration', label: 'Stored calibration' },
+  { id: 'hcBus', label: 'Internal sensors (I2C)' },
+];
+const HEALTH_STATE_WORDS = { ok: 'OK', warn: 'Warning', err: 'Failed', running: 'Checking', idle: 'Not checked' };
 
 // Device identifiers are interpolated into a RegExp below; escape regex
 // metacharacters so a non-hex id (e.g. "AB-CD-EF-12") can't throw or widen
@@ -77,6 +90,23 @@ export function buildSupportReport(options = {}) {
   };
   const logHistory = getLogHistory();
   const connection = read('homeConnection', 'Not connected');
+  // Per-step health outcomes: only meaningful once a run has populated the
+  // grid this session (the grid hides on disconnect/clear — never report a
+  // stale run's steps as current). A cell without a state is skipped, and the
+  // line is omitted entirely when no step has a state to report.
+  const grid = $('healthGrid');
+  const healthSteps =
+    grid && !grid.hidden
+      ? HEALTH_REPORT_STEPS.map((s) => {
+          const cell = $(s.id);
+          const raw = cell?.getAttribute?.('data-state');
+          return raw ? `${s.label} — ${HEALTH_STATE_WORDS[raw] ?? 'Unknown'}` : null;
+        }).filter(Boolean)
+      : null;
+  // The hold-timing practice aggregate (session-scoped): included only when
+  // holds were measured, so the report carries the clinical context an OT
+  // would otherwise have to copy separately.
+  const stats = practiceStatsLine();
   const header = [
     'LipSync Connect support report',
     'Created: ' + new Date().toISOString(),
@@ -87,6 +117,8 @@ export function buildSupportReport(options = {}) {
     'Operating mode: ' + read('opmode'),
     'Communication mode: ' + read('commode'),
     'Health check: ' + read('healthSummary', 'Not run'),
+    ...(healthSteps && healthSteps.length ? ['Health check steps: ' + healthSteps.join('; ')] : []),
+    ...(stats ? ['Hold practice: ' + stats] : []),
     'Settings dump: ' + (options.dumpStatus || 'Not captured'),
     'Session entries: ' + logHistory.length,
     'Device identifiers: redacted',

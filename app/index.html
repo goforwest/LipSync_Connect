@@ -372,6 +372,7 @@
                 <div class="row">
                   <button type="button" id="wizAction" class="cmd secondary" hidden></button>
                   <button type="button" id="wizNext" class="cmd" hidden>Next</button>
+                  <button type="button" id="wizSkip" class="secondary" hidden></button>
                   <button type="button" id="wizCancel" class="secondary">Exit</button>
                 </div>
               </div>
@@ -880,7 +881,7 @@
               </div>
               <p class="hint gauge-legend" id="gaugeLegend" hidden></p>
               <div class="row practice-row">
-                <span class="value" id="practiceGuide"
+                <span class="value" id="practiceGuide" aria-live="polite"
                   >Practice: with Live view running, sip and puff firmly a few times &mdash; your strongest becomes the
                   starting point.</span
                 >
@@ -1973,7 +1974,7 @@
                   <option value="2">Pressure</option>
                   <option value="3">Hub buttons</option>
                   <option value="4">External switches</option>
-                  <option value="5">Sip &amp; puff state</option></select
+                  <option value="5">Watch holds</option></select
                 ><button type="button" class="cmd" id="btnSetDebug" disabled>Apply</button>
               </div>
               <p class="hint">

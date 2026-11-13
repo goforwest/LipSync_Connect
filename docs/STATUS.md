@@ -10,6 +10,21 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Quick-wins pass (2026-11-13): the exact-value blur validation actually
+  works now — the old handler's inverted condition never fired for a fresh
+  out-of-range value and re-scolded corrected ones, and its id-prefix routing
+  sent the sip/puff fields' blur messages to the joystick card's error
+  element where nobody on the Sip & Puff page could see them (both fixed,
+  pinned by tests/blur-validation.test.mjs). The guided setup no longer
+  dead-ends for devices used without the joystick: the Calibrate step
+  carries a plain-language Skip that advances and logs (Verify stays gated
+  on a passed health check by design). The support report ships the
+  per-step health-check outcomes and the hold-practice aggregate instead of
+  a bare "Failed" summary, the practice guide line is announced to screen
+  readers (polite — only new maxima speak), and the DEBUG,5 stream answers
+  to one name everywhere ("Watch holds"). Suites 523/523, browser audit
+  116/116, offline E2E 2/2 — verified on the combined tree with the
+  log-hygiene fix below.
 - Log-hygiene fix (2026-11-13, 4.9.6 final-verification finding I-2): the
   Bluetooth-host backstop poller used to poll `BT,0:0` once per second for
   the whole session with both directions echoed — 4 log lines/s that filled

@@ -44,10 +44,12 @@ const fmtSide = (label, s) =>
     ? `${label}: ${s.count} hold${s.count === 1 ? '' : 's'} · avg ${fmtMs(s.avg)} · spread ±${s.spread} ms · max ${fmtMs(s.max)}`
     : null;
 
-/** The live stats line (both sides, only those with holds). */
+/** The live stats line (both sides, only those with holds). Plain text —
+ *  no HTML entities: the same string renders in the card and ships in the
+ *  support report. */
 export function practiceStatsLine() {
   const s = practiceStats();
-  return [fmtSide('Sip', s.sip), fmtSide('Puff', s.puff)].filter(Boolean).join(' &middot; ');
+  return [fmtSide('Sip', s.sip), fmtSide('Puff', s.puff)].filter(Boolean).join(' \u00b7 ');
 }
 
 /** The copy-paste block for clinical notes: dated, versioned, plain text. */
@@ -73,7 +75,7 @@ export function renderPracticeStats() {
   row.hidden = !any;
   if (!any) return;
   const text = $('practiceStatsText');
-  if (text) text.textContent = practiceStatsLine().replace(/&middot;/g, '\u00b7');
+  if (text) text.textContent = practiceStatsLine();
 }
 
 /** Session reset (disconnect / fresh load): practice stats die with the port. */

@@ -18,6 +18,18 @@ doc.getElementById('opmode').textContent = 'Mouse';
 doc.getElementById('commode').textContent = 'USB';
 doc.getElementById('healthSummary').textContent = 'Passed';
 doc.getElementById('deviceId').textContent = 'a1b2c3d4';
+// A completed health run: the grid is visible and every step carries its
+// outcome — exactly what the report's per-step line should mirror.
+doc.getElementById('healthGrid').hidden = false;
+for (const [id, state] of [
+  ['hcPressure', 'ok'],
+  ['hcJoystick', 'ok'],
+  ['hcNeutral', 'warn'],
+  ['hcCalibration', 'ok'],
+  ['hcBus', 'err'],
+]) {
+  doc.getElementById(id).setAttribute('data-state', state);
+}
 getLogHistory().push('2026-11-01T00:00:00.000Z  SUCCESS,1:ID,1:a1b2c3d4');
 getLogHistory().push('2026-11-01T00:00:01.000Z  SUCCESS,0:EX,0:END');
 
@@ -32,6 +44,34 @@ test('support report combines app, device, health, dump, and session context', (
   assert.match(text, /Settings dump: Included in the session log/);
   assert.match(text, /SUCCESS,0:EX,0:END/);
   assert.match(filename, /^lipsync-support-.*\.txt$/);
+});
+
+test('support report ships the per-step health outcomes, not just the summary', () => {
+  const { text } = buildSupportReport();
+  assert.match(
+    text,
+    /Health check steps: Pressure sensors — OK; Joystick response — OK; Neutral position — Warning; Stored calibration — OK; Internal sensors \(I2C\) — Failed/,
+  );
+});
+
+test('a runless session omits the health-steps line instead of reporting Unknown', () => {
+  doc.getElementById('healthGrid').hidden = true;
+  const { text } = buildSupportReport();
+  assert.match(text, /Health check: Passed/);
+  assert.ok(!text.includes('Health check steps:'), 'no steps line without a populated grid');
+  doc.getElementById('healthGrid').hidden = false;
+});
+
+test('hold practice stats join the report only when holds were measured', async () => {
+  const before = buildSupportReport();
+  assert.ok(!before.text.includes('Hold practice:'), 'no practice line with an empty session');
+  const { notePracticeHold, resetPracticeStats } = await import('../app/js/services/practice-stats.js');
+  notePracticeHold('sip', 900);
+  notePracticeHold('puff', 1500);
+  const { text } = buildSupportReport();
+  assert.match(text, /Hold practice: Sip: 1 hold · avg 900 ms · spread ±0 ms · max 900 ms · Puff: 1 hold/);
+  resetPracticeStats();
+  assert.ok(!buildSupportReport().text.includes('Hold practice:'), 'reset clears the line');
 });
 
 test('support report removes device identity from its transcript', () => {

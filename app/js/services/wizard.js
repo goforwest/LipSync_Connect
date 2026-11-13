@@ -16,6 +16,10 @@ import { saveCurrentProfile } from './profiles.js';
 
 // Step order and shape. `done` is a predicate over live UI state, polled
 // while the wizard is open; `action` is the step's primary affordance.
+// `skipLabel` marks a step a user can legitimately decline — the wizard must
+// never dead-end on hardware the person does not use (a sip/puff-only device
+// has no joystick calibration to do), but skipping is a visible, logged
+// choice, never a silent pass.
 const STEPS = [
   {
     id: 'connect',
@@ -34,6 +38,7 @@ const STEPS = [
     title: 'Calibrate',
     text: 'In the Joystick card, press Start full calibration and follow the Hub display prompts. This step finishes by itself.',
     actionLabel: 'Open the Joystick card',
+    skipLabel: 'Skip \u2014 this device is used without the joystick',
     action: () => {
       openSectionById('sec-joystick');
       const btn = $('btnCalibrate');
@@ -109,6 +114,15 @@ function renderStep() {
   }
   const next = $('wizNext');
   if (next) next.hidden = !(stepIndex < STEPS.length && STEPS[stepIndex].done === null);
+  // Skippable steps (currently Calibrate): the decline affordance lives only
+  // on steps that declare a skipLabel, and disappears once the step completes
+  // — a completed step has nothing to skip.
+  const skip = $('wizSkip');
+  if (skip) {
+    const skippable = stepIndex < STEPS.length && !done && !!STEPS[stepIndex].skipLabel;
+    skip.hidden = !skippable;
+    if (skippable) skip.textContent = STEPS[stepIndex].skipLabel;
+  }
 }
 
 function focusWizardControl() {
@@ -224,6 +238,18 @@ export function bindWizard() {
         if (stepIndex >= STEPS.length) finish();
         focusWizardControl();
       }
+    });
+  const skip = $('wizSkip');
+  if (skip)
+    skip.addEventListener('click', () => {
+      if (!active || stepIndex >= STEPS.length || !STEPS[stepIndex].skipLabel) return;
+      // The skip is a recorded choice, not a hidden pass — support reading
+      // the session log can tell a declined step from a completed one.
+      log(`${STEPS[stepIndex].title} skipped in guided setup.`, 'log-info');
+      stepIndex++;
+      renderStep();
+      if (stepIndex >= STEPS.length) finish();
+      focusWizardControl();
     });
   const cancel = $('wizCancel');
   if (cancel) cancel.addEventListener('click', exitWizard);

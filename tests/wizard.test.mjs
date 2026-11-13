@@ -11,6 +11,7 @@ await import('../app/js/main.js'); // DOMContentLoaded wiring first
 (windowListeners['DOMContentLoaded'] || []).forEach((fn) => fn());
 const { startWizard, exitWizard, isWizardActive } = await import('../app/js/services/wizard.js');
 const { modeState } = await import('../app/js/state/modes.js');
+const { getLogHistory } = await import('../app/js/services/log.js');
 const { testHooks } = await import('./harness/test-hooks.mjs');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +66,31 @@ test('the action button runs the step affordance', () => {
   // Step 1's action is the connect call — safe to invoke against the stub
   // (the writer swallows it); what matters is the binding fires.
   doc.getElementById('wizAction').dispatch('click');
+  exitWizard();
+  testHooks.detach();
+});
+
+test('the Calibrate step can be skipped for devices used without the joystick', async () => {
+  testHooks.attach({ simulated: true }, { write() {} });
+  doc.getElementById('version').textContent = '\u2014';
+  doc.getElementById('calStatus').textContent = '';
+  doc.getElementById('healthSummary').textContent = 'Not run';
+  startWizard();
+  assert.match(stepText(), /Step 1 of 4 \u2014 Connect/);
+  // Connect declares no skip affordance.
+  assert.equal(doc.getElementById('wizSkip').hidden, true);
+  // Land on Calibrate.
+  doc.getElementById('version').textContent = '4.5.4';
+  await sleep(650);
+  assert.match(stepText(), /Step 2 of 4 \u2014 Calibrate/);
+  // renderStep reveals the skip affordance on the step that declares it.
+  const skip = doc.getElementById('wizSkip');
+  assert.equal(skip.hidden, false);
+  assert.match(skip.textContent, /Skip/);
+  skip.dispatch('click');
+  // The skip advances (never dead-ends on unused hardware) and is recorded.
+  assert.match(stepText(), /Step 3 of 4 \u2014 Thresholds/);
+  assert.match(getLogHistory().at(-1), /Calibrate skipped in guided setup/);
   exitWizard();
   testHooks.detach();
 });

@@ -108,7 +108,9 @@ export const DEBUG_MODES = {
   2: 'Pressure',
   3: 'Hub buttons',
   4: 'External switches',
-  5: 'Sip & puff state',
+  // Mode 5's user-facing name matches the Sip & Puff card's button for the
+  // same stream — one stream, one name everywhere it appears.
+  5: 'Watch holds',
 };
 
 // ---- Live diagnostic visualizations ----

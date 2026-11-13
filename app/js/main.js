@@ -872,35 +872,40 @@ window.addEventListener('DOMContentLoaded', () => {
         if ($('sapError').textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max)))
           $('sapError').textContent = '';
       });
-      // On blur, re-validate against the allowed range and show it inline
+      // On blur, re-validate against the allowed range: a valid entry clears
+      // a stale inline error, an out-of-range one shows the range message
       // the moment the field loses focus — the user no longer has to
       // remember to tap Set to learn their value is out of range.
       $(w.inputId).addEventListener('blur', () => {
         const v = Number($(w.inputId).value);
         const errEl = $('sapError');
         const unit = w.inputId === 'w1Input' || w.inputId === 'w2Input' || w.inputId === 'w3Input' ? 'ms' : '';
-        if (errEl.textContent && (!Number.isFinite(v) || (Number.isInteger(v) && v >= w.min && v <= w.max))) {
-          errEl.textContent = `Expected ${w.min}–${w.max} ${unit}.`;
-        }
+        const inRange = Number.isFinite(v) && Number.isInteger(v) && v >= w.min && v <= w.max;
+        errEl.textContent = inRange ? '' : `Expected ${w.min}–${w.max} ${unit}.`;
       });
     });
-    const makeRangeBlur = (id, min, max, msg) => {
+    // Same blur contract for the free-number exact-value fields (sip/puff and
+    // hard thresholds in hPa, deadzones unitless): a valid value clears the
+    // field's inline error; anything else (out of range, empty) states the
+    // expected range. The message lands in the same error element the field's
+    // Set button writes to — named explicitly, since the id-prefix sniff this
+    // replaces once routed the sip/puff fields' messages into the joystick
+    // card's error element, where nobody on the Sip & Puff page could see them.
+    const makeRangeBlur = (id, min, max, msg, errId) => {
       const input = $(id);
       if (!input) return;
       input.addEventListener('blur', () => {
-        const errEl = id.startsWith('hard') || id.startsWith('w') ? $('sapError') : $('formError');
+        const errEl = $(errId);
         const v = Number(input.value);
-        if (errEl.textContent && (!Number.isFinite(v) || (v >= min && v <= max))) {
-          errEl.textContent = msg;
-        }
+        errEl.textContent = Number.isFinite(v) && v >= min && v <= max ? '' : msg;
       });
     };
-    makeRangeBlur('sipInput', 2, 149.99, 'Expected 2–149.99 hPa.');
-    makeRangeBlur('puffInput', 2, 149.99, 'Expected 2–149.99 hPa.');
-    makeRangeBlur('hardSipInput', 2, 149.99, 'Expected 2–149.99 hPa.');
-    makeRangeBlur('hardPuffInput', 2, 149.99, 'Expected 2–149.99 hPa.');
-    makeRangeBlur('innerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.');
-    makeRangeBlur('outerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.');
+    makeRangeBlur('sipInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
+    makeRangeBlur('puffInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
+    makeRangeBlur('hardSipInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
+    makeRangeBlur('hardPuffInput', 2, 149.99, 'Expected 2–149.99 hPa.', 'sapError');
+    makeRangeBlur('innerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.', 'formError');
+    makeRangeBlur('outerDeadzone', 0.01, 0.99, 'Expected 0.01–0.99.', 'formError');
     $('btnReadCalibration').addEventListener('click', guard(readCalibration));
     $('btnSetInnerDeadzone').addEventListener(
       'click',
