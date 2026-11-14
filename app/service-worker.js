@@ -1,7 +1,8 @@
-// v64 polishes Hold timing: inline label+stepper rows and the pale-to-
-// saturated earned-color ladder (LED hues preserved). Hard invalidate
-// because markup, controller, and styles must arrive together.
-const CACHE = 'lipsync-connect-v64';
+// v65 reworks the hold ladder fill: each zone fills with its own hue only
+// (green stays green, amber stays amber) — the color-carrying sweep is gone,
+// replaced by a per-zone gradient and a zone-hued boundary tick. Hard
+// invalidate because markup, controller, and styles must arrive together.
+const CACHE = 'lipsync-connect-v65';
 const ASSETS = [
   './',
   './index.html',

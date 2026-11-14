@@ -1475,24 +1475,26 @@ footer p {
   min-width: 0;
 }
 .win-zone--short {
-  background: color-mix(in srgb, var(--success) 22%, transparent);
+  --zone-full: color-mix(in srgb, var(--success) 75%, transparent);
+  --zone-pale: color-mix(in srgb, var(--success) 22%, transparent);
+  background: var(--zone-pale);
 }
 .win-zone--long {
-  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  --zone-full: color-mix(in srgb, var(--warning) 75%, transparent);
+  --zone-pale: color-mix(in srgb, var(--warning) 22%, transparent);
+  background: var(--zone-pale);
 }
 .win-zone--max {
-  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  --zone-full: color-mix(in srgb, var(--danger) 75%, transparent);
+  --zone-pale: color-mix(in srgb, var(--danger) 22%, transparent);
+  background: var(--zone-pale);
 }
-/* Earned color: completed windows snap to full, the active window fills
-   with the sweep (its background is set per-zone from windows.js). */
-.win-zone--short.filled {
-  background: color-mix(in srgb, var(--success) 75%, transparent);
-}
-.win-zone--long.filled {
-  background: color-mix(in srgb, var(--warning) 75%, transparent);
-}
-.win-zone--max.filled {
-  background: color-mix(in srgb, var(--danger) 75%, transparent);
+/* Earned color: each zone fills with ITS OWN hue only — green stays green,
+   amber stays amber. Completed windows hold full color; the active window's
+   fill is a gradient from full to pale at the hold's progress (set by
+   windows.js); windows.js owns nothing about the hues. */
+.win-zone.filled {
+  background: var(--zone-full);
 }
 .win-zone.active {
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.8);
@@ -1503,7 +1505,8 @@ footer p {
   bottom: 0;
   left: 0;
   width: 0;
-  border-right: 2px solid #fff;
+  background: transparent;
+  border-right: 2px solid var(--zone-full, #fff);
 }
 .win-scale {
   position: relative;

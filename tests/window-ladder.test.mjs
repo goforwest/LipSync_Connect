@@ -135,6 +135,14 @@ test('earned color: completed zones fill, the active zone is marked, rest resets
   assertInstancesAgree((l) => !l.children[0].classList.contains('active'));
   assertInstancesAgree((l) => l.children[1].classList.contains('active'));
   assertInstancesAgree((l) => !l.children[2].classList.contains('filled'));
+  // Each zone fills with its own hue: the active window's background is a
+  // gradient of ITS variables, and the sweep tick inherits that hue.
+  assertInstancesAgree((l) => /linear-gradient/.test(l.children[1].style.background));
+  assertInstancesAgree((l) => /var\(--zone-full\)/.test(l.children[1].style.background));
+  assertInstancesAgree(
+    (l) => !/linear-gradient/.test(l.children[0].style.background),
+    'completed zones use the class, not a gradient',
+  );
   // Resting resets everything to pale.
   paintWindowSweep(0, false);
   assertInstancesAgree((l) => !l.children.some((c) => c.classList.contains('filled')));

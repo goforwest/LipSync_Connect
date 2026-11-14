@@ -28,14 +28,6 @@ const windowsLoaded = (vals) => vals.length === 3 && vals.every((v) => Number.is
 
 const WAITING_ARIA = 'Input window timeline — waiting for the timing windows to load.';
 
-/** The sweep takes the active window's full color as it fills (the zones
- *  themselves rest pale and earn color — see styles.css .win-zone--filled). */
-const SWEEP_COLORS = [
-  'color-mix(in srgb, var(--success) 75%, transparent)',
-  'color-mix(in srgb, var(--warning) 75%, transparent)',
-  'color-mix(in srgb, var(--danger) 75%, transparent)',
-];
-
 // The static (no-hold) label both ladders share — the color legend the
 // micro LED teaches, with the live boundary values.
 const staticAria = (w1, w2, w3) =>
@@ -144,16 +136,41 @@ export function paintWindowSweep(elapsedMs, holding) {
     const ladder = $(inst.ladderId);
     if (!ladder) continue;
     const sweep = ladder.children[3];
-    if (sweep?.style) {
-      sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
-      // The sweep carries the ACTIVE window's full color: earned color
-      // arrives with progress instead of a white bar washing the zones out.
-      sweep.style.background = idx >= 0 ? SWEEP_COLORS[idx] : 'transparent';
-    }
+    // Per-zone earned fill: each window fills with ITS OWN hue — green stays
+    // green, amber stays amber — as a gradient from full color to pale at the
+    // hold's progress through that window. The zones' --zone-full/--zone-pale
+    // variables (styles.css) own every color; this code only positions them.
+    const bounds = [
+      [0, w1],
+      [w1, w2],
+      [w2, w3],
+    ];
     for (let i = 0; i < 3; i++) {
       const zone = ladder.children[i];
       zone?.classList?.toggle?.('active', holding && i === idx);
-      zone?.classList?.toggle?.('filled', holding && i < idx); // completed windows snap to full
+      zone?.classList?.toggle?.('filled', holding && i < idx); // completed windows hold full color
+      if (!zone?.style) continue;
+      if (!holding) {
+        zone.style.background = ''; // resting: the class's pale tint shows
+        continue;
+      }
+      const [start, end] = bounds[i];
+      const frac = ms <= start ? 0 : ms >= end ? 1 : (ms - start) / (end - start);
+      const pct = (frac * 100).toFixed(2);
+      zone.style.background =
+        frac <= 0
+          ? ''
+          : frac >= 1
+            ? 'var(--zone-full)'
+            : `linear-gradient(to right, var(--zone-full) ${pct}%, var(--zone-pale) ${pct}%)`;
+    }
+    if (sweep?.style) {
+      // The sweep is only the moving tick at the fill boundary; its hue
+      // follows the zone it sits in.
+      sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
+      const zoneEl = ladder.children[idx];
+      sweep.style.borderRightColor =
+        holding && idx >= 0 && zoneEl ? getComputedStyle(zoneEl).getPropertyValue('--zone-full').trim() || '#fff' : '';
     }
     // Resting state restores the static legend exactly — never a stale
     // "hold at" line, and never the legacy numbers over an unloaded bar.

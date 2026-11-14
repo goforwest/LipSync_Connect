@@ -10,6 +10,17 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Ladder fill rework (2026-11-14, owner feedback): the color-carrying sweep
+  is gone — the confusing part was the growing bar changing hue as a hold
+  crossed windows. Each zone now fills with ITS OWN hue only (a gradient
+  from full to pale at the hold's progress through that window, driven by
+  per-zone CSS variables windows.js positions), completed windows hold
+  their full color, and the moving tick at the fill boundary inherits the
+  zone's hue. Green stays green, amber stays amber. The per-zone colors are
+  defined once in styles.css as --zone-full/--zone-pale variables —
+  windows.js positions them, it does not know the hues. Suites 550/550,
+  browser audit 120/120, offline E2E 2/2; service worker v65.
+
 - Hold timing polish (2026-11-13, owner request): the three window rows are
   inline now (label left, stepper right — the stacked form was a leftover of
   the extended-stepper design), and the ladder reads as earned color: zones
