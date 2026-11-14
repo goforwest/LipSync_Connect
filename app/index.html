@@ -748,6 +748,57 @@
             </div>
             <p class="hint live-note" id="liveStreamNote" role="status" hidden></p>
             <div class="diag-group">
+              <p class="diag-title">Live pressure</p>
+              <p class="hint">
+                Turn on <strong>Live view</strong> to watch the pressure fill the gauge in real time; Read once takes a
+                single snapshot without streaming.
+              </p>
+              <div class="row">
+                <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
+                <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
+                  Live view
+                </button>
+              </div>
+              <div class="gauge-mark-labels" id="gaugeMarkLabelsTop" aria-hidden="true">
+                <span class="gauge-mark-label" id="gaugeSipMarkLabel" hidden></span>
+                <span class="gauge-mark-label" id="gaugePuffMarkLabel" hidden></span>
+              </div>
+              <div
+                class="gauge"
+                id="mainGauge"
+                role="img"
+                aria-label="Pressure gauge: sip fills left, puff fills right, thresholds marked in red"
+              >
+                <div class="fill" id="gaugeFill"></div>
+                <div class="zero"></div>
+                <div class="mark" id="gaugeSipMark"></div>
+                <div class="mark" id="gaugePuffMark"></div>
+                <div class="mark hard" id="gaugeHardSipMark" hidden></div>
+                <div class="mark hard" id="gaugeHardPuffMark" hidden></div>
+                <div class="mark ghost" id="gaugeSipGhost" hidden></div>
+                <div class="mark ghost" id="gaugePuffGhost" hidden></div>
+              </div>
+              <div class="gauge-mark-labels gauge-mark-labels--hard" id="gaugeMarkLabelsBottom" aria-hidden="true">
+                <span class="gauge-mark-label" id="gaugeHardSipMarkLabel" hidden></span>
+                <span class="gauge-mark-label" id="gaugeHardPuffMarkLabel" hidden></span>
+              </div>
+              <div class="gauge-scale">
+                <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
+              </div>
+              <p class="hint gauge-legend" id="gaugeLegend" hidden></p>
+              <div class="row reading-row">
+                <div class="reading-group">
+                  <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
+                  <span class="value" title="Air pressure at the sensors"
+                    >Ambient: <span id="pvAmbient">&mdash;</span></span
+                  >
+                  <span class="value" title="Mouth pressure minus air pressure (the sip/puff signal)"
+                    >Difference: <span id="pvDiff">&mdash;</span></span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="diag-group">
               <p class="diag-title">Thresholds</p>
               <div class="row tuning-row tuning-row--extended">
                 <label>Sip threshold (2–149.99 hPa)</label>
@@ -876,51 +927,6 @@
                   <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
                 </div>
               </details>
-              <div class="row reading-row">
-                <label>Live pressure</label>
-                <div class="reading-group">
-                  <span class="value" title="Mouthpiece pressure">Mouth: <span id="pvMouth">&mdash;</span></span>
-                  <span class="value" title="Air pressure at the sensors"
-                    >Ambient: <span id="pvAmbient">&mdash;</span></span
-                  >
-                  <span class="value" title="Mouth pressure minus air pressure (the sip/puff signal)"
-                    >Difference: <span id="pvDiff">&mdash;</span></span
-                  >
-                </div>
-              </div>
-              <div class="row">
-                <button type="button" class="cmd" id="btnReadPressure" disabled>Read once</button>
-                <button type="button" class="cmd secondary" id="btnLivePressure" disabled aria-pressed="false">
-                  Live view
-                </button>
-              </div>
-              <div class="gauge-mark-labels" id="gaugeMarkLabelsTop" aria-hidden="true">
-                <span class="gauge-mark-label" id="gaugeSipMarkLabel" hidden></span>
-                <span class="gauge-mark-label" id="gaugePuffMarkLabel" hidden></span>
-              </div>
-              <div
-                class="gauge"
-                id="mainGauge"
-                role="img"
-                aria-label="Pressure gauge: sip fills left, puff fills right, thresholds marked in red"
-              >
-                <div class="fill" id="gaugeFill"></div>
-                <div class="zero"></div>
-                <div class="mark" id="gaugeSipMark"></div>
-                <div class="mark" id="gaugePuffMark"></div>
-                <div class="mark hard" id="gaugeHardSipMark" hidden></div>
-                <div class="mark hard" id="gaugeHardPuffMark" hidden></div>
-                <div class="mark ghost" id="gaugeSipGhost" hidden></div>
-                <div class="mark ghost" id="gaugePuffGhost" hidden></div>
-              </div>
-              <div class="gauge-mark-labels gauge-mark-labels--hard" id="gaugeMarkLabelsBottom" aria-hidden="true">
-                <span class="gauge-mark-label" id="gaugeHardSipMarkLabel" hidden></span>
-                <span class="gauge-mark-label" id="gaugeHardPuffMarkLabel" hidden></span>
-              </div>
-              <div class="gauge-scale">
-                <span id="gaugeSipLabel">&minus;10 hPa</span><span>0 hPa</span><span id="gaugePuffLabel">+10 hPa</span>
-              </div>
-              <p class="hint gauge-legend" id="gaugeLegend" hidden></p>
               <div class="row practice-row">
                 <button type="button" class="cmd" id="btnSuggestThresholds" disabled>Suggest thresholds</button>
                 <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Start over</button>

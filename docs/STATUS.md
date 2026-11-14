@@ -10,6 +10,16 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Sip & Puff card polish round (2026-11-13, owner request): the card now
+  opens with the instrument — a Live pressure group (Read once / Live view,
+  the gauge with its mark labels and legend, the Mouth/Ambient/Difference
+  readouts) — and the Thresholds group follows with the steppers, exact
+  values, the practice button pair, and the suggestion notice, so the
+  card's visual order matches its Start-here sequence (turn on Live view,
+  practice, suggest, fine-tune). The readouts row lost its duplicate label
+  (the group title carries it). Suites 557/557, browser audit 120/120,
+  offline E2E 2/2; service worker v60.
+
 - Design-round pass (2026-11-13, owner feedback): auto-live is GONE — opening
   the Joystick or Sip & Puff card starts nothing; the explicit Live view /
   Watch holds / Test-inputs select are the only doors to a stream, and the

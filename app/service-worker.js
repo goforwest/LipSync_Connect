@@ -1,7 +1,7 @@
-// v59 removes auto-live, collapses the practice flow to its button pair, and
-// unlocks the hard exact-value inputs on the device's answer. Hard invalidate
-// because markup, controller, and styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v59';
+// v60 reorganizes the Sip & Puff card: the live-pressure instrument leads
+// (Live view + gauge + readouts), the threshold tuning follows. Hard
+// invalidate because markup, controller, and styles must arrive together.
+const CACHE = 'lipsync-connect-v60';
 const ASSETS = [
   './',
   './index.html',
