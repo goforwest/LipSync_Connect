@@ -10,6 +10,17 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Practice/suggest removal (2026-11-14, owner decision): the whole
+  suggest-from-practice machinery is gone from the Sip & Puff card — the
+  Suggest/Start-over buttons, the suggestion notice, the ghost marks, the
+  practice hint, and the peak tracking behind them. The owner read the
+  buttons as ambiguous against the hard band and chose removal over the
+  rename attempted last round. The card is now pure tuning: measure
+  (Live pressure) → set (Thresholds) → hard band → hold timing, with a
+  plain hint for what good thresholds feel like. The hold-timing practice
+  stats (a different, clinical feature) stay. Suites 549/549, browser
+  audit 117/117, offline E2E 2/2; service worker v63.
+
 - Sip & Puff polish round three (2026-11-13, owner feedback): the live-stream
   note chip is hidden when nothing streams — its display:flex was overriding
   the hidden attribute, leaving an empty green strip (a real bug, caught by
@@ -251,7 +262,7 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 557/557, the browser audit passes 120/120 (axe-core now
+- Integration tests pass 549/549, the browser audit passes 117/117 (axe-core now
   scans every section card in BOTH themes and fails the audit on any
   accessibility violation; the dark palette passed clean on its first scan —
   scans every section card and fails the audit on any accessibility violation),

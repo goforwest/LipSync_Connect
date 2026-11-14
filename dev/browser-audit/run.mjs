@@ -35,7 +35,8 @@ for (;;) {
   if (serverExited) {
     server.kill();
     console.error(
-      `dev server exited before becoming ready — is port ${PORT} already in use?` + (serverError ? ` Server said: ${serverError.trim()}` : ''),
+      `dev server exited before becoming ready — is port ${PORT} already in use?` +
+        (serverError ? ` Server said: ${serverError.trim()}` : ''),
     );
     process.exit(1);
   }

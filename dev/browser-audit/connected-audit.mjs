@@ -993,51 +993,6 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
-    // Practice watch + suggest-from-practice: the streamed pressure swings
-    // (the fake's ±25 hPa wave) must unlock the Suggest button (its disabled
-    // state is the practice flow's visible surface), and Apply must write
-    // both thresholds from the measured maxima (internal data — the gauge
-    // carries no peak marks).
-    const peaks = await evalCard(() => ({
-      suggestUnlocked: !document.getElementById('btnSuggestThresholds').disabled,
-      startOverLive: !document.getElementById('btnClearPeaks').disabled,
-      sipBefore: document.getElementById('sipVal').textContent,
-      puffBefore: document.getElementById('puffVal').textContent,
-      peakMarksRetired: !document.getElementById('gaugeSipPeak') && !document.getElementById('gaugePuffPeak'),
-    }));
-    note(
-      'practice-peaks',
-      peaks.suggestUnlocked && peaks.startOverLive && peaks.peakMarksRetired,
-      JSON.stringify(peaks),
-    );
-    await page.click('#btnSuggestThresholds');
-    await page.waitForTimeout(300);
-    const suggest = await evalCard(() => ({
-      open: !document.getElementById('sapSuggestion').hidden,
-      text: document.getElementById('sapSuggestionText').textContent,
-    }));
-    note(
-      'suggest-thresholds',
-      suggest.open && /65% of the measured strongest/.test(suggest.text),
-      JSON.stringify(suggest),
-    );
-    await page.click('#btnApplySuggested');
-    await page.waitForTimeout(600);
-    const applied = await evalCard(() => ({
-      sip: document.getElementById('sipVal').textContent,
-      puff: document.getElementById('puffVal').textContent,
-      suggestionHidden: document.getElementById('sapSuggestion').hidden,
-    }));
-    note(
-      'suggest-apply',
-      applied.suggestionHidden &&
-        applied.sip !== peaks.sipBefore &&
-        applied.puff !== peaks.puffBefore &&
-        parseFloat(applied.sip) >= 2 &&
-        parseFloat(applied.puff) >= 2,
-      JSON.stringify(applied),
-    );
-
     // Watch holds (the Sip & Puff card's practice door into the DEBUG,5
     // stream): the button starts the hold stream, both ladders sweep with the
     // device-measured hold, and the card's Hold readout tracks the state.
@@ -1623,33 +1578,21 @@ export async function runWizardAudit({ origin, chromium, executablePath }) {
       threshFocus.focus === 'btnLivePressure' && threshFocus.nextVisible,
       JSON.stringify(threshFocus),
     );
-    // Auto-live: opening the card on an idle device starts the practice
-    // stream on its own — the step's own copy says to check, not press.
-    // Only press when the stream is actually off.
+    // No auto-live: the step's copy says to turn Live view on — press it,
+    // and wait until the load has populated the sip readout.
     const livePressed = await page.evaluate(() =>
       document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
     );
     if (livePressed === 'false') await page.click('#btnLivePressure');
-    let suggestUnlocked = false;
-    for (let i = 0; i < 14 && !suggestUnlocked; i++) {
+    let thresholdsSet = false;
+    for (let i = 0; i < 14 && !thresholdsSet; i++) {
       await page.waitForTimeout(300);
-      suggestUnlocked = await page.evaluate(() => !document.getElementById('btnSuggestThresholds').disabled);
+      thresholdsSet = await page.evaluate(() => document.getElementById('sipVal').textContent !== '\u2014');
     }
-    await page.click('#btnSuggestThresholds');
-    await page.waitForTimeout(400);
-    await page.click('#btnApplySuggested');
-    await page.waitForTimeout(900);
     const applied = await page.evaluate(() => ({
       sip: document.getElementById('sipVal').textContent,
     }));
-    // The written value must differ from the loaded default — it came from
-    // the practice. (Suggest stays unlocked after Apply: the measured maxima
-    // persist and re-suggesting after more practice is legitimate.)
-    note(
-      'wizard-thresholds-from-practice',
-      suggestUnlocked && applied.sip !== '12.50' && applied.sip !== '—',
-      JSON.stringify(applied),
-    );
+    note('wizard-thresholds-set', thresholdsSet && applied.sip !== '—', JSON.stringify(applied));
     // The step's copy says to come back to this panel on Home and press
     // Next — the return is part of the instructed flow.
     await clickSection(page, 'sec-home');

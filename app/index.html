@@ -742,8 +742,8 @@
                 Set reliable sip and puff triggers, then match hold lengths to the intended actions.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Turn on Live view, practice, then Suggest thresholds
-                before fine-tuning either value.
+                <span class="recommend-label">Start here</span> Turn on Live view to watch the pressure, then set the
+                thresholds to fit what you see.
               </p>
             </div>
             <p class="hint live-note" id="liveStreamNote" role="status" hidden></p>
@@ -775,8 +775,6 @@
                 <div class="mark" id="gaugePuffMark"></div>
                 <div class="mark hard" id="gaugeHardSipMark" hidden></div>
                 <div class="mark hard" id="gaugeHardPuffMark" hidden></div>
-                <div class="mark ghost" id="gaugeSipGhost" hidden></div>
-                <div class="mark ghost" id="gaugePuffGhost" hidden></div>
               </div>
               <div class="gauge-mark-labels gauge-mark-labels--hard" id="gaugeMarkLabelsBottom" aria-hidden="true">
                 <span class="gauge-mark-label" id="gaugeHardSipMarkLabel" hidden></span>
@@ -928,32 +926,10 @@
                     <button type="button" class="cmd" id="btnSetPuff" disabled>Set</button>
                   </div>
                 </details>
-                <div class="row practice-row">
-                  <button type="button" class="cmd" id="btnSuggestThresholds" disabled>
-                    Suggest sip &amp; puff thresholds
-                  </button>
-                  <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Start over</button>
-                </div>
-                <p class="hint practice-hint" id="practiceHint" hidden>
-                  Suggest unlocks once Live view has measured a firm sip and a firm puff.
+                <p class="hint">
+                  A deliberate sip or puff should comfortably cross its threshold, while resting breathing should not.
+                  If inputs fire too easily, raise the values; if they are missed, lower them.
                 </p>
-                <div class="notice" id="sapSuggestion" role="status" hidden>
-                  <span id="sapSuggestionText"></span>
-                  <button type="button" class="cmd" id="btnApplySuggested" hidden>Apply both</button>
-                  <button type="button" class="secondary" id="btnDismissSuggestion" hidden>Dismiss</button>
-                </div>
-                <details class="inline-help">
-                  <summary>How to set thresholds by practice</summary>
-                  <p class="hint">
-                    Turn on <strong>Live view</strong> and have the user sip and puff firmly a few times &mdash; the app
-                    tracks the strongest of each. <strong>Suggest sip &amp; puff thresholds</strong> unlocks once both
-                    are measured and proposes the <em>regular</em> trigger values (the group above) at 65% of them: a
-                    deliberate hold crosses them, breathing noise does not. The hard band below is set separately. Apply
-                    both writes them; the translucent marks on the gauge preview the proposal first.
-                    <strong>Start over</strong> forgets the measurements. Red marks are the live trigger values; dashed
-                    marks are the hard band (firmware 4.7.0+).
-                  </p>
-                </details>
               </div>
               <div class="diag-group">
                 <p class="diag-title">Hard sip &amp; puff band</p>

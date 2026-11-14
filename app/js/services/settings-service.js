@@ -26,7 +26,7 @@ import { showFirmwareGateNote } from '../ui/firmware-gate.js';
 import { setStatus, showConnectionError } from '../ui/connection-ui.js';
 import { setValue, setLoadingPlaceholders } from '../ui/values.js';
 import { fmtApiFloat, fmtHpa } from '../utils/format.js';
-import { updateMeter, recalcGaugeRange, syncPracticeControls } from '../plotting/gauge.js';
+import { updateMeter, recalcGaugeRange } from '../plotting/gauge.js';
 import { refreshWindowLadders } from '../plotting/windows.js';
 import { updateReadiness } from './readiness.js';
 import { plotNeutral, plotCorner, cornerState, plotState } from '../plotting/plot.js';
@@ -802,10 +802,6 @@ export async function loadDeviceInfo() {
   if (loadController === controller) loadController = null;
   if (!serialSession.port) return;
   updateStepButtons();
-  // Re-assert the practice row's readiness from data: setCmdButtons(true) on
-  // connect enabled every .cmd button, and Suggest/Start-over must stay
-  // locked until measured practice data says otherwise.
-  syncPracticeControls();
   if (deadLink) {
     const message =
       'The port opened but the LipSync is not responding. Unplug it, plug it back in, wait a few seconds, then click Connect again.';

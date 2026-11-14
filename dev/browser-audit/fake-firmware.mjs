@@ -14,13 +14,31 @@
   const enc = new TextEncoder();
 
   const state = {
-    MN: '1', VN: '4.5.2', ID: 'A1B2C3D4', OM: '1', CM: '1',
-    SS: '7', SL: '5', AV: '3', ST: '12.5', PT: '25',
-    IZ: '0.05', OZ: '0.95', IN: '0.12|-0.34',
+    MN: '1',
+    VN: '4.5.2',
+    ID: 'A1B2C3D4',
+    OM: '1',
+    CM: '1',
+    SS: '7',
+    SL: '5',
+    AV: '3',
+    ST: '12.5',
+    PT: '25',
+    IZ: '0.05',
+    OZ: '0.95',
+    IN: '0.12|-0.34',
     CA: '0.12|-0.34,9.50|8.30,-9.40|8.10,-8.20|-7.05,7.90|-6.98',
-    SM: '1', LM: '2', LL: '8', DM: '0',
-    SD: '0', MA: '0', LK: '0', CF: '0',
-    WS: '500', WL: '1000', WM: '2500',
+    SM: '1',
+    LM: '2',
+    LL: '8',
+    DM: '0',
+    SD: '0',
+    MA: '0',
+    LK: '0',
+    CF: '0',
+    WS: '500',
+    WL: '1000',
+    WM: '2500',
   };
   // Switch triples as {SA:[s,l,m], ...}; SET carries packed 100000+...
   const switches = { SA: [1, 2, 3], SB: [0, 0, 0], SC: [0, 0, 0], GA: [6, 7, 8], GB: [0, 0, 0], GC: [0, 0, 0] };
@@ -34,18 +52,48 @@
   // side of the two-way hub remote (MANUAL CH,5 pushes) mid-session.
   let currentEmit = null;
 
-  const ECHO = new Set(['SS','SL','ST','PT','IZ','OZ','SM','LM','LL','DM','OM','CM','SA','SB','SC','GA','GB','GC']);
+  const ECHO = new Set([
+    'SS',
+    'SL',
+    'ST',
+    'PT',
+    'IZ',
+    'OZ',
+    'SM',
+    'LM',
+    'LL',
+    'DM',
+    'OM',
+    'CM',
+    'SA',
+    'SB',
+    'SC',
+    'GA',
+    'GB',
+    'GC',
+  ]);
   const LED_NARRATION = [
-    'TEST_MODE_LED: all led off', 'TEST_MODE_LED: left led on', 'TEST_MODE_LED: middle led on',
-    'TEST_MODE_LED: right led on', 'TEST_MODE_LED: all led off', 'TEST_MODE_LED: micro led blue',
-    'TEST_MODE_LED: micro led purple', 'TEST_MODE_LED: micro led red', 'TEST_MODE_LED: micro led orange',
-    'TEST_MODE_LED: micro led yellow', 'TEST_MODE_LED: left led brightness', 'TEST_MODE_LED: error 3',
+    'TEST_MODE_LED: all led off',
+    'TEST_MODE_LED: left led on',
+    'TEST_MODE_LED: middle led on',
+    'TEST_MODE_LED: right led on',
+    'TEST_MODE_LED: all led off',
+    'TEST_MODE_LED: micro led blue',
+    'TEST_MODE_LED: micro led purple',
+    'TEST_MODE_LED: micro led red',
+    'TEST_MODE_LED: micro led orange',
+    'TEST_MODE_LED: micro led yellow',
+    'TEST_MODE_LED: left led brightness',
+    'TEST_MODE_LED: error 3',
     'TEST_MODE_LED: led default',
   ];
   const BUZZER_NARRATION = [
-    'TEST_MODE_BUZZER: playing startup sound', 'TEST_MODE_BUZZER: playing ready sounds',
-    'TEST_MODE_BUZZER: playing error sound', 'TEST_MODE_BUZZER: playing corner calibration sound',
-    'TEST_MODE_BUZZER: playing center calibration sound', 'TEST_MODE_BUZZER: playing shutdown sound',
+    'TEST_MODE_BUZZER: playing startup sound',
+    'TEST_MODE_BUZZER: playing ready sounds',
+    'TEST_MODE_BUZZER: playing error sound',
+    'TEST_MODE_BUZZER: playing corner calibration sound',
+    'TEST_MODE_BUZZER: playing center calibration sound',
+    'TEST_MODE_BUZZER: playing shutdown sound',
     'SOUND TEST COMPLETE',
   ];
 
@@ -57,17 +105,29 @@
       writable: null,
       open: async ({ baudRate } = {}) => {
         port.readable = new ReadableStream({
-          start(c) { ctrl = c; },
-          cancel() { ctrl = null; },
+          start(c) {
+            ctrl = c;
+          },
+          cancel() {
+            ctrl = null;
+          },
         });
         port.writable = new WritableStream({
-          write: (chunk) => { handle(chunk); },
+          write: (chunk) => {
+            handle(chunk);
+          },
         });
         currentEmit = emit;
       },
       close: async () => {
-        if (debugTimer) { clearInterval(debugTimer); debugTimer = null; }
-        if (calTimer) { clearTimeout(calTimer); calTimer = null; }
+        if (debugTimer) {
+          clearInterval(debugTimer);
+          debugTimer = null;
+        }
+        if (calTimer) {
+          clearTimeout(calTimer);
+          calTimer = null;
+        }
         ctrl = null;
         currentEmit = null;
       },
@@ -75,7 +135,9 @@
     const emit = (text, delay = 3) => {
       setTimeout(() => {
         if (!ctrl) return;
-        try { ctrl.enqueue(enc.encode(text + '\n')); } catch {}
+        try {
+          ctrl.enqueue(enc.encode(text + '\n'));
+        } catch {}
       }, delay);
     };
     function handle(chunk) {
@@ -94,36 +156,90 @@
     debugTimer = setInterval(() => {
       t += 100;
       const w = Math.sin(t / 900);
-      if (mode === '1') emit(`SUCCESS,0:DEBUG,1:${(w * 4).toFixed(2)}|${(Math.cos(t / 700) * 3).toFixed(2)},0|0,${Math.round(w * 200)}|${Math.round(-w * 150)}`, 0);
-      else if (mode === '2') emit(`SUCCESS,0:DEBUG,2:${(1013 + w * 3).toFixed(2)},${(1013.1).toFixed(2)},${(w * 25).toFixed(2)}`, 0);
-      else if (mode === '3') emit(`SUCCESS,0:DEBUG,3:${t % 3000 < 800 ? 3 : 0},${t % 3000 < 800 ? 1 : 0},${t % 3000}`, 0);
+      if (mode === '1')
+        emit(
+          `SUCCESS,0:DEBUG,1:${(w * 4).toFixed(2)}|${(Math.cos(t / 700) * 3).toFixed(2)},0|0,${Math.round(w * 200)}|${Math.round(-w * 150)}`,
+          0,
+        );
+      else if (mode === '2')
+        emit(`SUCCESS,0:DEBUG,2:${(1013 + w * 3).toFixed(2)},${(1013.1).toFixed(2)},${(w * 25).toFixed(2)}`, 0);
+      else if (mode === '3')
+        emit(`SUCCESS,0:DEBUG,3:${t % 3000 < 800 ? 3 : 0},${t % 3000 < 800 ? 1 : 0},${t % 3000}`, 0);
       else if (mode === '4') emit('SUCCESS,0:DEBUG,4:0,0,0', 0);
-      else if (mode === '5') emit(`SUCCESS,0:DEBUG,5:${t % 4000 < 2000 ? 1 : 2},${t % 4000 < 2000 ? 1 : 2},${t % 4000}`, 0);
+      else if (mode === '5')
+        emit(`SUCCESS,0:DEBUG,5:${t % 4000 < 2000 ? 1 : 2},${t % 4000 < 2000 ? 1 : 2},${t % 4000}`, 0);
     }, 100);
   }
 
   function respond(text, emit) {
-    if (text === 'SETTINGS') { emit('SUCCESS,0:SETTINGS'); return; }
+    if (text === 'SETTINGS') {
+      emit('SUCCESS,0:SETTINGS');
+      return;
+    }
     const m = text.match(/^([A-Z]{1,4}),(\d+)(?::(.*))?$/);
     if (!m) return;
-    const ep = m[1], n = m[2], val = m[3] ?? '';
+    const ep = m[1],
+      n = m[2],
+      val = m[3] ?? '';
     if (n === '0') {
       // GET — acks carry the full command: SUCCESS,0:<EP>,0:<value>
-      if (ep === 'PV') { emit('SUCCESS,0:PV,0:985.50,1013.10,-27.60'); return; }
-      if (ep === 'JV') { emit('SUCCESS,0:JV,0:2.50,-1.25,0,0,153,-77'); return; }
-      if (ep === 'BH') { emit('SUCCESS,0:BH,0:0,1,1,1,1,600,0,0,0,0,0,0,0'); return; }
-      if (ep === 'CH') { emit(`SUCCESS,0:CH,0:${menu.active},${menu.page},${menu.row}`); return; }
-      if (ep === 'IN') { emit(`SUCCESS,0:IN,0:${state.IN}`); return; }
-      if (ep === 'CA') { emit(`SUCCESS,0:CA,0:${state.CA}`); return; }
+      if (ep === 'PV') {
+        emit('SUCCESS,0:PV,0:985.50,1013.10,-27.60');
+        return;
+      }
+      if (ep === 'JV') {
+        emit('SUCCESS,0:JV,0:2.50,-1.25,0,0,153,-77');
+        return;
+      }
+      if (ep === 'BH') {
+        emit('SUCCESS,0:BH,0:0,1,1,1,1,600,0,0,0,0,0,0,0');
+        return;
+      }
+      if (ep === 'CH') {
+        emit(`SUCCESS,0:CH,0:${menu.active},${menu.page},${menu.row}`);
+        return;
+      }
+      if (ep === 'IN') {
+        emit(`SUCCESS,0:IN,0:${state.IN}`);
+        return;
+      }
+      if (ep === 'CA') {
+        emit(`SUCCESS,0:CA,0:${state.CA}`);
+        return;
+      }
       if (ep === 'EX') {
         emit('SUCCESS,0:EX,0:BEGIN');
-        ['MN','VN','ID','OM','CM','SS','SL','AV','ST','PT','IZ','OZ','SM','LM','LL','WS','WL','WM','SD','MA','LK','CF'].forEach((k, i) =>
-          emit(`SUCCESS,0:${k},0:${state[k]}`, 6 + i * 2),
-        );
+        [
+          'MN',
+          'VN',
+          'ID',
+          'OM',
+          'CM',
+          'SS',
+          'SL',
+          'AV',
+          'ST',
+          'PT',
+          'IZ',
+          'OZ',
+          'SM',
+          'LM',
+          'LL',
+          'WS',
+          'WL',
+          'WM',
+          'SD',
+          'MA',
+          'LK',
+          'CF',
+        ].forEach((k, i) => emit(`SUCCESS,0:${k},0:${state[k]}`, 6 + i * 2));
         emit('SUCCESS,0:EX,0:END', 80);
         return;
       }
-      if (switches[ep]) { emit(`SUCCESS,0:${ep},0:${switches[ep].join(',')}`); return; }
+      if (switches[ep]) {
+        emit(`SUCCESS,0:${ep},0:${switches[ep].join(',')}`);
+        return;
+      }
       emit(`SUCCESS,0:${ep},0:${state[ep] ?? ''}`);
       return;
     }
@@ -137,9 +253,13 @@
     }
     if (ep === 'CH') {
       emit(`SUCCESS,0:CH,1:${val}`);
-      if (val === '1') { menu.active = 1; menu.page = 0; menu.row = 0; }
-      else if (val === '4') { menu.active = 0; }
-      else if (val === '3' && menu.active) {
+      if (val === '1') {
+        menu.active = 1;
+        menu.page = 0;
+        menu.row = 0;
+      } else if (val === '4') {
+        menu.active = 0;
+      } else if (val === '3' && menu.active) {
         const rows = menu.page === 0 ? mainRows : 3;
         menu.row = (menu.row + 1) % rows;
       } else if (val === '2' && menu.active) {
@@ -148,7 +268,8 @@
           menu.page = [1, 2, 3, 4, 5][menu.row] ?? 0;
           menu.row = 0;
         } else {
-          menu.page = 0; menu.row = 0;
+          menu.page = 0;
+          menu.row = 0;
         }
       }
       return;
@@ -307,10 +428,24 @@
             // step must rewrite the backed-up values for them to reappear.
             window.__fakeFirmware.state.VN = window.__fakeFirmware.targetVersion || '4.5.4';
             Object.assign(window.__fakeFirmware.state, {
-              SS: '5', SL: '5', AV: '0', ST: '4.00', PT: '4.00', IZ: '0.10', OZ: '0.90',
-              SM: '1', LM: '1', LL: '5', DM: '0',
-              SD: '0', MA: '0', LK: '0', CF: '0',
-              WS: '500', WL: '1000', WM: '2500',
+              SS: '5',
+              SL: '5',
+              AV: '0',
+              ST: '4.00',
+              PT: '4.00',
+              IZ: '0.10',
+              OZ: '0.90',
+              SM: '1',
+              LM: '1',
+              LL: '5',
+              DM: '0',
+              SD: '0',
+              MA: '0',
+              LK: '0',
+              CF: '0',
+              WS: '500',
+              WL: '1000',
+              WM: '2500',
               IN: '0.00|0.00',
               CA: '0.00|0.00,9.50|8.30,-9.40|8.10,-8.20|-7.05,7.90|-6.98',
             });

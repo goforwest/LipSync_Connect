@@ -1394,7 +1394,7 @@ footer p {
 }
 /* Hard sip/puff band (upstream #58): the hard thresholds as dashed marks in
    the warning color, beyond the solid regular-threshold marks. With the
-   practice-peak marks retired, dashed means exactly one thing on this gauge. */
+   dashed means exactly one thing on this gauge. */
 .gauge .mark.hard {
   background: transparent;
   border-left: 2px dashed var(--warn, var(--brand-accent));
@@ -1402,15 +1402,6 @@ footer p {
 .gauge-legend {
   margin: -4px 0 8px;
   font-size: 0.85rem;
-}
-/* The practice row: one guidance line plus its two actions, matching the
-   other tuning rows' left label / right actions rhythm. */
-.practice-row {
-  flex-wrap: wrap;
-}
-.practice-row .value {
-  flex: 1 1 auto;
-  min-width: 12rem;
 }
 /* The live-stream note: names the stream that is currently running (the
    device sends one at a time), so the visual that is NOT streaming explains
@@ -4721,12 +4712,4 @@ footer {
 }
 .gauge-mark-label[hidden] {
   display: none;
-}
-/* The suggestion ghosts: translucent copies of the regular marks showing
-   what Apply both WOULD write — visually "not real yet" next to the solid
-   live thresholds and the dashed hard band. */
-.gauge .mark.ghost {
-  width: 2px;
-  background: var(--danger);
-  opacity: 0.4;
 }

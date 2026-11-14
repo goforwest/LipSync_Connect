@@ -2,8 +2,8 @@
 // wire format, its stored thresholds, and its hard-band margin rule are all
 // hPa-native — so everything EDITABLE (steppers, exact-value inputs) stays
 // in hPa with hPa labels, and this preference converts what the user READS:
-// the gauge (scale, mark titles, current delta), the practice guide line,
-// the suggestion copy, and a ≈-annotation beside each hPa readout. Editing
+// the gauge (scale, mark titles, current delta), and a ≈-annotation beside
+// each hPa readout. Editing
 // granularity never changes, so no value can drift between display and wire.
 // 1 cmH2O = 0.980665 hPa (the conventional definition).
 import { $ } from '../ui/dom.js';

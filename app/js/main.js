@@ -20,16 +20,7 @@ import { bindSupportReport } from './services/support-report.js';
 import { serialApi } from './serial/transport.js';
 import { sendCommand, deviceFirmwareAtLeast } from './serial/commands.js';
 
-import {
-  gaugeDelta,
-  recalcGaugeRange,
-  gaugeMarks,
-  resetPracticePeaks,
-  suggestThresholds,
-  formatSuggestion,
-  showSuggestionGhosts,
-  hideSuggestionGhosts,
-} from './plotting/gauge.js';
+import { gaugeDelta, gaugeMarks, recalcGaugeRange } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
 import { updateLiveStreamNote } from './plotting/diag.js';
 
@@ -187,7 +178,6 @@ const clearSessionUi = () => {
   resetSwitchActionsUi();
   resetHardBandUi(); // the hard sip/puff band (4.7.0+) reads and locks with the same stroke
   resetCalibrationUi(); // no stale "Calibration complete" from a previous session
-  resetPracticePeaks(); // fresh session, fresh practice — no stale peaks
   // Multi-host Bluetooth switching (firmware 4.8.0+, upstream #16): the paired
   // host table is session-scoped — clear it on disconnect so a stale "Active"
   // marker never survives into a new session.
@@ -209,7 +199,6 @@ const clearSessionUi = () => {
     delete lightSelect.dataset.applied;
   }
   updateLiveStreamNote(null); // the stream note dies with the session
-  hideSuggestionGhosts(); // a stale proposal must not survive into a new session
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
@@ -793,74 +782,6 @@ window.addEventListener('DOMContentLoaded', () => {
     // the typed value is one the device can hold. The readout beside the
     // field always shows the value actually in force.
 
-    // Practice watch + suggest-from-practice: the maxima track in
-    // plotting/gauge.js off every pressure frame; these buttons are the
-    // user-facing half. Suggest (unlocked by updatePracticeUi once both sides
-    // are measured) computes 65%-of-peak trigger values; Apply writes both
-    // through the same SET path the manual buttons use (device truth re-syncs
-    // the readouts and marks through the endpoint renderers).
-    $('btnClearPeaks').addEventListener(
-      'click',
-      guard(() => {
-        resetPracticePeaks();
-        $('sapSuggestion').hidden = true;
-        $('btnApplySuggested').hidden = true;
-        $('btnDismissSuggestion').hidden = true;
-        hideSuggestionGhosts();
-        log('Practice measurements cleared — start a fresh round.', 'log-info');
-      }),
-    );
-    $('btnSuggestThresholds').addEventListener(
-      'click',
-      guard(() => {
-        const s = suggestThresholds();
-        if (!s.ready) return; // the button is disabled until ready; guard anyway
-        $('sapSuggestionText').textContent = formatSuggestion(s);
-        showSuggestionGhosts(s.sip, s.puff); // see the proposal on the gauge before committing
-        $('sapSuggestion').hidden = false;
-        $('btnApplySuggested').hidden = false;
-        $('btnDismissSuggestion').hidden = false;
-      }),
-    );
-    $('btnApplySuggested').addEventListener(
-      'click',
-      guard(
-        async () => {
-          const s = suggestThresholds();
-          if (!s.ready) return;
-          $('sapError').textContent = '';
-          try {
-            const rs = await sendCommand('ST,1:' + fmtApiFloat(s.sip));
-            setValue('sipVal', fmtHpa(rs.value ?? s.sip));
-            const rp = await sendCommand('PT,1:' + fmtApiFloat(s.puff));
-            setValue('puffVal', fmtHpa(rp.value ?? s.puff));
-            recalcGaugeRange();
-            log('Suggested thresholds applied (from the measured practice).', 'log-info');
-            hideSuggestionGhosts();
-            $('sapSuggestion').hidden = true;
-            $('btnApplySuggested').hidden = true;
-            $('btnDismissSuggestion').hidden = true;
-          } catch (e) {
-            $('sapError').textContent = e.message;
-            throw e;
-          }
-        },
-        { quiet: true },
-      ),
-    );
-    $('btnCopyPracticeStats').addEventListener(
-      'click',
-      guard(async () => {
-        await copyPracticeStats();
-      }),
-    );
-    $('btnDismissSuggestion').addEventListener('click', () => {
-      hideSuggestionGhosts();
-      $('sapSuggestion').hidden = true;
-      $('btnApplySuggested').hidden = true;
-      $('btnDismissSuggestion').hidden = true;
-    });
-
     // Input timing windows (roadmap item 15; firmware 4.4.0+): each Set
     // validates range and short < long < max ordering before writing; the
     // firmware validates again (defense in depth).
@@ -1160,6 +1081,12 @@ window.addEventListener('DOMContentLoaded', () => {
       }),
     );
 
+    $('btnCopyPracticeStats').addEventListener(
+      'click',
+      guard(async () => {
+        await copyPracticeStats();
+      }),
+    );
     $('btnReadJoy').addEventListener(
       'click',
       guard(async () => {

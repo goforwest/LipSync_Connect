@@ -1,8 +1,8 @@
 // Pressure display units (services/pressure-units.js): the cmH2O preference
-// converts the READING surfaces — gauge titles/scale, suggestion copy,
-// suggestion copy, and the ≈-annotations — while the wire values, the
-// suggest/apply path, and every EDITABLE control stay hPa-native. The hPa
-// default must keep the pre-preference strings byte-identical.
+// converts the READING surfaces — gauge titles/scale/current-delta, the mark
+// labels, and the ≈-annotations — while the wire values and every EDITABLE
+// control stay hPa-native. The hPa default keeps the pre-preference strings
+// byte-identical.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGatingDom } from './harness/dom-stub.mjs';
@@ -18,8 +18,7 @@ const {
   PRESSURE_UNIT_STORAGE_KEY,
   HPA_PER_CMH2O,
 } = await import('../app/js/services/pressure-units.js');
-const { recalcGaugeRange, gaugeDelta, suggestThresholds, formatSuggestion, resetPracticePeaks } =
-  await import('../app/js/plotting/gauge.js');
+const { recalcGaugeRange, gaugeDelta } = await import('../app/js/plotting/gauge.js');
 
 const setThresholds = (sip, puff) => {
   document.getElementById('sipVal').textContent = sip;
@@ -35,36 +34,19 @@ test('the default unit is hPa and the gauge strings are byte-identical to the pr
   assert.equal(document.getElementById('gaugePuffLabel').textContent, '+9.0 hPa');
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22123 hPa');
   assert.equal(document.getElementById('gaugePuffMark').title, 'Puff triggers at +6 hPa');
-  resetPracticePeaks();
   gaugeDelta(-4.5);
-  gaugeDelta(12.25);
-  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.50 hPa, puff 12\.25 hPa/);
-  assert.equal(
-    formatSuggestion({ sip: 4, puff: 5.75 }),
-    'Suggested regular thresholds: sip 4.00 hPa, puff 5.75 hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.',
-  );
+  assert.match(document.getElementById('mainGauge').getAttribute('aria-label'), /Current delta: 4\.5 hPa \(sip\)/);
 });
 
 test('cmH2O converts the reading surfaces; the wire values never move', () => {
   setThresholds(3, 6);
-  resetPracticePeaks();
-  gaugeDelta(-6);
-  gaugeDelta(9); // both sides ≥ 2 → the suggestion is ready
-  const before = suggestThresholds();
   setPressureUnit('cmh2o');
   // 9 hPa × 0.980665 = 8.825985 → '−8.8 cmH2O' on the scale.
   assert.equal(document.getElementById('gaugeSipLabel').textContent, '\u22128.8 cmH2O');
   assert.equal(document.getElementById('gaugePuffLabel').textContent, '+8.8 cmH2O');
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22122.94 cmH2O');
   assert.equal(document.getElementById('gaugePuffMark').title, 'Puff triggers at +5.88 cmH2O');
-  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.41 cmH2O, puff 12\.01 cmH2O/);
-  assert.match(
-    formatSuggestion({ sip: 4, puff: 5.75 }),
-    /Suggested regular thresholds: sip 3\.92 cmH2O, puff 5\.64 cmH2O/,
-  );
-  // The suggestion's WIRE values are the same numbers the Apply button writes.
-  const after = suggestThresholds();
-  assert.deepEqual(after, before, 'suggest returns hPa wire values in both display modes');
+  assert.equal(document.getElementById('gaugeSipMarkLabel').textContent, '\u22122.94');
   // A live pressure frame converts in the gauge's aria too.
   gaugeDelta(5);
   assert.match(document.getElementById('mainGauge').getAttribute('aria-label'), /Current delta: 4\.9 cmH2O \(puff\)/);
@@ -97,14 +79,11 @@ test('the preference persists and initPressureUnits restores it', () => {
 
 test('switching back to hPa restores the legacy strings byte-for-byte', () => {
   setThresholds(3, 6);
-  resetPracticePeaks();
-  gaugeDelta(-4.5);
-  gaugeDelta(12.25);
   setPressureUnit('cmh2o');
   setPressureUnit('hpa');
   assert.equal(document.getElementById('gaugeSipLabel').textContent, '\u22129.0 hPa');
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22123 hPa');
-  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.50 hPa, puff 12\.25 hPa/);
+  assert.equal(document.getElementById('gaugeSipMarkLabel').textContent, '\u22123');
 });
 
 test('the conversion constant and helpers are exact', async () => {

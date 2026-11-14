@@ -1,8 +1,7 @@
-// v62 fixes the empty live-note chip (display:flex overrode hidden), renames
-// Suggest for disambiguation, and pairs Thresholds/Hard band side by side at
-// wide viewports. Hard invalidate because markup, controller, and styles must
-// arrive together for offline users.
-const CACHE = 'lipsync-connect-v62';
+// v63 removes the practice/suggest machinery from the Sip & Puff card (the
+// owner found it confusing against the hard band). Hard invalidate because
+// markup, controller, and styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v63';
 const ASSETS = [
   './',
   './index.html',
