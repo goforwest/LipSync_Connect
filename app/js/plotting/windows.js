@@ -28,6 +28,14 @@ const windowsLoaded = (vals) => vals.length === 3 && vals.every((v) => Number.is
 
 const WAITING_ARIA = 'Input window timeline — waiting for the timing windows to load.';
 
+/** The sweep takes the active window's full color as it fills (the zones
+ *  themselves rest pale and earn color — see styles.css .win-zone--filled). */
+const SWEEP_COLORS = [
+  'color-mix(in srgb, var(--success) 75%, transparent)',
+  'color-mix(in srgb, var(--warning) 75%, transparent)',
+  'color-mix(in srgb, var(--danger) 75%, transparent)',
+];
+
 // The static (no-hold) label both ladders share — the color legend the
 // micro LED teaches, with the live boundary values.
 const staticAria = (w1, w2, w3) =>
@@ -136,8 +144,17 @@ export function paintWindowSweep(elapsedMs, holding) {
     const ladder = $(inst.ladderId);
     if (!ladder) continue;
     const sweep = ladder.children[3];
-    if (sweep?.style) sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
-    for (let i = 0; i < 3; i++) ladder.children[i]?.classList?.toggle?.('active', i === idx);
+    if (sweep?.style) {
+      sweep.style.width = (Math.min(ms / w3, 1) * 100).toFixed(2) + '%';
+      // The sweep carries the ACTIVE window's full color: earned color
+      // arrives with progress instead of a white bar washing the zones out.
+      sweep.style.background = idx >= 0 ? SWEEP_COLORS[idx] : 'transparent';
+    }
+    for (let i = 0; i < 3; i++) {
+      const zone = ladder.children[i];
+      zone?.classList?.toggle?.('active', holding && i === idx);
+      zone?.classList?.toggle?.('filled', holding && i < idx); // completed windows snap to full
+    }
     // Resting state restores the static legend exactly — never a stale
     // "hold at" line, and never the legacy numbers over an unloaded bar.
     ladder.setAttribute('aria-label', liveAria ?? (loaded ? staticAria(w1, w2, w3) : WAITING_ARIA));

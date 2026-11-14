@@ -1105,6 +1105,26 @@ footer p {
 .tuning-row--extended > label {
   flex-basis: 230px;
 }
+/* Hold timing: the window rows fit on one line at card width (label left,
+   stepper right) — the full-width stacked form wasted a row per window. */
+.tuning-row--inline {
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.tuning-row--inline > label {
+  flex: 0 1 auto;
+}
+/* The extended stepper resolves to display:flex (block-level) elsewhere and
+   fills the row — the inline form needs it compact, hugging its content. */
+.tuning-row--inline .tuning-stepper {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+@media (max-width: 720px) {
+  .tuning-row--inline {
+    flex-wrap: wrap;
+  }
+}
 .reading-row {
   align-items: flex-start;
 }
@@ -1455,12 +1475,23 @@ footer p {
   min-width: 0;
 }
 .win-zone--short {
-  background: color-mix(in srgb, var(--success) 75%, transparent);
+  background: color-mix(in srgb, var(--success) 22%, transparent);
 }
 .win-zone--long {
-  background: color-mix(in srgb, var(--warning) 75%, transparent);
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
 }
 .win-zone--max {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+}
+/* Earned color: completed windows snap to full, the active window fills
+   with the sweep (its background is set per-zone from windows.js). */
+.win-zone--short.filled {
+  background: color-mix(in srgb, var(--success) 75%, transparent);
+}
+.win-zone--long.filled {
+  background: color-mix(in srgb, var(--warning) 75%, transparent);
+}
+.win-zone--max.filled {
   background: color-mix(in srgb, var(--danger) 75%, transparent);
 }
 .win-zone.active {
@@ -1472,7 +1503,6 @@ footer p {
   bottom: 0;
   left: 0;
   width: 0;
-  background: rgba(255, 255, 255, 0.4);
   border-right: 2px solid #fff;
 }
 .win-scale {
@@ -2890,7 +2920,7 @@ html.dark-mode .guide-card {
   margin-bottom: 12px;
   font-size: 1.02rem;
 }
-#sec-sip > .diag-group > .tuning-row,
+#sec-sip > .diag-group > .tuning-row:not(.tuning-row--inline),
 .threshold-pairs {
   display: grid;
   grid-template-columns: 1fr;

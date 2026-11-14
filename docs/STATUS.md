@@ -10,6 +10,15 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Hold timing polish (2026-11-13, owner request): the three window rows are
+  inline now (label left, stepper right — the stacked form was a leftover of
+  the extended-stepper design), and the ladder reads as earned color: zones
+  rest at pale tints of the LED hues (green/amber/red, unchanged — the owner
+  checked the correspondence) and a hold sweeps the active window's FULL
+  color in while completed windows snap to full. Both ladder instances (the
+  card and Test inputs) share the behavior. Suites 550/550, browser audit
+  120/120, offline E2E 2/2; service worker v64.
+
 - Practice/suggest removal (2026-11-14, owner decision): the whole
   suggest-from-practice machinery is gone from the Sip & Puff card — the
   Suggest/Start-over buttons, the suggestion notice, the ghost marks, the

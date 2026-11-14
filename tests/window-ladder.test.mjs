@@ -126,3 +126,17 @@ test('the DEBUG,5 stream sweeps both ladders and writes both hold readouts', () 
   assertInstancesAgree((l) => l.children[3].style.width === '0.00%');
   assert.equal(document.getElementById('sapHoldVal').textContent, '600 ms · released');
 });
+
+test('earned color: completed zones fill, the active zone is marked, rest resets', () => {
+  setWindows(600, 1200, 3000);
+  // A hold inside the LONG window: short is completed, long is active.
+  paintWindowSweep(900, true);
+  assertInstancesAgree((l) => l.children[0].classList.contains('filled'));
+  assertInstancesAgree((l) => !l.children[0].classList.contains('active'));
+  assertInstancesAgree((l) => l.children[1].classList.contains('active'));
+  assertInstancesAgree((l) => !l.children[2].classList.contains('filled'));
+  // Resting resets everything to pale.
+  paintWindowSweep(0, false);
+  assertInstancesAgree((l) => !l.children.some((c) => c.classList.contains('filled')));
+  assertInstancesAgree((l) => !l.children.some((c) => c.classList.contains('active')));
+});

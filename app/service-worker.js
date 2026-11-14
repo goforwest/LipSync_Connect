@@ -1,7 +1,7 @@
-// v63 removes the practice/suggest machinery from the Sip & Puff card (the
-// owner found it confusing against the hard band). Hard invalidate because
-// markup, controller, and styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v63';
+// v64 polishes Hold timing: inline label+stepper rows and the pale-to-
+// saturated earned-color ladder (LED hues preserved). Hard invalidate
+// because markup, controller, and styles must arrive together.
+const CACHE = 'lipsync-connect-v64';
 const ASSETS = [
   './',
   './index.html',
