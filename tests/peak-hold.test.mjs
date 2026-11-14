@@ -29,7 +29,6 @@ const setThresholds = (sip, puff) => {
   recalcGaugeRange(); // derives gaugeRange and repositions every mark
 };
 
-const guide = () => document.getElementById('practiceGuide').textContent;
 const suggestBtn = () => document.getElementById('btnSuggestThresholds');
 const clearBtn = () => document.getElementById('btnClearPeaks');
 
@@ -38,8 +37,8 @@ test('peaks track the largest magnitude per side in the guide line', () => {
   gaugeDelta(-4.5);
   gaugeDelta(-3.0); // smaller: never lowers the peak
   gaugeDelta(12.25);
-  assert.match(guide(), /Strongest so far: sip 4\.50 hPa · puff 12\.25 hPa/);
-  // Ready state: Suggest unlocked, Start-over live.
+  // Ready state: Suggest unlocked, Start-over live — the button pair IS the
+  // practice flow's visible surface now (the coaching line is gone).
   assert.equal(suggestBtn().disabled, false);
   assert.equal(clearBtn().disabled, false);
 });
@@ -58,7 +57,7 @@ test('no gauge marks are pinned for practice — dashed belongs to the hard band
 test('sub-hPa noise changes nothing: the practice invitation stays up', () => {
   resetPracticePeaks();
   gaugeDelta(0.4);
-  assert.match(guide(), /^Practice:/);
+  // The row stays honest: Suggest locked, Start-over pointless.
   // The 0.4 hPa peak is still tracked internally for the ≥2 readiness gate —
   // but it can never make a suggestion ready, so the row stays honest:
   // nothing worth showing, Suggest locked, Start-over pointless.
@@ -70,10 +69,8 @@ test('sub-hPa noise changes nothing: the practice invitation stays up', () => {
 test('a one-sided practice asks for the other side and keeps Suggest locked', () => {
   resetPracticePeaks();
   gaugeDelta(-6.0);
-  assert.match(guide(), /Strongest so far: sip 6\.00 hPa — practice the other side too\./);
   assert.equal(suggestBtn().disabled, true);
   gaugeDelta(9.0);
-  assert.match(guide(), /Strongest so far: sip 6\.00 hPa · puff 9\.00 hPa/);
   assert.equal(suggestBtn().disabled, false);
 });
 
@@ -112,9 +109,7 @@ test('readiness requires both peaks to reach the 2 hPa minimum', () => {
 test('resetPracticePeaks clears the guide, locks the buttons, and clears readiness', () => {
   resetPracticePeaks();
   gaugeDelta(-7.7);
-  assert.match(guide(), /Strongest so far: sip 7\.70 hPa/);
   resetPracticePeaks();
-  assert.match(guide(), /^Practice:/);
   assert.equal(suggestBtn().disabled, true);
   assert.equal(clearBtn().disabled, true);
   assert.equal(suggestThresholds().ready, false);

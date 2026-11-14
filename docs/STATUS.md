@@ -10,6 +10,18 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Design-round pass (2026-11-13, owner feedback): auto-live is GONE — opening
+  the Joystick or Sip & Puff card starts nothing; the explicit Live view /
+  Watch holds / Test-inputs select are the only doors to a stream, and the
+  live-stream note chip now does the cross-card explaining on its own. The
+  practice flow collapsed to a quiet button pair — Suggest thresholds
+  (locked until both sides are measured) and Start over — with the coaching
+  line deleted and the how-to living once, briefly, in the card's inline
+  help. Fixed for real: the hard sip/puff exact-value inputs were disabled
+  forever (resetHardBandUi disabled them at every load start and nothing
+  re-enabled them — the HS/HP answers unlock them now). Suites 557/557,
+  browser audit 120/120, offline E2E 2/2; service worker v59.
+
 - Hardening + visual-aids pass (2026-11-13): the health-check history is
   device-scoped at last — entries carry the device id, the trend renders only
   for the connected device (multi-device benches no longer inherit another
@@ -204,7 +216,7 @@ rewritten silently. Index and reading order: `docs/README.md`.
   the same clamp/heal, and the device's menu-state push/re-read (CH,0:0 /
   CH,5) drives the pages like every other screen. The cross-check pins the
   submenu row order and the 543/544 page mapping.
-- Integration tests pass 562/562, the browser audit passes 118/118 (axe-core now
+- Integration tests pass 557/557, the browser audit passes 120/120 (axe-core now
   scans every section card in BOTH themes and fails the audit on any
   accessibility violation; the dark palette passed clean on its first scan —
   scans every section card and fails the audit on any accessibility violation),

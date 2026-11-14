@@ -136,24 +136,13 @@ function notePracticeDelta(delta) {
  * button, so the readiness state must be re-asserted from data, not assumed.
  */
 function updatePracticeUi() {
-  const guide = $('practiceGuide');
   const suggest = $('btnSuggestThresholds');
   const clear = $('btnClearPeaks');
   const ready = practicePeaks.sip >= 2 && practicePeaks.puff >= 2;
   const seen = practicePeaks.sip >= 1 || practicePeaks.puff >= 1;
-  if (guide) {
-    if (!seen) {
-      guide.textContent =
-        'Practice: with Live view running, sip and puff firmly a few times \u2014 your strongest becomes the starting point.';
-    } else {
-      const parts = [];
-      if (practicePeaks.sip >= 1) parts.push(`sip ${fmtPressure(practicePeaks.sip, { decimals: 2, withUnit: true })}`);
-      if (practicePeaks.puff >= 1)
-        parts.push(`puff ${fmtPressure(practicePeaks.puff, { decimals: 2, withUnit: true })}`);
-      guide.textContent =
-        `Strongest so far: ${parts.join(' \u00b7 ')}` + (ready ? '' : ' \u2014 practice the other side too.');
-    }
-  }
+  // The practice flow's only always-visible surface is this button pair:
+  // Suggest stays locked until both sides are measured, Start-over until
+  // something is. The how-to lives in the card's inline help.
   if (suggest) suggest.disabled = !ready;
   if (clear) clear.disabled = !seen;
 }

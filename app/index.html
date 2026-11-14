@@ -742,8 +742,8 @@
                 Set reliable sip and puff triggers, then match hold lengths to the intended actions.
               </p>
               <p class="section-recommendation">
-                <span class="recommend-label">Start here</span> Use Live view and practice before changing either
-                threshold.
+                <span class="recommend-label">Start here</span> Turn on Live view, practice, then Suggest thresholds
+                before fine-tuning either value.
               </p>
             </div>
             <p class="hint live-note" id="liveStreamNote" role="status" hidden></p>
@@ -922,12 +922,8 @@
               </div>
               <p class="hint gauge-legend" id="gaugeLegend" hidden></p>
               <div class="row practice-row">
-                <span class="value" id="practiceGuide" aria-live="polite"
-                  >Practice: with Live view running, sip and puff firmly a few times &mdash; your strongest becomes the
-                  starting point.</span
-                >
-                <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Start over</button>
                 <button type="button" class="cmd" id="btnSuggestThresholds" disabled>Suggest thresholds</button>
+                <button type="button" class="cmd secondary" id="btnClearPeaks" disabled>Start over</button>
               </div>
               <div class="notice" id="sapSuggestion" role="status" hidden>
                 <span id="sapSuggestionText"></span>
@@ -935,14 +931,14 @@
                 <button type="button" class="secondary" id="btnDismissSuggestion" hidden>Dismiss</button>
               </div>
               <details class="inline-help">
-                <summary>How practice sets thresholds</summary>
+                <summary>How to set thresholds by practice</summary>
                 <p class="hint">
-                  Red marks show the trigger values. Use
-                  <strong>Live view</strong> and have the user sip and puff firmly a few times &mdash; the practice row
-                  tracks their strongest sip and puff, and <strong>Suggest thresholds</strong> (it unlocks once both are
-                  measured) turns them into trigger values at 65% of each peak: a deliberate hold crosses them, while
-                  breathing noise should not. <strong>Start over</strong> forgets the measurements so a new practice can
-                  begin. Dashed marks show the hard band triggers (firmware 4.7.0+).
+                  Turn on <strong>Live view</strong> and have the user sip and puff firmly a few times &mdash; the app
+                  tracks the strongest of each. <strong>Suggest thresholds</strong> unlocks once both are measured and
+                  proposes trigger values at 65% of them: a deliberate hold crosses them, breathing noise does not.
+                  Apply both writes them; the translucent marks on the gauge preview the proposal first.
+                  <strong>Start over</strong> forgets the measurements. Red marks are the live trigger values; dashed
+                  marks are the hard band (firmware 4.7.0+).
                 </p>
               </details>
             </div>
@@ -1315,7 +1311,7 @@
               <p class="hint">
                 The device sends one live view at a time:
                 <strong>Watch holds</strong> streams this timeline while the pressure gauge above pauses, and Live view
-                does the reverse. Opening this section starts the gauge automatically.
+                does the reverse.
               </p>
               <div class="row">
                 <button type="button" class="cmd secondary" id="btnWatchHolds" disabled aria-pressed="false">

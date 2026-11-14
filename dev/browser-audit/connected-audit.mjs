@@ -479,19 +479,24 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     );
 
     await openCard('sec-joystick');
-    // Auto-live: opening the card while connected starts the live joystick
-    // view (DM 1) — the read button yields while the stream runs. Pin the
-    // auto-start, then Stop + Read once covers the manual path.
-    await page.waitForTimeout(600);
-    const autoJoy = await evalCard(() => ({
+    // No auto-live: opening the card starts nothing. The explicit Live view
+    // press starts the stream (DM 1) — the read button yields while it runs.
+    await page.waitForTimeout(400);
+    const idleJoy = await evalCard(() => ({
+      pressed: document.getElementById('btnLiveJoy').getAttribute('aria-pressed'),
+    }));
+    note('joystick-idle', idleJoy.pressed === 'false', JSON.stringify(idleJoy));
+    await page.click('#btnLiveJoy');
+    await page.waitForTimeout(700);
+    const liveJoy = await evalCard(() => ({
       pressed: document.getElementById('btnLiveJoy').getAttribute('aria-pressed'),
       readOnce: document.getElementById('btnReadJoy').disabled,
       raw: document.getElementById('joyRaw').textContent,
     }));
     note(
-      'auto-live-joystick',
-      autoJoy.pressed === 'true' && autoJoy.readOnce && /\d+(\.\d+)? \| -?\d+(\.\d+)?/.test(autoJoy.raw),
-      JSON.stringify(autoJoy),
+      'joystick-live',
+      liveJoy.pressed === 'true' && liveJoy.readOnce && /\d+(\.\d+)? \| -?\d+(\.\d+)?/.test(liveJoy.raw),
+      JSON.stringify(liveJoy),
     );
     await page.click('#btnLiveJoy');
     await page.waitForTimeout(400);
@@ -614,8 +619,8 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
 
     // Live joystick view (lives in the Joystick card)
     await openCard('sec-joystick');
-    // Auto-live started the stream on open — the old first click would now
-    // stop it. The live button is pressed by the section itself.
+    // No auto-live: the user's explicit Live view press starts the stream.
+    await page.click('#btnLiveJoy');
     await page.waitForTimeout(800);
     const live1 = await evalCard(() => ({
       text: document.getElementById('btnLiveJoy').textContent,
@@ -954,11 +959,18 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     );
 
     await openCard('sec-sip');
-    // Auto-live: the pressure stream is already running from the open —
-    // assert it directly instead of toggling. The card's live-stream note
-    // names the active stream (one device stream at a time).
-    await page.waitForTimeout(700);
+    // No auto-live: opening the card starts nothing — the user's explicit
+    // Live view press is the only door. The card's live-stream note names
+    // the active stream once one runs (one device stream at a time).
+    await page.waitForTimeout(500);
     const lp = await evalCard(() => ({
+      pressed: document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
+      noteShown: !document.getElementById('liveStreamNote').hidden,
+    }));
+    note('live-pressure-idle', lp.pressed === 'false' && !lp.noteShown, JSON.stringify(lp));
+    await page.click('#btnLivePressure');
+    await page.waitForTimeout(700);
+    const lp2 = await evalCard(() => ({
       pressed: document.getElementById('btnLivePressure').getAttribute('aria-pressed'),
       panel: !document.getElementById('diagPressure').hidden,
       mouth: document.getElementById('diagPressMouth').textContent,
@@ -969,35 +981,33 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     }));
     note(
       'live-pressure',
-      lp.pressed === 'true' &&
-        lp.panel &&
-        lp.mouth.includes('.') &&
-        lp.gaugeAria.includes('hPa') &&
-        lp.readOnce &&
-        lp.noteShown &&
-        /Live now: the pressure gauge/.test(lp.note),
-      JSON.stringify(lp),
+      lp2.pressed === 'true' &&
+        lp2.panel &&
+        lp2.mouth.includes('.') &&
+        lp2.gaugeAria.includes('hPa') &&
+        lp2.readOnce &&
+        lp2.noteShown &&
+        /Live now: the pressure gauge/.test(lp2.note),
+      JSON.stringify(lp2),
     );
     await page.click('#btnLivePressure');
     await page.waitForTimeout(400);
 
     // Practice watch + suggest-from-practice: the streamed pressure swings
-    // (the fake's ±25 hPa wave) must fill the practice guide line, unlock the
-    // Suggest button, and Apply must write both thresholds from the measured
-    // maxima (the maxima are internal data — the gauge carries no peak marks).
+    // (the fake's ±25 hPa wave) must unlock the Suggest button (its disabled
+    // state is the practice flow's visible surface), and Apply must write
+    // both thresholds from the measured maxima (internal data — the gauge
+    // carries no peak marks).
     const peaks = await evalCard(() => ({
-      guide: document.getElementById('practiceGuide').textContent,
       suggestUnlocked: !document.getElementById('btnSuggestThresholds').disabled,
+      startOverLive: !document.getElementById('btnClearPeaks').disabled,
       sipBefore: document.getElementById('sipVal').textContent,
       puffBefore: document.getElementById('puffVal').textContent,
       peakMarksRetired: !document.getElementById('gaugeSipPeak') && !document.getElementById('gaugePuffPeak'),
     }));
     note(
       'practice-peaks',
-      /Strongest so far: sip \d/.test(peaks.guide) &&
-        /puff \d/.test(peaks.guide) &&
-        peaks.suggestUnlocked &&
-        peaks.peakMarksRetired,
+      peaks.suggestUnlocked && peaks.startOverLive && peaks.peakMarksRetired,
       JSON.stringify(peaks),
     );
     await page.click('#btnSuggestThresholds');

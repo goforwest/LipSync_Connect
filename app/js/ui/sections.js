@@ -61,7 +61,7 @@ export function getNavigationTarget(id) {
   return getGroupTrigger(getGroupForSection(id));
 }
 
-// Section-change subscription: main.js registers the auto-live hook here so
+// Section-change subscription: main.js can register per-section hooks here
 // this module never needs serial imports (the dependency graph stays
 // acyclic). Called with the open section id after every transition (null on
 // close). Primary navigation keeps one page open at all times.

@@ -52,17 +52,11 @@ import {
   closeCurrentSection,
   getOpenSection,
   getNavigationTarget,
-  onSectionChange,
 } from './ui/sections.js';
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
-import {
-  bindWriteConfirm,
-  hideWriteConfirm,
-  suppressNextWriteConfirm,
-  clearWriteConfirmSuppression,
-} from './services/confirm.js';
+import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
 import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
@@ -194,8 +188,7 @@ const clearSessionUi = () => {
   // marker never survives into a new session.
   resetBluetoothHostsUi();
   // The streaming select is only meaningful once the device's DM value has
-  // loaded; disabling it is also the signal auto-live uses to refuse to send
-  // DM over a stream whose current state is still unknown. The feedback
+  // loaded (the renderer enables it on the device's answer). The feedback
   // selects follow the same contract (enabled by their device answer,
   // disabled with the session) now that they write on change.
   const dmSelect = $('debugMode');
@@ -223,8 +216,6 @@ const clearSessionUi = () => {
   modeState.currentComMode = null;
   updateModeDisplay();
   updateReadiness(); // no port: the strip hides itself
-  autoLiveMode = null; // the device's debug mode dies with the port
-  autoLivePending = false;
   clearLoadTimer();
 };
 // The DISCONNECT reset additionally closes the guided wizard: a mid-flow
@@ -237,79 +228,11 @@ const resetSessionUiOnDisconnect = () => {
   exitWizard();
 };
 
-// --- Auto-live sections -------------------------------------------------------
-// Opening Sip & Puff or Joystick while connected starts their live view
-// automatically when the device is idle (debug mode 0) — the two-click tax
-// on every practice, calibration, and adjustment session disappears. The
-// auto-started stream belongs to the app: it stops when its section closes
-// or another one opens. A stream the user started (or replaced ours with)
-// is theirs and is never touched.
-const AUTO_LIVE_SECTION_MODES = { 'sec-sip': '2', 'sec-joystick': '1' };
-let autoLiveMode = null; // the DM mode the app auto-started; null = not ours
-let autoLivePending = false; // our start's echo hasn't landed yet
-let autoLiveTakenFrom = '0'; // the select value when our start was sent
-const syncAutoLive = (sectionId) => {
-  const dmEl = $('debugMode');
-  // Before the settings load lands the select is disabled and still shows its
-  // markup default ("0"). Treating that as the device's real mode would send
-  // DM,1:2 over a stream the user already had running.
-  const dmReady = !!dmEl && !dmEl.disabled;
-  const dm = String(dmEl?.value ?? '0');
-  // If the stream we started was replaced or stopped elsewhere, it is no
-  // longer ours to manage. While our own start's echo is still in flight the
-  // select legitimately shows the value we started FROM (staleness, not a
-  // takeover — treating it as one orphaned the stream whenever the section
-  // closed inside the echo round-trip); only a move to a third value is a
-  // user takeover.
-  if (autoLiveMode !== null) {
-    const replacedElsewhere = autoLivePending
-      ? dm !== String(autoLiveMode) && dm !== String(autoLiveTakenFrom)
-      : dm !== String(autoLiveMode);
-    if (replacedElsewhere) autoLiveMode = null;
-  }
-  if (autoLiveMode !== null) {
-    const wantMode = sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
-    if (!wantMode || String(wantMode) !== String(autoLiveMode)) {
-      const stopping = autoLiveMode;
-      autoLiveMode = null;
-      autoLivePending = false;
-      if (serialSession.port) {
-        // App housekeeping, not a user edit: no confirmation chip or Undo.
-        suppressNextWriteConfirm('DM');
-        void setSimpleSetting('DM', '0', 'debugModeVal', DEBUG_MODES).catch(() => {
-          clearWriteConfirmSuppression('DM');
-          void stopping; // a failed stop is retried by the next transition
-        });
-      }
-    }
-  }
-  const wantMode = serialSession.port && sectionId ? AUTO_LIVE_SECTION_MODES[sectionId] : null;
-  if (wantMode && autoLiveMode === null && dmReady && dm === '0') {
-    autoLiveTakenFrom = dm;
-    autoLiveMode = wantMode;
-    autoLivePending = true;
-    suppressNextWriteConfirm('DM');
-    void setSimpleSetting('DM', wantMode, 'debugModeVal', DEBUG_MODES)
-      .then(() => {
-        autoLivePending = false; // echo landed — the select now shows our mode
-        log('Live view started for this section — Stop live view turns it off.', 'log-info');
-      })
-      .catch(() => {
-        clearWriteConfirmSuppression('DM');
-        autoLiveMode = null; // never started: nothing to manage
-        autoLivePending = false;
-      });
-  }
-};
-onSectionChange(syncAutoLive);
 // After a successful settings load: finish an in-flight firmware update
 // (verify + restore settings) when one is pending, otherwise run the
 // automatic update check. Fire-and-forget — nothing here may delay "ready".
 const loadDeviceInfoThenCheckFirmware = async () => {
   await loadDeviceInfo();
-  // The user may have opened a live section while settings were still
-  // loading; now that DM is known, let the normal ownership rules decide.
-  syncAutoLive(getOpenSection());
   void afterDeviceLoad();
 };
 configureConnection({
@@ -777,8 +700,8 @@ window.addEventListener('DOMContentLoaded', () => {
     bindCalibration(guard);
     // The live-stream select writes on change (same contract as the feedback
     // selects): the pick is the write, a rejected write reverts the select,
-    // and programmatic value sync (the renderer, auto-live) never fires
-    // change — so auto-live's own DM writes cannot re-enter here.
+    // and programmatic value sync (the DM renderer) never fires change, so
+    // device-truth updates cannot re-enter this handler.
     $('debugMode').addEventListener(
       'change',
       guard(async () => {

@@ -1,5 +1,5 @@
 // Pressure display units (services/pressure-units.js): the cmH2O preference
-// converts the READING surfaces — gauge titles/scale, practice guide line,
+// converts the READING surfaces — gauge titles/scale, suggestion copy,
 // suggestion copy, and the ≈-annotations — while the wire values, the
 // suggest/apply path, and every EDITABLE control stay hPa-native. The hPa
 // default must keep the pre-preference strings byte-identical.
@@ -27,8 +27,6 @@ const setThresholds = (sip, puff) => {
   recalcGaugeRange(); // derives gaugeRange and repositions every mark
 };
 
-const guide = () => document.getElementById('practiceGuide').textContent;
-
 test('the default unit is hPa and the gauge strings are byte-identical to the pre-preference app', () => {
   setPressureUnit('hpa');
   setThresholds(3, 6); // range = 6 × 1.5 = 9
@@ -40,7 +38,7 @@ test('the default unit is hPa and the gauge strings are byte-identical to the pr
   resetPracticePeaks();
   gaugeDelta(-4.5);
   gaugeDelta(12.25);
-  assert.match(guide(), /Strongest so far: sip 4\.50 hPa \u00b7 puff 12\.25 hPa/);
+  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.50 hPa, puff 12\.25 hPa/);
   assert.equal(
     formatSuggestion({ sip: 4, puff: 5.75 }),
     'Suggested: sip 4.00 hPa, puff 5.75 hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.',
@@ -59,7 +57,7 @@ test('cmH2O converts the reading surfaces; the wire values never move', () => {
   assert.equal(document.getElementById('gaugePuffLabel').textContent, '+8.8 cmH2O');
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22122.94 cmH2O');
   assert.equal(document.getElementById('gaugePuffMark').title, 'Puff triggers at +5.88 cmH2O');
-  assert.match(guide(), /Strongest so far: sip 5\.88 cmH2O \u00b7 puff 8\.83 cmH2O/);
+  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.41 cmH2O, puff 12\.01 cmH2O/);
   assert.match(formatSuggestion({ sip: 4, puff: 5.75 }), /Suggested: sip 3\.92 cmH2O, puff 5\.64 cmH2O/);
   // The suggestion's WIRE values are the same numbers the Apply button writes.
   const after = suggestThresholds();
@@ -103,7 +101,7 @@ test('switching back to hPa restores the legacy strings byte-for-byte', () => {
   setPressureUnit('hpa');
   assert.equal(document.getElementById('gaugeSipLabel').textContent, '\u22129.0 hPa');
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22123 hPa');
-  assert.match(guide(), /Strongest so far: sip 4\.50 hPa \u00b7 puff 12\.25 hPa/);
+  assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.50 hPa, puff 12\.25 hPa/);
 });
 
 test('the conversion constant and helpers are exact', async () => {

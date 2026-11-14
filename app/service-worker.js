@@ -1,7 +1,7 @@
-// v58 carries the gauge mark labels + suggestion ghosts, the device-scoped
-// health history, and comma-decimal input tolerance. Hard invalidate because
-// markup, controller, and styles must arrive together for offline users.
-const CACHE = 'lipsync-connect-v58';
+// v59 removes auto-live, collapses the practice flow to its button pair, and
+// unlocks the hard exact-value inputs on the device's answer. Hard invalidate
+// because markup, controller, and styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v59';
 const ASSETS = [
   './',
   './index.html',

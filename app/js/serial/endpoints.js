@@ -102,13 +102,19 @@ export const ENDPOINT_RENDERERS = {
   HS: (v) => {
     const shown = fmtHpa(v);
     setValue('hardSipVal', shown);
-    if (document.activeElement !== $('hardSipInput')) $('hardSipInput').value = shown;
+    const input = $('hardSipInput');
+    if (document.activeElement !== input) input.value = shown;
+    // The device answered: the exact-value field unlocks (resetHardBandUi
+    // disables it at load start; only a real answer may re-enable it).
+    input.disabled = false;
     recalcGaugeRange();
   },
   HP: (v) => {
     const shown = fmtHpa(v);
     setValue('hardPuffVal', shown);
-    if (document.activeElement !== $('hardPuffInput')) $('hardPuffInput').value = shown;
+    const input = $('hardPuffInput');
+    if (document.activeElement !== input) input.value = shown;
+    input.disabled = false; // the device answered: the exact-value field unlocks
     recalcGaugeRange();
   },
   // Hard band actions (HA = hard sip, HB = hard puff): MANUAL pushes from the
