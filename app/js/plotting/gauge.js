@@ -138,6 +138,7 @@ function notePracticeDelta(delta) {
 function updatePracticeUi() {
   const suggest = $('btnSuggestThresholds');
   const clear = $('btnClearPeaks');
+  const hint = $('practiceHint');
   const ready = practicePeaks.sip >= 2 && practicePeaks.puff >= 2;
   const seen = practicePeaks.sip >= 1 || practicePeaks.puff >= 1;
   // The practice flow's only always-visible surface is this button pair:
@@ -145,6 +146,10 @@ function updatePracticeUi() {
   // something is. The how-to lives in the card's inline help.
   if (suggest) suggest.disabled = !ready;
   if (clear) clear.disabled = !seen;
+  // While Suggest is locked, the lock says why — one line, gone the moment
+  // it unlocks (the old always-on coaching line was the clutter complaint;
+  // this only exists in the state that needs it).
+  if (hint) hint.hidden = ready;
 }
 export { updatePracticeUi as syncPracticeControls };
 

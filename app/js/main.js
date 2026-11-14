@@ -56,7 +56,12 @@ import {
 import { guard } from './ui/guard.js';
 import { bindDeviceOps } from './services/device-ops.js';
 import { bindHubRemote, resetHubRemote } from './services/hub-remote.js';
-import { bindWriteConfirm, hideWriteConfirm } from './services/confirm.js';
+import {
+  bindWriteConfirm,
+  suppressNextWriteConfirm,
+  clearWriteConfirmSuppression,
+  hideWriteConfirm,
+} from './services/confirm.js';
 import { updateReadiness } from './services/readiness.js';
 import { bindProfiles } from './services/profiles.js';
 import { resetPracticeStats, copyPracticeStats } from './services/practice-stats.js';
@@ -708,6 +713,14 @@ window.addEventListener('DOMContentLoaded', () => {
         const sel = $('debugMode');
         const next = sel.value;
         const prev = sel.dataset.applied ?? '0';
+        // Device-truth syncs assign .value programmatically. In the real DOM
+        // that fires no change event, but the assignment can still surface one
+        // through synthetic paths — and a change for the value we already
+        // applied would queue a SECOND suppression that leaks onto an
+        // unrelated later write. Only a genuine move off the applied value is
+        // a user pick.
+        if (next === prev) return;
+        suppressNextWriteConfirm('DM');
         try {
           await setSimpleSetting('DM', next, 'debugModeVal', DEBUG_MODES);
           sel.dataset.applied = next;
@@ -1159,7 +1172,16 @@ window.addEventListener('DOMContentLoaded', () => {
         'click',
         guard(async () => {
           const next = $(id).getAttribute('aria-pressed') === 'true' ? '0' : mode;
-          await setSimpleSetting('DM', next, 'debugModeVal', DEBUG_MODES);
+          // The stream buttons are self-reverting toggles: the chip's Undo
+          // would only repeat the button press. Suppress the chip, restore it
+          // if the write fails.
+          suppressNextWriteConfirm('DM');
+          try {
+            await setSimpleSetting('DM', next, 'debugModeVal', DEBUG_MODES);
+          } catch (e) {
+            clearWriteConfirmSuppression('DM');
+            throw e;
+          }
           log(
             next === '0' ? 'Live view stopped.' : 'Live view streaming; readings update about ten times per second.',
             'log-info',

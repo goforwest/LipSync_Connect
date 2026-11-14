@@ -1,7 +1,7 @@
-// v60 reorganizes the Sip & Puff card: the live-pressure instrument leads
-// (Live view + gauge + readouts), the threshold tuning follows. Hard
-// invalidate because markup, controller, and styles must arrive together.
-const CACHE = 'lipsync-connect-v60';
+// v61 polishes the Sip & Puff card: no confirm chip on stream toggles, a
+// state-dependent practice hint, tighter mark-label margins. Hard invalidate
+// because markup, controller, and styles must arrive together.
+const CACHE = 'lipsync-connect-v61';
 const ASSETS = [
   './',
   './index.html',

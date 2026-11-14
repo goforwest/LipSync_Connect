@@ -10,6 +10,18 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Sip & Puff polish round two (2026-11-13, from rendered screenshots): the
+  write-confirm chip no longer fires for stream toggles — Live view / Watch
+  holds are self-reverting buttons whose own press is the undo, so the chip
+  (and its floating overlap mid-card) was pure noise; the Test-inputs select
+  also guards against re-entering its handler on device-truth syncs. While
+  Suggest thresholds is locked, a one-line state-dependent hint explains what
+  it waits for — the line exists only in the state that needs it and leaves
+  the moment the button unlocks. The gauge mark labels hug the gauge instead
+  of floating. Verified from rendered screenshots (light + dark) via a
+  Playwright probe; suites 559/559, browser audit 120/120, offline E2E 2/2;
+  service worker v61.
+
 - Sip & Puff card polish round (2026-11-13, owner request): the card now
   opens with the instrument — a Live pressure group (Read once / Live view,
   the gauge with its mark labels and legend, the Mouth/Ambient/Difference

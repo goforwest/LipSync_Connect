@@ -168,3 +168,17 @@ test('suggestion ghosts preview the proposal on the gauge and die with Apply', (
   assert.equal(document.getElementById('gaugeSipGhost').hidden, true);
   assert.equal(legend.hidden, true, 'the ghost sentence leaves with the ghosts (no hard marks here)');
 });
+
+test('the practice hint explains the lock, then leaves when Suggest unlocks', () => {
+  const hint = () => document.getElementById('practiceHint');
+  resetPracticePeaks();
+  assert.equal(hint().hidden, false, 'locked Suggest explains itself');
+  gaugeDelta(-6); // one side only — still locked
+  assert.equal(hint().hidden, false, 'a one-sided practice is still not enough');
+  assert.equal(document.getElementById('btnSuggestThresholds').disabled, true);
+  gaugeDelta(9); // both sides measured
+  assert.equal(hint().hidden, true, 'the hint leaves the moment Suggest unlocks');
+  assert.equal(document.getElementById('btnSuggestThresholds').disabled, false);
+  resetPracticePeaks();
+  assert.equal(hint().hidden, false, 'Start over brings the lock explanation back');
+});

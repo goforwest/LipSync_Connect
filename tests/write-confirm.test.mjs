@@ -129,3 +129,31 @@ function waitFor(predicate, timeoutMs = 1500) {
     check();
   });
 }
+
+test('a live-stream toggle never shows the chip — the button is its own undo', async () => {
+  // Assert on the chip's CONTENT, never its hidden flag: the element is
+  // shared across this file's tests (an earlier one leaves a chip rendered,
+  // and confirm.js arms a 4 s hide timer per chip that can fire mid-test).
+  // The deterministic signal is UNCHANGED CONTENT — suppression means no
+  // fresh render, so whatever text preceded the toggle is still there after.
+  const sent = launch({
+    'DM,1:2': 'SUCCESS,0:DM,1:2',
+    'DM,1:0': 'SUCCESS,0:DM,1:0',
+  });
+  doc.getElementById('debugMode').disabled = false;
+  doc.getElementById('btnLivePressure').setAttribute('aria-pressed', 'false');
+  doc.getElementById('btnLivePressure').dispatch('click');
+  await sleep(50);
+  assert.ok(sent.includes('DM,1:2'), 'the stream started');
+  // No DM chip content: the toggle is its own undo. (Other tests' stale or
+  // late-landing chip text can share this element — the DM-specific absence
+  // is the only deterministic assertion.)
+  assert.ok(!chipText().includes('Live diagnostic output'), 'no DM chip content');
+  // Pressing the button again stops it — the same thing the chip's Undo would do.
+  doc.getElementById('btnLivePressure').setAttribute('aria-pressed', 'true');
+  doc.getElementById('btnLivePressure').dispatch('click');
+  await sleep(50);
+  assert.ok(sent.includes('DM,1:0'), 'the stream stopped');
+  assert.ok(!chipText().includes('Live diagnostic output'), 'still no DM chip content');
+  testHooks.detach();
+});

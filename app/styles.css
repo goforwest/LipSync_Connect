@@ -4692,12 +4692,12 @@ footer {
 .gauge-mark-labels {
   position: relative;
   height: 15px;
-  margin: 15px 0 -4px;
+  margin: 9px 0 -3px;
   font-size: 0.72rem;
   color: var(--muted);
 }
 .gauge-mark-labels--hard {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
 }
 .gauge-mark-label {
   position: absolute;
