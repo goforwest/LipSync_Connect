@@ -41,7 +41,7 @@ test('the default unit is hPa and the gauge strings are byte-identical to the pr
   assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.50 hPa, puff 12\.25 hPa/);
   assert.equal(
     formatSuggestion({ sip: 4, puff: 5.75 }),
-    'Suggested: sip 4.00 hPa, puff 5.75 hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.',
+    'Suggested regular thresholds: sip 4.00 hPa, puff 5.75 hPa \u2014 65% of the measured strongest. A deliberate hold crosses them; breathing noise should not.',
   );
 });
 
@@ -58,7 +58,10 @@ test('cmH2O converts the reading surfaces; the wire values never move', () => {
   assert.equal(document.getElementById('gaugeSipMark').title, 'Sip triggers at \u22122.94 cmH2O');
   assert.equal(document.getElementById('gaugePuffMark').title, 'Puff triggers at +5.88 cmH2O');
   assert.match(formatSuggestion({ sip: 4.5, puff: 12.25 }), /sip 4\.41 cmH2O, puff 12\.01 cmH2O/);
-  assert.match(formatSuggestion({ sip: 4, puff: 5.75 }), /Suggested: sip 3\.92 cmH2O, puff 5\.64 cmH2O/);
+  assert.match(
+    formatSuggestion({ sip: 4, puff: 5.75 }),
+    /Suggested regular thresholds: sip 3\.92 cmH2O, puff 5\.64 cmH2O/,
+  );
   // The suggestion's WIRE values are the same numbers the Apply button writes.
   const after = suggestThresholds();
   assert.deepEqual(after, before, 'suggest returns hPa wire values in both display modes');

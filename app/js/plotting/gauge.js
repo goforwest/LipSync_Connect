@@ -281,7 +281,7 @@ export function gaugeMarks() {
  */
 export function formatSuggestion(s) {
   return (
-    'Suggested: sip ' +
+    'Suggested regular thresholds: sip ' +
     fmtPressure(s.sip, { decimals: 2, withUnit: true }) +
     ', puff ' +
     fmtPressure(s.puff, { decimals: 2, withUnit: true }) +

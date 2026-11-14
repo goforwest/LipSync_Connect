@@ -1,7 +1,8 @@
-// v61 polishes the Sip & Puff card: no confirm chip on stream toggles, a
-// state-dependent practice hint, tighter mark-label margins. Hard invalidate
-// because markup, controller, and styles must arrive together.
-const CACHE = 'lipsync-connect-v61';
+// v62 fixes the empty live-note chip (display:flex overrode hidden), renames
+// Suggest for disambiguation, and pairs Thresholds/Hard band side by side at
+// wide viewports. Hard invalidate because markup, controller, and styles must
+// arrive together for offline users.
+const CACHE = 'lipsync-connect-v62';
 const ASSETS = [
   './',
   './index.html',

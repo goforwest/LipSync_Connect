@@ -10,6 +10,19 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Sip & Puff polish round three (2026-11-13, owner feedback): the live-stream
+  note chip is hidden when nothing streams — its display:flex was overriding
+  the hidden attribute, leaving an empty green strip (a real bug, caught by
+  the owner in the browser). Suggest thresholds is renamed to Suggest sip &
+  puff thresholds with its scope stated in the help and suggestion copy —
+  the owner read it as ambiguous against the hard band; the practice
+  feature stays, and stripping it entirely remains available if it still
+  feels like clutter. Thresholds and the Hard sip & puff band now sit SIDE
+  BY SIDE at wide viewports (grid, single column below 1100px), making the
+  regular-vs-hard relationship visible; the viewport matrix and axe scans
+  pass on the new layout. Suites 559/559, browser audit 120/120, offline
+  E2E 2/2; service worker v62.
+
 - Sip & Puff polish round two (2026-11-13, from rendered screenshots): the
   write-confirm chip no longer fires for stream toggles — Live view / Watch
   holds are self-reverting buttons whose own press is the undo, so the chip
