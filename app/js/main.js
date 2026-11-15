@@ -24,7 +24,7 @@ import { gaugeDelta, gaugeMarks, recalcGaugeRange } from './plotting/gauge.js';
 import { initWindowLadders } from './plotting/windows.js';
 import { updateLiveStreamNote } from './plotting/diag.js';
 
-import { setValue } from './ui/values.js';
+import { setValue, syncBlankReadouts } from './ui/values.js';
 import { bindModeSwitch, updateModeDisplay } from './services/mode-switch.js';
 import { modeState } from './state/modes.js';
 import { bindCalibration, resetCalibrationUi } from './services/calibration.js';
@@ -199,6 +199,10 @@ const clearSessionUi = () => {
     delete lightSelect.dataset.applied;
   }
   updateLiveStreamNote(null); // the stream note dies with the session
+  // A disconnected session's readouts go back to the quiet "nothing loaded"
+  // placeholder instead of keeping the previous device's values on screen
+  // behind a disabled control. The renderers refill them on the next load.
+  syncBlankReadouts();
   hideHealthHistory(); // the stored trend stays; the row hides with the session
   resetPracticeStats(); // practice stats are session-scoped
   hideWriteConfirm(); // a stale Undo must never point at a dead session
@@ -257,6 +261,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   initSettings();
   initPressureUnits(); // the display-unit preference must land before the first gauge render
+  // Not-connected readouts render as quiet placeholders rather than framed
+  // grey em-dash chips (styles.css .value.is-blank). Derived from the markup
+  // so nothing has to keep a second list of ids in sync.
+  syncBlankReadouts();
 
   // --- Always-run initialization (nav, popup, service worker) ---
   // Group tiles + compact page navigation

@@ -141,6 +141,33 @@ export function getOpenSection() {
   return openSection;
 }
 
+// The page rail is a single non-wrapping row (see .section-tabs in
+// styles.css). Where it cannot fit, it scrolls — and a scrollable rail with
+// no scrollbar and no fade reads as a clipped tab rather than a continuing
+// one. These classes drive the soft edge on whichever side has more content.
+export function syncTabOverflow() {
+  const tabs = document.querySelector('.section-tabs');
+  if (!tabs) return;
+  const max = tabs.scrollWidth - tabs.clientWidth;
+  if (max <= 1) {
+    tabs.classList.remove('overflow-start', 'overflow-end');
+    return;
+  }
+  tabs.classList.toggle('overflow-start', tabs.scrollLeft > 1);
+  tabs.classList.toggle('overflow-end', tabs.scrollLeft < max - 1);
+}
+
+let tabOverflowBound = false;
+function bindTabOverflow() {
+  if (tabOverflowBound) return;
+  const tabs = document.querySelector('.section-tabs');
+  if (!tabs) return;
+  tabOverflowBound = true;
+  tabs.addEventListener('scroll', syncTabOverflow, { passive: true });
+  if (typeof ResizeObserver === 'function') new ResizeObserver(syncTabOverflow).observe(tabs);
+  window.addEventListener('resize', syncTabOverflow, { passive: true });
+}
+
 function syncActiveNavigation(id) {
   const activeGroup = id ? getGroupForSection(id) : null;
   /** @type {HTMLElement|null} */ let activeTrigger = null;
@@ -171,6 +198,8 @@ function syncActiveNavigation(id) {
   if (label) label.textContent = activeGroup ? (SECTION_GROUPS[activeGroup]?.label ?? '') : '';
   if (mobileLabel) mobileLabel.textContent = activeGroup ? (SECTION_GROUPS[activeGroup]?.label ?? '') : 'Sections';
   if (subnav) subnav.hidden = visibleTabs.length === 0;
+  bindTabOverflow();
+  syncTabOverflow();
 
   // A task jump can open Health/Advanced while its tile is off-screen in the
   // phone rail. Bring the selected destination into view so navigation state

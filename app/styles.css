@@ -450,6 +450,28 @@ main {
 .value.err {
   color: var(--danger);
 }
+/* Not-connected empty state. Before this, every readout rendered a full-size
+   bordered badge whose only content was an em dash — a page of seven or more
+   identical grey chips that read as broken values rather than "nothing loaded
+   yet". The placeholder keeps its box (so the layout does not jump when the
+   value arrives) but drops the frame and the monospace weight, and the em
+   dash itself is supplied by CSS so the markup stays honest. */
+.value:empty::after,
+.value.is-blank::after {
+  content: '\2014';
+}
+.value.is-blank {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  opacity: 0.75;
+}
+/* Inside a stepper the readout is already frameless; only the colour needs to
+   recede so the buttons stay the focus while nothing is loaded. */
+.tuning-stepper .value.is-blank {
+  color: var(--muted);
+  opacity: 0.8;
+}
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -2769,6 +2791,23 @@ html.dark-mode .guide-card {
   text-transform: uppercase;
   white-space: nowrap;
   margin: 0 6px 0 10px;
+  flex: 0 0 auto;
+}
+/* The uppercase group label is orientation, not navigation — the active pill
+   already says which page is open, and the sidebar names the group at desktop
+   widths. Give its room to the tabs before they have to scroll. */
+@media (max-width: 1180px) {
+  .section-subnav-label {
+    display: none;
+  }
+}
+@media (max-width: 1400px) and (min-width: 901px) {
+  .section-tabs {
+    gap: 0;
+  }
+  .section-tab {
+    padding: 8px 12px;
+  }
 }
 .section-tabs {
   display: flex;
@@ -2776,7 +2815,35 @@ html.dark-mode .guide-card {
   justify-content: center;
   gap: 2px;
   min-width: 0;
-  flex-wrap: wrap;
+  /* One line while it fits. The six-page groups ("Adjust controls") wrapped
+     one orphan tab onto a second line between roughly 1024px and 1280px,
+     which cost a row of vertical space on every page and left the trailing
+     tab visually detached from the row above it. The label collapses first
+     (below), then the padding tightens, so the tabs stay together instead. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.section-tabs::-webkit-scrollbar {
+  display: none;
+}
+/* A rail that scrolls with no scrollbar and no affordance reads as a clipped
+   tab ("Input safeg…"). A soft edge on whichever side has more content makes
+   the overflow legible. The classes are set by ui/sections.js from the live
+   scroll position, so a row that fits is never dimmed and the fade only
+   appears on the side that actually continues. */
+.section-tabs.overflow-start {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 100%);
+}
+.section-tabs.overflow-end {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 20px), transparent 100%);
+}
+.section-tabs.overflow-start.overflow-end {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
 .section-tab {
   min-height: 42px;
@@ -2789,6 +2856,9 @@ html.dark-mode .guide-card {
   font-size: 0.86rem;
   font-weight: 650;
   box-shadow: none;
+  /* Never let a pill wrap its own label; the row scrolls instead. */
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .section-tab:hover:not(:disabled) {
   background: color-mix(in srgb, var(--panel) 72%, transparent);
@@ -3240,9 +3310,13 @@ html.dark-mode .guide-card {
   /* The info blue at label size fails 4.5:1 on the recommendation's tinted
      background — the deep variant keeps the hue readable (axe-enforced). */
   color: var(--info-strong);
-  font-size: 0.68rem;
+  /* 0.68rem resolved to 10.88px — under the 12px floor for a label the user
+     is meant to actually read, and noticeably smaller than every other
+     uppercase micro-label in the app. 0.72rem (11.5px) plus the tracked caps
+     still reads as a label while staying legible at 100% text size. */
+  font-size: 0.72rem;
   font-weight: 750;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .settings-list {
