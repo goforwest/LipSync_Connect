@@ -1,8 +1,8 @@
-// v65 reworks the hold ladder fill: each zone fills with its own hue only
-// (green stays green, amber stays amber) — the color-carrying sweep is gone,
-// replaced by a per-zone gradient and a zone-hued boundary tick. Hard
-// invalidate because markup, controller, and styles must arrive together.
-const CACHE = 'lipsync-connect-v65';
+// v66 gives the hold-timing rows the settings-list rhythm (14px padding +
+// separators, like the deadzone rows) and renames the watchdog test to
+// Force watchdog restart. Hard invalidate because markup, controller, and
+// styles must arrive together for offline users.
+const CACHE = 'lipsync-connect-v66';
 const ASSETS = [
   './',
   './index.html',

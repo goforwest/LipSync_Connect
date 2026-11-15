@@ -1090,149 +1090,159 @@
             </div>
             <div class="diag-group">
               <p class="diag-title">Hold timing</p>
-              <div class="row tuning-row tuning-row--inline">
-                <label>Short input window (200–2500 ms)</label>
-                <div
-                  class="tuning-stepper tuning-stepper--extended"
-                  role="group"
-                  aria-label="Adjust short input window"
-                >
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="-5"
-                    data-target="ws"
-                    aria-label="Decrease short input window by 250 ms"
-                    disabled
+              <div class="settings-list">
+                <div class="row tuning-row tuning-row--inline">
+                  <label>Short input window (200–2500 ms)</label>
+                  <div
+                    class="tuning-stepper tuning-stepper--extended"
+                    role="group"
+                    aria-label="Adjust short input window"
                   >
-                    &minus;250
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="-1"
-                    data-target="ws"
-                    aria-label="Decrease short input window by 50 ms"
-                    disabled
-                  >
-                    &minus;50
-                  </button>
-                  <span class="value" id="w1Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="1"
-                    data-target="ws"
-                    aria-label="Increase short input window by 50 ms"
-                    disabled
-                  >
-                    +50
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="5"
-                    data-target="ws"
-                    aria-label="Increase short input window by 250 ms"
-                    disabled
-                  >
-                    +250
-                  </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="-5"
+                      data-target="ws"
+                      aria-label="Decrease short input window by 250 ms"
+                      disabled
+                    >
+                      &minus;250
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="-1"
+                      data-target="ws"
+                      aria-label="Decrease short input window by 50 ms"
+                      disabled
+                    >
+                      &minus;50
+                    </button>
+                    <span class="value" id="w1Val">&mdash;</span>
+                    <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="1"
+                      data-target="ws"
+                      aria-label="Increase short input window by 50 ms"
+                      disabled
+                    >
+                      +50
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="5"
+                      data-target="ws"
+                      aria-label="Increase short input window by 250 ms"
+                      disabled
+                    >
+                      +250
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div class="row tuning-row tuning-row--inline">
-                <label>Long input window (400–6000 ms)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust long input window">
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="-5"
-                    data-target="wl"
-                    aria-label="Decrease long input window by 250 ms"
-                    disabled
+                <div class="row tuning-row tuning-row--inline">
+                  <label>Long input window (400–6000 ms)</label>
+                  <div
+                    class="tuning-stepper tuning-stepper--extended"
+                    role="group"
+                    aria-label="Adjust long input window"
                   >
-                    &minus;250
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="-1"
-                    data-target="wl"
-                    aria-label="Decrease long input window by 50 ms"
-                    disabled
-                  >
-                    &minus;50
-                  </button>
-                  <span class="value" id="w2Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="1"
-                    data-target="wl"
-                    aria-label="Increase long input window by 50 ms"
-                    disabled
-                  >
-                    +50
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="5"
-                    data-target="wl"
-                    aria-label="Increase long input window by 250 ms"
-                    disabled
-                  >
-                    +250
-                  </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="-5"
+                      data-target="wl"
+                      aria-label="Decrease long input window by 250 ms"
+                      disabled
+                    >
+                      &minus;250
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="-1"
+                      data-target="wl"
+                      aria-label="Decrease long input window by 50 ms"
+                      disabled
+                    >
+                      &minus;50
+                    </button>
+                    <span class="value" id="w2Val">&mdash;</span>
+                    <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="1"
+                      data-target="wl"
+                      aria-label="Increase long input window by 50 ms"
+                      disabled
+                    >
+                      +50
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="5"
+                      data-target="wl"
+                      aria-label="Increase long input window by 250 ms"
+                      disabled
+                    >
+                      +250
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div class="row tuning-row tuning-row--inline">
-                <label>Max input window (1000–10000 ms)</label>
-                <div class="tuning-stepper tuning-stepper--extended" role="group" aria-label="Adjust max input window">
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="-5"
-                    data-target="wm"
-                    aria-label="Decrease max input window by 250 ms"
-                    disabled
+                <div class="row tuning-row tuning-row--inline">
+                  <label>Max input window (1000–10000 ms)</label>
+                  <div
+                    class="tuning-stepper tuning-stepper--extended"
+                    role="group"
+                    aria-label="Adjust max input window"
                   >
-                    &minus;250
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="-1"
-                    data-target="wm"
-                    aria-label="Decrease max input window by 50 ms"
-                    disabled
-                  >
-                    &minus;50
-                  </button>
-                  <span class="value" id="w3Val">&mdash;</span>
-                  <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
-                  <button
-                    type="button"
-                    class="cmd secondary step-fine"
-                    data-step="1"
-                    data-target="wm"
-                    aria-label="Increase max input window by 50 ms"
-                    disabled
-                  >
-                    +50
-                  </button>
-                  <button
-                    type="button"
-                    class="cmd secondary step-coarse"
-                    data-step="5"
-                    data-target="wm"
-                    aria-label="Increase max input window by 250 ms"
-                    disabled
-                  >
-                    +250
-                  </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="-5"
+                      data-target="wm"
+                      aria-label="Decrease max input window by 250 ms"
+                      disabled
+                    >
+                      &minus;250
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="-1"
+                      data-target="wm"
+                      aria-label="Decrease max input window by 50 ms"
+                      disabled
+                    >
+                      &minus;50
+                    </button>
+                    <span class="value" id="w3Val">&mdash;</span>
+                    <span class="hint row-hint tuning-unit" aria-hidden="true">ms</span>
+                    <button
+                      type="button"
+                      class="cmd secondary step-fine"
+                      data-step="1"
+                      data-target="wm"
+                      aria-label="Increase max input window by 50 ms"
+                      disabled
+                    >
+                      +50
+                    </button>
+                    <button
+                      type="button"
+                      class="cmd secondary step-coarse"
+                      data-step="5"
+                      data-target="wm"
+                      aria-label="Increase max input window by 250 ms"
+                      disabled
+                    >
+                      +250
+                    </button>
+                  </div>
                 </div>
               </div>
               <details class="exact-values">
@@ -2107,13 +2117,13 @@
                 <button type="button" class="cmd secondary" id="btnSoftReset" disabled>Restart LipSync</button>
               </div>
               <div class="maintenance-option">
-                <p class="diag-title">Test auto-restart</p>
+                <p class="diag-title">Watchdog restart</p>
                 <p class="hint">
                   Deliberately makes the LipSync stop responding so its safety restart must kick in &mdash; use to
                   confirm that a stuck device recovers on its own. The device restarts and disconnects; wait about 30
                   seconds, then reconnect.
                 </p>
-                <button type="button" class="cmd danger" id="btnTestWatchdog" disabled>Test auto-restart</button>
+                <button type="button" class="cmd danger" id="btnTestWatchdog" disabled>Force watchdog restart</button>
               </div>
             </div>
             <details class="danger-disclosure">

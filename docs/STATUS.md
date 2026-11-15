@@ -10,6 +10,17 @@ rewritten silently. Index and reading order: `docs/README.md`.
 
 ## App
 
+- Hold-timing rhythm + watchdog naming (2026-11-14, owner feedback): the
+  three window rows now sit in a .settings-list like the deadzone rows —
+  14px padding and separator lines, so the rows breathe instead of
+  stacking flush (they were bare rows with only margins). And the
+  Self-tests-era name 'Test auto-restart' is gone from Restart & reset:
+  the action forces a watchdog restart (it deliberately wedges the device
+  so its safety timer restarts it), so the card title, button, confirm
+  dialog, log line, and notification now all say 'Force watchdog restart'
+  with the consequence stated plainly. Suites 550/550, browser audit
+  120/120, offline E2E 2/2; service worker v66.
+
 - Ladder fill rework (2026-11-14, owner feedback): the color-carrying sweep
   is gone — the confusing part was the growing bar changing hue as a hold
   crossed windows. Each zone now fills with ITS OWN hue only (a gradient
