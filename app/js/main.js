@@ -401,6 +401,56 @@ window.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => openSectionById(btn.dataset.section));
   });
 
+  // Keyboard navigation for the shell nav: arrow keys move focus between the
+  // group tiles and between a row's visible section tabs; Home/End jump to the
+  // ends. Enter/Space still activate (plain buttons); mouse behavior is
+  // untouched. Roving tabindex (which tab stop carries the arrows) is synced
+  // in sections.js's syncActiveNavigation.
+  const navDelta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  const visibleNavButtons = () =>
+    /** @type {HTMLElement[]} */ (Array.from(document.querySelectorAll('.circle-trigger'))).filter((b) => !b.hidden);
+  $('sectionNav')?.addEventListener('keydown', (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    if (!target?.classList?.contains?.('circle-trigger')) return;
+    const list = visibleNavButtons();
+    if (!list.length) return;
+    const i = list.indexOf(target);
+    if (e.key === 'Home') {
+      e.preventDefault();
+      list[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      list[list.length - 1].focus();
+    } else if (e.key in navDelta && i !== -1) {
+      e.preventDefault();
+      list[(i + navDelta[e.key] + list.length) % list.length].focus();
+    }
+  });
+  document.querySelectorAll('.section-tabs').forEach((row) => {
+    row.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
+      const target = /** @type {HTMLElement} */ (e.target);
+      if (!target?.classList?.contains?.('section-tab')) return;
+      const tabs = /** @type {HTMLElement[]} */ (Array.from(row.querySelectorAll('.section-tab'))).filter(
+        (t) => !t.classList.contains('group-hidden') && !t.hidden,
+      );
+      const i = tabs.indexOf(target);
+      if (i === -1) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        tabs[(i + 1) % tabs.length].focus();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        tabs[(i - 1 + tabs.length) % tabs.length].focus();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        tabs[0].focus();
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        tabs[tabs.length - 1].focus();
+      }
+    });
+  });
+
   // Compact navigation: phones and narrow tablets get one stable Sections
   // button instead of a partially hidden horizontal rail. The same grouped
   // navigation opens as a large, scrollable panel; desktop keeps the sidebar.

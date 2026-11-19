@@ -177,6 +177,11 @@ function syncActiveNavigation(id) {
     button.classList.toggle('active', active);
     button.setAttribute('aria-expanded', String(active));
     if (active) activeTrigger = button;
+    // Roving tabindex: the active group's tile is the only Tab stop in the
+    // nav, so keyboard users reach the nav with one Tab and move between
+    // groups with the arrow keys (handled in main.js). With no open section
+    // (the momentary closed state), Home stays the landing Tab stop.
+    button.tabIndex = active || (!activeGroup && button.dataset.group === 'home') ? 0 : -1;
   });
 
   const visibleTabs = [];
