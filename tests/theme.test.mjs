@@ -36,6 +36,7 @@ installGatingDom();
 const { THEME_STORAGE_KEY, COLOR_DEFAULTS } = await import('../app/js/config/constants.js');
 const { initSettings } = await import('../app/js/ui/theme.js');
 const { getLogHistory } = await import('../app/js/services/log.js');
+const { flushNotificationForTest } = await import('../app/js/ui/notification.js');
 
 // Each test installs a fresh DOM so initSettings' event listeners don't stack up
 // on the same elements across tests.
@@ -114,6 +115,7 @@ test('contrast guard warns below AA once and re-arms after a compliant value', (
   computedStyles['--panel'] = '#ffffff';
   els.get('colorText').value = '#ffffff';
   els.get('colorText').dispatch('input');
+  flushNotificationForTest();
   assert.equal(contrastWarnCount(), 3);
   assert.match(els.get('notification').querySelector('.notif-msg').textContent, /body text/);
 });

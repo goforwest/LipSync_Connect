@@ -10,6 +10,7 @@ import { installGatingDom } from './harness/dom-stub.mjs';
 
 const { document: doc } = installGatingDom();
 const { bindUpdateToast } = await import('../app/js/ui/update-toast.js');
+const { flushNotificationForTest } = await import('../app/js/ui/notification.js');
 
 /** A minimal ServiceWorker double: controller + controllerchange listeners. */
 const makeSw = (controller) => {
@@ -31,11 +32,13 @@ test('a fresh visit first claim is not an update — no toast', () => {
   const sw = makeSw(null); // no controller at load: first visit
   bindUpdateToast(sw, { reload: () => {} });
   sw.fireControllerChange();
+  flushNotificationForTest();
   // The toast is the only writer of the bar's 'update' tone — its absence is
   // the cleanest "nothing shown" signal in the stub DOM.
   assert.equal(notif().classList.contains('update'), false);
   // A later swap in the same session IS an update (the visit outlived a deploy).
   sw.fireControllerChange();
+  flushNotificationForTest();
   assert.equal(notif().classList.contains('update'), true);
 });
 
@@ -44,6 +47,7 @@ test('a deploy taking over an open page offers Reload and never auto-reloads', (
   let reloaded = 0;
   bindUpdateToast(sw, { reload: () => reloaded++ });
   sw.fireControllerChange();
+  flushNotificationForTest();
   const action = notif().querySelector('.notif-action');
   assert.notEqual(action, null, 'the update toast appeared');
   assert.equal(action.textContent, 'Reload');
@@ -58,6 +62,7 @@ test('the dismiss button closes the toast without reloading', () => {
   let reloaded = 0;
   bindUpdateToast(sw, { reload: () => reloaded++ });
   sw.fireControllerChange();
+  flushNotificationForTest();
   notif()
     .querySelector('.notif-close')
     .onclick({ stopPropagation() {} });

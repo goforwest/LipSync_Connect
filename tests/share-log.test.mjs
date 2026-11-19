@@ -30,6 +30,7 @@ after(() => {
 
 const { els } = installGatingDom();
 const { shareLog } = await import('../app/js/services/log-export.js');
+const { flushNotificationForTest } = await import('../app/js/ui/notification.js');
 const { getLogHistory } = await import('../app/js/services/log.js');
 
 // requestAnimationFrame is absent in Node; the download path calls it directly
@@ -52,6 +53,7 @@ test('uses the native share sheet when available', async () => {
   globalThis.navigator.share = share;
   globalThis.navigator.canShare = canShare;
   await shareLog(cancelled);
+  flushNotificationForTest();
   assert.equal(win.location.href, ''); // sheet handled it; no fallback ran
   delete globalThis.navigator.share;
   delete globalThis.navigator.canShare;
@@ -61,6 +63,7 @@ test('cancel at the in-app confirm discloses nothing', async () => {
   setClipboard(undefined);
   win.location.href = '';
   await shareLog(cancelled);
+  flushNotificationForTest();
   assert.equal(win.location.href, '');
   assert.ok(getLogHistory().some((entry) => entry.includes('Share cancelled.')));
 });
@@ -70,6 +73,7 @@ test('short log copies to the clipboard and opens mailto', async () => {
   setClipboard({ writeText: async () => (copied = true) });
   win.location.href = '';
   await shareLog(ok);
+  flushNotificationForTest();
   assert.equal(copied, true);
   assert.match(win.location.href, /^mailto:\?subject=LipSync%20Connect%20log&body=/);
 });
@@ -80,6 +84,7 @@ test('long log settles on the clipboard with no mailto', async () => {
   win.location.href = '';
   getLogHistory().push('L'.repeat(9000));
   await shareLog(ok);
+  flushNotificationForTest();
   assert.equal(copied, true);
   assert.equal(win.location.href, '');
   assert.match(notifMsg(), /clipboard/i);
@@ -99,6 +104,7 @@ test('clipboard refuses → long log downloads the promised file, then opens the
   win.location.href = '';
   getLogHistory().push('M'.repeat(9000));
   await shareLog(ok);
+  flushNotificationForTest();
   assert.equal(objectUrls.length, 1, 'the file the message promises must actually exist');
   assert.match(win.location.href, /mailto:/);
   assert.match(win.location.href, /Log%20was%20too%20long/);
@@ -128,6 +134,7 @@ test('short log: mailto navigation throws — downloadFallback is the last resor
   win.location = loc;
   getLogHistory().push('N'.repeat(50));
   await shareLog(ok);
+  flushNotificationForTest();
   assert.equal(objectUrls.length, 1);
   assert.match(notifMsg(), /downloaded/i);
   getLogHistory().pop();
@@ -154,6 +161,7 @@ test('long log: mailto navigation throws after the download — no second downlo
   win.location = loc;
   getLogHistory().push('P'.repeat(9000));
   await shareLog(ok);
+  flushNotificationForTest();
   assert.equal(objectUrls.length, 1, 'the pre-mailto download must not repeat');
   assert.match(notifMsg(), /downloaded/i);
   getLogHistory().pop();

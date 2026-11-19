@@ -329,7 +329,7 @@ header .status {
 }
 .conn-banner button {
   flex-shrink: 0;
-  min-height: 34px;
+  min-height: 44px;
   padding: 6px 14px;
   font-size: 0.85rem;
   background: transparent;
@@ -340,7 +340,8 @@ header .status {
   background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
 #btnConnBannerDismiss {
-  min-width: 36px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 10px;
   font-size: 1.1rem;
   line-height: 1;
@@ -680,9 +681,6 @@ progress {
   font-size: 0.9rem;
   margin: 6px 0;
   line-height: 1.55;
-}
-.spacer {
-  height: 12px;
 }
 .row-hint {
   margin: 0;
@@ -2674,13 +2672,6 @@ html.dark-mode .guide-card {
   gap: 4px;
   flex: 0 0 auto;
 }
-.circle-nav-divider {
-  width: 1px;
-  height: 44px;
-  margin: 0 4px;
-  background: var(--border-subtle);
-  flex: 0 0 auto;
-}
 .circle-trigger {
   width: 76px;
   height: 76px;
@@ -2972,9 +2963,6 @@ html.dark-mode .guide-card {
 }
 .diag-group > .row:first-of-type {
   margin-top: 4px;
-}
-.diag-group > .spacer {
-  display: none; /* replaced by the group border */
 }
 /* Sip & Puff is already one bounded application page. Its two long workflows
    read more clearly as linear page sections than as grey cards nested inside
@@ -3595,9 +3583,6 @@ html.dark-mode .guide-card {
   }
   .circle-nav-group {
     gap: 2px;
-  }
-  .circle-nav-divider {
-    margin: 0 2px;
   }
   .circle-trigger {
     width: 70px;
@@ -4274,19 +4259,6 @@ header .logo {
   align-items: stretch;
   gap: 3px;
 }
-.nav-group-label {
-  margin: 7px 11px 3px;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-.app-sidebar .circle-nav-divider {
-  width: auto;
-  height: 1px;
-  margin: 10px 11px 6px;
-}
 .app-sidebar .circle-trigger {
   width: 100%;
   height: auto;
@@ -4584,14 +4556,6 @@ footer {
     flex-direction: column;
     align-items: stretch;
     gap: 3px;
-  }
-  .app-sidebar .nav-group-label {
-    display: block;
-  }
-  .app-sidebar .circle-nav-divider {
-    width: auto;
-    height: 1px;
-    margin: 10px 11px 6px;
   }
   .app-sidebar .circle-trigger {
     width: 100%;
