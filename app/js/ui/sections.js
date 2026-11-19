@@ -233,6 +233,22 @@ function syncActiveNavigation(id) {
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
     else reveal();
   }
+  refreshDocumentTitle();
+}
+
+/** Browser-tab title: the open section's group names the page ("Pointer
+ *  movement — LipSync Connect — Connected"), so back/forward history entries
+ *  read as places, not as one undifferentiated app. The connection suffix is
+ *  owned by connection-ui (via setConnectedForTitle); this composer is the
+ *  single writer so the two concerns never clobber each other. */
+let connectedForTitle = false;
+export function setConnectedForTitle(connected) {
+  connectedForTitle = !!connected;
+  refreshDocumentTitle();
+}
+export function refreshDocumentTitle() {
+  const label = openSection ? (SECTION_GROUPS[getGroupForSection(openSection)]?.label ?? '') : '';
+  document.title = `${label ? label + ' — ' : ''}LipSync Connect${connectedForTitle ? ' — Connected' : ''}`;
 }
 
 export function openGroupById(group) {

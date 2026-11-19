@@ -143,3 +143,28 @@ test('deadzone steppers refuse to cross their sibling and surface formError', as
   assert.equal(sent.length, sentBeforeOuter, 'no wire write for the outer crossing step');
   testHooks.detach();
 });
+
+test('a failed cursor-speed step surfaces the error in the cursor card, not Sip & Puff', async () => {
+  // Regression: step() used to route every non-deadzone failure to #sapError
+  // (the Sip & Puff card's error box). A speed write that failed mid-session
+  // reverted silently — the explanation landed in a card the user cannot see.
+  const sent = launch({
+    SETTINGS: 'SUCCESS,0:SETTINGS',
+    'SS,1:8': 'FAIL,3:SS,1:8',
+  });
+  // Fresh error boxes: earlier tests in this file write to sapError, and the
+  // stub DOM persists across tests in one process.
+  doc.getElementById('sapError').textContent = '';
+  doc.getElementById('cursorError').textContent = '';
+  doc.getElementById('speedVal').textContent = '7';
+  await step('speed', 1);
+  assert.ok(sent.includes('SS,1:8'), JSON.stringify(sent));
+  assert.match(
+    doc.getElementById('cursorError').textContent,
+    /reject/i,
+    'the error must land in the card the stepper lives in',
+  );
+  assert.equal(doc.getElementById('sapError').textContent, '', 'the Sip & Puff card must stay silent');
+  assert.equal(doc.getElementById('speedVal').textContent, '7', 'the optimistic value reverted');
+  testHooks.detach();
+});

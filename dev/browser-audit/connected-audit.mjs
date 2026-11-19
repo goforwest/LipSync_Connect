@@ -767,7 +767,9 @@ export async function runConnectedAudit({ origin, chromium, executablePath }) {
     note(
       'disconnect',
       disc.status === 'Not connected' &&
-        disc.title === 'LipSync Connect' &&
+        // Title composes the open section's group + app + connection state
+        // (ui/sections.js refreshDocumentTitle); disconnected = no suffix.
+        disc.title === 'Device — LipSync Connect' &&
         disc.connectEnabled &&
         disc.dimmed === 0 &&
         disc.cmdDisabled &&

@@ -2672,6 +2672,13 @@ html.dark-mode .guide-card {
   gap: 4px;
   flex: 0 0 auto;
 }
+.nav-hint {
+  margin: 10px 11px 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
 .circle-trigger {
   width: 76px;
   height: 76px;

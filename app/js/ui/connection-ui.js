@@ -4,6 +4,7 @@
 // serial/connection.js and services/settings-service.js tell it.
 import { serialApi } from '../serial/transport.js';
 import { $ } from './dom.js';
+import { setConnectedForTitle } from './sections.js';
 import { isSelfTestLocked } from '../services/selftest.js';
 
 export function setStatus(text, connected) {
@@ -179,8 +180,10 @@ export function setConnectedUI(connected) {
   // a disconnect or command timeout mid-load would otherwise leave the header
   // stuck on "Connected" with no port, which the enable-state didn't catch.
   setStatus(connected ? 'Loading…' : 'Not connected', connected);
-  // Tab/breadcrumb state for when the app is backgrounded mid-session.
-  document.title = connected ? 'LipSync Connect — Connected' : 'LipSync Connect';
+  // Tab/breadcrumb state for when the app is backgrounded mid-session. The
+  // connection suffix lives in the composed title (sections.js owns the
+  // writer) without a module cycle.
+  setConnectedForTitle(connected);
   updateConnectionGating();
   if (!connected) {
     ['homeModel', 'homeVersion', 'homeMode'].forEach((id) => {

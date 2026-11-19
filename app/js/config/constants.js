@@ -222,8 +222,8 @@ export const BT_HOSTS_MIN_FIRMWARE = [4, 8, 0];
 export const HARD_MARGIN_HPA = 1.0;
 
 export const STEP_TARGETS = {
-  speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10 },
-  scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10 },
+  speed: { endpoint: 'SS', valueId: 'speedVal', meter: 'speedMeter', min: 1, max: 10, errorId: 'cursorError' },
+  scroll: { endpoint: 'SL', valueId: 'scrollVal', meter: 'scrollMeter', min: 1, max: 10, errorId: 'cursorError' },
   // Acceleration (AV) is bipolar: -10 (slowest, most precise) .. 10 (fastest);
   // 0 is the linear no-op default. Its meter is the one center-zero variant
   // (meter--bipolar): 20 segments, |value| lit from the center outward, sign
@@ -234,9 +234,17 @@ export const STEP_TARGETS = {
     meter: 'accelMeter',
     min: -10,
     max: 10,
+    errorId: 'cursorError',
     minFirmware: ACCELERATION_MIN_FIRMWARE,
   },
-  brightness: { endpoint: 'LL', valueId: 'brightnessVal', meter: 'brightnessMeter', min: 0, max: 10 },
+  brightness: {
+    endpoint: 'LL',
+    valueId: 'brightnessVal',
+    meter: 'brightnessMeter',
+    min: 0,
+    max: 10,
+    errorId: 'feedbackError',
+  },
   // ---- Float and window steppers ----
   // These were typed-number fields first (see index.html's "Set exact…"
   // disclosures); the stepper buttons are now the primary interaction — a

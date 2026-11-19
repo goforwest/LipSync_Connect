@@ -173,6 +173,7 @@
               ><span class="circle-label">Help &amp; support</span>
             </button>
           </div>
+          <p class="hint nav-hint">Tip: use the &larr; &rarr; arrow keys to move between sections.</p>
         </nav>
       </aside>
 
@@ -710,6 +711,7 @@
                   <span class="meter" id="scrollMeter" aria-hidden="true"></span>
                 </div>
               </div>
+              <div class="error" id="cursorError" role="alert"></div>
               <div
                 class="cursor-preview"
                 id="cursorResponsePreview"
@@ -904,6 +906,7 @@
                       max="149.99"
                       step="0.25"
                       inputmode="decimal"
+                      enterkeyhint="done"
                       autocomplete="off"
                       aria-label="New sip threshold"
                       aria-describedby="sapError"
@@ -921,6 +924,7 @@
                       max="149.99"
                       step="0.25"
                       inputmode="decimal"
+                      enterkeyhint="done"
                       autocomplete="off"
                       aria-label="New puff threshold"
                       aria-describedby="sapError"
@@ -1051,6 +1055,7 @@
                       max="149.99"
                       step="0.25"
                       inputmode="decimal"
+                      enterkeyhint="done"
                       autocomplete="off"
                       aria-label="New hard sip threshold"
                       aria-describedby="sapError"
@@ -1068,6 +1073,7 @@
                       max="149.99"
                       step="0.25"
                       inputmode="decimal"
+                      enterkeyhint="done"
                       autocomplete="off"
                       aria-label="New hard puff threshold"
                       aria-describedby="sapError"
@@ -1264,6 +1270,7 @@
                     max="2500"
                     step="50"
                     inputmode="numeric"
+                    enterkeyhint="done"
                     autocomplete="off"
                     aria-label="New short input window in milliseconds"
                     aria-describedby="sapError"
@@ -1281,6 +1288,7 @@
                     max="6000"
                     step="50"
                     inputmode="numeric"
+                    enterkeyhint="done"
                     autocomplete="off"
                     aria-label="New long input window in milliseconds"
                     aria-describedby="sapError"
@@ -1298,6 +1306,7 @@
                     max="10000"
                     step="50"
                     inputmode="numeric"
+                    enterkeyhint="done"
                     autocomplete="off"
                     aria-label="New max input window in milliseconds"
                     aria-describedby="sapError"
@@ -1716,6 +1725,7 @@
                   max="0.99"
                   step="0.01"
                   inputmode="decimal"
+                  enterkeyhint="done"
                   autocomplete="off"
                   aria-describedby="formError"
                 />
@@ -1732,6 +1742,7 @@
                   max="0.99"
                   step="0.01"
                   inputmode="decimal"
+                  enterkeyhint="done"
                   autocomplete="off"
                   aria-describedby="formError"
                 />
@@ -1895,6 +1906,7 @@
                 <span class="meter" id="brightnessMeter" aria-hidden="true"></span>
               </div>
               <p class="hint">0–10, applies immediately. Hub LEDs blink to preview each change.</p>
+              <div class="error" id="feedbackError" role="alert"></div>
             </div>
           </section>
 

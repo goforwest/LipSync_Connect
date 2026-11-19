@@ -842,7 +842,12 @@ export async function step(target, delta) {
     return;
   pendingSteps.add(target);
   updateStepButtons();
-  const errorId = cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ' ? 'formError' : 'sapError';
+  // Error routing: each target names the error element in ITS OWN card, so a
+  // failed write surfaces on the page the user is looking at — not in some
+  // other card's error box behind a closed section. Targets without an
+  // explicit errorId keep the historical boxes (thresholds → sapError,
+  // deadzones → formError), which are the correct cards for them.
+  const errorId = cfg.errorId ?? (cfg.endpoint === 'IZ' || cfg.endpoint === 'OZ' ? 'formError' : 'sapError');
   try {
     const cur = parseFloat(String($(cfg.valueId)?.textContent ?? '').trim());
     if (!Number.isFinite(cur)) return;
