@@ -29,6 +29,11 @@ test('local firmware build pins the complete release external-library set', () =
     'Adafruit LPS2X@2.0.6',
     'Adafruit LPS35HW@1.0.6',
     'Adafruit SSD1306@2.5.17',
+    // (5.0.1) TinyUSB is pinned explicitly: the Seeed core bundles 1.7.0, and
+    // without the user-dir pin the release links a different USB stack than
+    // every Maker-Guide build (mirrors build_firmware.yml's install list —
+    // the cross-repo protocol gate asserts the two agree).
+    'Adafruit TinyUSB Library@3.7.3',
     'Adafruit Unified Sensor@1.1.15',
     'ArduinoJson@7.4.3',
   ]);

@@ -82,6 +82,7 @@ arduino-cli lib install --no-deps \
   "Adafruit LPS2X@2.0.6" \
   "Adafruit LPS35HW@1.0.6" \
   "Adafruit SSD1306@2.5.17" \
+  "Adafruit TinyUSB Library@3.7.3" \
   "Adafruit Unified Sensor@1.1.15" \
   "ArduinoJson@7.4.3"
 
@@ -95,6 +96,7 @@ expected = {
     "Adafruit LPS2X": "2.0.6",
     "Adafruit LPS35HW": "1.0.6",
     "Adafruit SSD1306": "2.5.17",
+    "Adafruit TinyUSB Library": "3.7.3",
     "Adafruit Unified Sensor": "1.1.15",
     "ArduinoJson": "7.4.3",
 }

@@ -18,6 +18,15 @@ export const serialBus = Object.seal({
   lineWaiters: [],
   /** @type {Promise<any>} */
   cmdQueue: Promise.resolve(),
+  // (app 5.0.1 audit) The named-refusal capture: device.js handleLine stores
+  // the most recent "ERROR: …" line here; sendCommand clears it just before
+  // its bytes go out and reads it when a FAIL completion lands, so a thrown
+  // rejection carries the firmware's named reason (the softwareResetGate's
+  // "retry in a moment", the switch-window/calibration refusals, the
+  // settings-budget refusals) instead of the generic
+  // "Device rejected command." Attribution is exactly one exchange.
+  /** @type {string | null} */
+  lastRefusalText: null,
 });
 
 export const pendingSteps = new Set();

@@ -267,6 +267,14 @@ export function handleLine(line) {
   if (!isDebug && !(quietExchangeActive() && isCommandCompletion(parseResponse(line)))) {
     log('<< ' + line, 'log-rx');
   }
+  // (app 5.0.1 audit) Named refusal capture: the firmware answers a refused
+  // command with its FAIL line plus a named "ERROR: … refused …" (or a
+  // settings-budget ERROR) line. sendCommand clears serialBus.lastRefusalText
+  // just before its bytes go out and reads it when the FAIL lands, so the
+  // thrown error carries the reason and its retry guidance instead of the
+  // generic "Device rejected command." — attribution is exactly this
+  // exchange, and an unsolicited ERROR is cleared by the next send.
+  if (/^ERROR: /.test(line)) serialBus.lastRefusalText = line.trim();
   applyDeviceResponse(line);
   if (isDebug) return;
   for (let i = 0; i < serialBus.lineWaiters.length; i++) {

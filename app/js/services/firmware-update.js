@@ -789,6 +789,16 @@ async function restoreSettingsSnapshotInner(snapshot) {
       // sending a command guaranteed to fail during a downgrade restore.
       const normalizedRaw = ep === 'LM' && String(raw) === '3' && !deviceFirmwareAtLeast(4, 4, 0) ? '2' : raw;
       const value = FLOAT_ENDPOINTS.includes(ep) ? fmtApiFloat(normalizedRaw) : String(normalizedRaw);
+      // (app 5.0.1 audit) WM=10000 (the five-digit maximum) only became
+      // legal for the firmware's line-length validator in 4.5.0 — the
+      // interactive write path refuses it below 4.5.0 (settings-service), so
+      // the restore path must not send a command a 4.4.0-generation device
+      // refuses as malformed. Named as a failure so the wizard's restore
+      // summary carries the reason.
+      if (ep === 'WM' && String(value) === '10000' && !deviceFirmwareAtLeast(4, 5, 0)) {
+        failures.push('WM: the 10000 ms maximum needs firmware 4.5.0 or newer');
+        continue;
+      }
       try {
         await sendCommand(`${ep},1:${value}`);
         consecutive = 0;
@@ -2171,7 +2181,20 @@ async function resolveLatestRelease() {
   // with the release the API reports as latest. A parsable tag that does
   // not match the manifest's version means the published artifacts do not
   // describe this release: refuse instead of flashing a version nothing
-  // vouches for. (Unparsable tags cannot be cross-checked and are allowed.)
+  // vouches for. (app 5.0.1 audit) The cross-check is only as strong as its
+  // parse: a prefix parse read "V5.0.0-beta2" as 5.0.0 — equal to the
+  // manifest — and an empty/garbage tag skipped the check entirely; both
+  // sides then agreed on a package the tag does not vouch for. Require a
+  // full dotted-number tag (the release pipeline's own tag↔LSConfig gate
+  // guarantees exactly that shape) and refuse anything else. The gate
+  // applies only to release-backed entries: the dev-server/local-manifest
+  // path (the bench's flash-local workflow) has NO tag at all — its
+  // packages are verified against their own manifest's checksum instead.
+  if (entry.tagName != null && !/^v?\d+(\.\d+)*$/i.test(String(entry.tagName))) {
+    throw new Error(
+      `The latest release tag (${entry.tagName}) is not a plain firmware version — refusing to install it.`,
+    );
+  }
   const tagVsManifest = compareVersions(manifest.firmwareVersion, entry.tagName);
   if (tagVsManifest !== null && tagVsManifest !== 0) {
     throw new Error(
@@ -2198,7 +2221,10 @@ async function downloadReleasePackage(entry, signal) {
   }
   const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
   const sha256 = await sha256Hex(zipBuffer);
-  if (sha256 !== manifest.files.dfu.sha256) {
+  // (app 5.0.1 audit) Case-normalized: both the app and CI produce lowercase
+  // hex, but a hand-built manifest with uppercase would be refused as a
+  // checksum mismatch with misleading copy.
+  if (sha256.toLowerCase() !== String(manifest.files.dfu.sha256).toLowerCase()) {
     throw new Error(
       'The downloaded firmware package did not match its published checksum — the published artifacts may have changed. ' +
         'Click “Check for updates” and retry the update.',

@@ -263,6 +263,9 @@ export function sendCommand(
     // whether or not anyone is still listening (SR,1:1 reboots it).
     if (aborted()) throw commandAbortError();
     const { expectedCommand, expectedValue, shouldEchoValue } = commandMatchDetails(cmd);
+    // (app 5.0.1 audit) Refusal-text attribution window: clear before the
+    // bytes go out so only THIS exchange's named ERROR lines can attach.
+    serialBus.lastRefusalText = null;
     await sendRaw(cmd, quiet);
     let line;
     try {
@@ -283,7 +286,15 @@ export function sendCommand(
       throw e;
     }
     const resp = parseResponse(line);
-    if (!resp.ok) throw new Error('Device rejected command.');
+    // (app 5.0.1 audit) 5.0.0's named refusal lines (the softwareResetGate's
+    // "retry in a moment", the switch-window/calibration refusals, the
+    // settings-budget refusals) reach the session log but not the user —
+    // every call site surfaced the generic "Device rejected command." Attach
+    // the named line (handleLine captures it while the exchange runs) so the
+    // reason and its retry guidance reach the surface that prints e.message.
+    if (!resp.ok) {
+      throw new Error(serialBus.lastRefusalText || 'Device rejected command.');
+    }
     return resp;
   };
   const thisCmd = /** @type {Promise<any>} */ (serialBus.cmdQueue.then(run, run));
