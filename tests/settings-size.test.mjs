@@ -38,9 +38,30 @@ test(
   () => {
     const configSrc = readFileSync(CONFIG, 'utf8');
 
-    const jsonMatch = configSrc.match(/#define\s+CONF_SETTINGS_JSON\s+"(.*)"/);
-    assert.ok(jsonMatch, 'CONF_SETTINGS_JSON must exist in LSConfig.h');
-    const defaults = JSON.parse(jsonMatch[1].replace(/\\"/g, '"'));
+    // (firmware round 4) The seed's VN fields are macro-composed
+    // (CONF_LIPSYNC_STR(CONF_LIPSYNC_VERSION_MAJOR) etc.), so the old
+    // single-literal regex parsed the MACRO TEXT as the VN values and the
+    // size math ran against a mutated document. Expand the macros, then
+    // concatenate the C adjacent string literals exactly like the
+    // preprocessor does.
+    const expandSeedDefine = (src, name) => {
+      const line = src.split('\n').find((l) => new RegExp(`#define\\s+${name}\\b`).test(l));
+      if (!line) return null;
+      const versions = {};
+      for (const [, vName, vValue] of src.matchAll(/#define\s+(CONF_LIPSYNC_VERSION_(?:MAJOR|MINOR|REV))\s+(\d+)/g)) {
+        versions[vName] = vValue;
+      }
+      const expanded = line.replace(
+        /CONF_LIPSYNC_STR\((CONF_LIPSYNC_VERSION_(?:MAJOR|MINOR|REV))\)/g,
+        (_, vName) => '"' + (versions[vName] ?? '') + '"',  // stringize -> a QUOTED literal (the C # operator produces "5", not 5)
+      );
+      const fragments = [...expanded.matchAll(/"(?:[^"\\]|\\.)*"/g)].map((m) => m[0].slice(1, -1));
+      return fragments.length > 0 ? fragments.join('') : null;
+    };
+
+    const seedLiteral = expandSeedDefine(configSrc, 'CONF_SETTINGS_JSON');
+    assert.ok(seedLiteral !== null, 'CONF_SETTINGS_JSON must exist in LSConfig.h');
+    const defaults = JSON.parse(seedLiteral.replace(/\\"/g, '"'));
 
     const budgetMatch = configSrc.match(/#define\s+CONF_SETTINGS_FILE_BUDGET\s+(\d+)/);
     assert.ok(budgetMatch, 'CONF_SETTINGS_FILE_BUDGET must exist in LSConfig.h — the write-time guard depends on it');

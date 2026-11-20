@@ -74,11 +74,31 @@ else ok(`all ${endpoints.length} endpoints match [A-Z]{1,4} (SUCCESS,0:EP,0:v pa
 // ---- 3. Settings JSON keys vs the keys the firmware reads ------------------
 console.log('\n[3] default settings JSON vs mem.read* keys');
 const configSrc = readFw('LSConfig.h');
+// (firmware round 4) The seed defines may compose their values from macros —
+// CONF_SETTINGS_JSON's VN fields are stringized version macros
+// (CONF_LIPSYNC_STR(CONF_LIPSYNC_VERSION_MAJOR) etc.), so the naive
+// single-literal regex parsed the MACRO TEXT as the VN values (a mutated
+// seed that still parsed, i.e. a silent gate lie). Expand the macros, then
+// concatenate the C adjacent string literals exactly like the preprocessor.
+const expandSeedDefine = (src, name) => {
+  const line = src.split('\n').find((l) => new RegExp(`#define\\s+${name}\\b`).test(l));
+  if (!line) return null;
+  const versions = {};
+  for (const [, vName, vValue] of src.matchAll(/#define\s+(CONF_LIPSYNC_VERSION_(?:MAJOR|MINOR|REV))\s+(\d+)/g)) {
+    versions[vName] = vValue;
+  }
+  const expanded = line.replace(
+    /CONF_LIPSYNC_STR\((CONF_LIPSYNC_VERSION_(?:MAJOR|MINOR|REV))\)/g,
+    (_, vName) => '"' + (versions[vName] ?? '') + '"',  // stringize -> a QUOTED literal (the C # operator produces "5", not 5)
+  );
+  const fragments = [...expanded.matchAll(/"(?:[^"\\]|\\.)*"/g)].map((m) => m[0].slice(1, -1));
+  return fragments.length > 0 ? fragments.join('') : null;
+};
 const parseSeed = (name) => {
-  const m = configSrc.match(new RegExp(`#define\\s+${name}\\s+"(.*)"`));
-  if (!m) return { json: null, error: `${name} not found` };
+  const literal = expandSeedDefine(configSrc, name);
+  if (literal === null) return { json: null, error: `${name} not found or carries no string literal` };
   try {
-    return { json: JSON.parse(m[1].replace(/\\"/g, '"')), error: null };
+    return { json: JSON.parse(literal.replace(/\\"/g, '"')), error: null };
   } catch (e) {
     return { json: null, error: e.message };
   }
