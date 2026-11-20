@@ -2299,7 +2299,10 @@ button.ready-chip:hover:not(:disabled) {
 .write-confirm-undo {
   pointer-events: auto;
   padding: 4px 14px;
-  min-height: 34px;
+  /* The chip is the one safety net for every device write, and Undo is its
+     only control — hold it to the 44px touch-target floor like any primary
+     control (34px was below the app's own invariant). */
+  min-height: 44px;
   font-size: 0.85rem;
   border-radius: 999px;
   background: transparent;
