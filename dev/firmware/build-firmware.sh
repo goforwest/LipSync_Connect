@@ -120,11 +120,25 @@ PY
 echo "==> Compiling LipSync firmware $version ($FQBN)"
 build_dir=$(mktemp -d)
 trap 'rm -rf "$build_dir"' EXIT
+
+# (release polish) Hermetic build, mirroring build_firmware.yml: map the
+# Arduino data directory (the only absolute __FILE__ prefix that survives
+# linkage — the core-bundled Adafruit_LittleFS) and this script's repo root
+# to fixed tokens, so a script-built image hashes identically to the CI
+# release image. Same map-to tokens, same firmware, same hashes.
+case "$(uname -s)" in
+  Darwin) arduino_data_dir="${ARDUINO_DATA_DIR:-$HOME/Library/Arduino15}" ;;
+  *)      arduino_data_dir="${ARDUINO_DATA_DIR:-$HOME/.arduino15}" ;;
+esac
+map_flags="-ffile-prefix-map=$arduino_data_dir=arduino-data -ffile-prefix-map=$FIRMWARE_REPO=."
 arduino-cli compile \
   --fqbn "$FQBN" \
   --warnings all \
   --build-path "$build_dir" \
   --libraries "$FIRMWARE_REPO/Build_Files/Firmware_Files/Libraries" \
+  --build-property "compiler.c.extra_flags=$map_flags" \
+  --build-property "compiler.cpp.extra_flags=$map_flags" \
+  --build-property "compiler.S.extra_flags=$map_flags" \
   "$SKETCH_DIR"
 
 # Prove which copy the resolver actually compiled. This fails closed if a
