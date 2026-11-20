@@ -3661,6 +3661,15 @@ html.dark-mode .guide-card {
   border: none;
   transition: background 0.2s ease;
 }
+/* Hit-area extender: the switch stays 32px tall (its 56×32 shape is the
+   affordance), but a transparent ::before puts the tappable surface at the
+   44px floor without a visual redesign. 6px still clears the 10px gap to
+   the neighbouring label in the popup row. */
+.toggle::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
 .toggle::after {
   content: '';
   position: absolute;
@@ -3697,10 +3706,10 @@ html.dark-mode .guide-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
@@ -3838,7 +3847,9 @@ html.dark-mode .guide-card {
   border-radius: 6px;
   background: var(--field);
   cursor: pointer;
-  min-height: 36px;
+  /* Opens the browser color picker — the only way to reach these eight
+     colors on touch, so the swatch holds the 44px floor too. */
+  min-height: 44px;
   flex: none;
 }
 /* Same hover affordance as the text fields: the edge darkens so the swatch
