@@ -56,6 +56,17 @@ function saveTheme(theme) {
 function effectiveDark(theme) {
   return typeof theme.darkMode === 'boolean' ? theme.darkMode : osPrefersDark();
 }
+// Browser chrome follows the effective page background: the fixed dark shade
+// in dark mode, the page background otherwise — including a custom one, so a
+// themed app doesn't leave the address bar painted in the default color.
+// Uses the *effective* mode: in auto (no stored darkMode) the OS decides, so
+// a live OS flip must recolor the meta too — theme.darkMode would be undefined.
+function syncMetaTheme(theme) {
+  const meta = $$('meta[name="theme-color"]');
+  if (!meta) return;
+  const custom = theme.colors?.['--bg'];
+  meta.content = effectiveDark(theme) ? custom || '#10151c' : custom || '#f5f7f8';
+}
 function applyTheme(theme) {
   const html = document.documentElement;
   html.classList.toggle('dark-mode', !!theme.darkMode);
@@ -65,10 +76,7 @@ function applyTheme(theme) {
   if (theme.colors) {
     Object.entries(theme.colors).forEach(([key, val]) => html.style.setProperty(key, val));
   }
-  const meta = $$('meta[name="theme-color"]');
-  // Use the *effective* mode: in auto (no stored darkMode) the OS decides, so
-  // a live OS flip must recolor the meta too — theme.darkMode would be undefined.
-  if (meta) meta.content = effectiveDark(theme) ? '#10151c' : '#f5f7f8';
+  syncMetaTheme(theme);
   // UI scale: body zoom scales the whole interface (text, spacing, plots,
   // fixed chrome) — the app is Chromium-only (Web Serial), so zoom is the
   // honest lever; a rem-only font scale would leave px paddings behind and
@@ -205,6 +213,10 @@ export function initSettings() {
       t.colors = t.colors || {};
       t.colors[cssVar] = input.value;
       saveTheme(t);
+      // Dragging the background recolors the page live; keep the browser
+      // chrome (meta theme-color) on the same color instead of waiting for
+      // the next applyTheme pass.
+      if (cssVar === '--bg') syncMetaTheme(t);
       // Live-recheck contrast as the picker drags — the latch in the guard
       // keeps the warning from spamming a notification per input event.
       warnLowContrastTheme();
