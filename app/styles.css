@@ -805,7 +805,9 @@ progress {
 }
 .switch-tab {
   padding: 6px 16px;
-  min-height: 36px;
+  /* The Mouse/Gamepad selector is the first control on every switch jack —
+     a core tuning control, so it holds the 44px touch-target floor. */
+  min-height: 44px;
   font-size: 0.85rem;
   border-radius: 999px;
   background: transparent;
@@ -2853,7 +2855,7 @@ html.dark-mode .guide-card {
   mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
 .section-tab {
-  min-height: 42px;
+  min-height: 44px;
   min-width: 44px;
   padding: 8px 15px;
   border-radius: 999px;
@@ -4625,7 +4627,7 @@ footer {
   }
   .app-workspace .section-tab {
     flex: 0 0 auto;
-    min-height: 42px;
+    min-height: 44px;
   }
   .app-workspace main {
     padding: 14px 12px 0;
