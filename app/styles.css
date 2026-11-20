@@ -719,7 +719,9 @@ progress {
   font-size: 0.85rem;
 }
 .bt-host-row .btn-small {
-  min-height: 36px;
+  /* Forget actions erase pairing state — they stay as reachable as the
+     rest of the app's controls, not a 36px exception on a small row. */
+  min-height: 44px;
   min-width: 0;
   padding: 6px 12px;
   font-size: 0.85rem;
@@ -1803,7 +1805,9 @@ summary {
 .health-history-clear {
   margin-left: 8px;
   padding: 4px 12px;
-  min-height: 32px;
+  /* Clearing erases recorded health history — smallest button in the app
+     until now (32px); destructive controls get the full 44px floor. */
+  min-height: 44px;
   font-size: 0.8rem;
   border-radius: 999px;
   background: transparent;
@@ -2425,8 +2429,10 @@ button.ready-chip:hover:not(:disabled) {
 }
 #notification .notif-close {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  /* The × is the toast's only dismiss on touch — hold the 44px floor even
+     though the toast is transient; the bar simply grows with it. */
+  width: 44px;
+  height: 44px;
   padding: 0;
   display: flex;
   align-items: center;
